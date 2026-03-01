@@ -1,0 +1,22 @@
+[Unit]
+Description=WeChat Points & Stock Monitor Service
+After=network.target
+
+[Service]
+# 修改为你的用户名
+User=root
+Group=root
+
+# 修改为你的项目实际路径
+WorkingDirectory=/root/wechat-points-stock
+Environment="PATH=/root/wechat-points-stock/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+# 启动命令
+ExecStart=/root/wechat-points-stock/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 5711 --workers 2
+
+# 自动重启配置
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

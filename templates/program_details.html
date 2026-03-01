@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}{{ program.program_name }} - 用户积分详情{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ program.program_name or program.program_id }} <small class="text-muted fs-6">用户积分排行</small></h2>
+        <a href="/programs" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> 返回列表</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>排名</th>
+                            <th>用户昵称</th>
+                            <th class="d-none d-md-table-cell">Wechat ID</th>
+                            <th>当前积分</th>
+                            <th>更新时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in user_points %}
+                        <tr>
+                            <td>
+                                {% if loop.index == 1 %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-trophy-fill"></i> 1</span>
+                                {% elif loop.index == 2 %}
+                                <span class="badge bg-secondary"><i class="bi bi-trophy-fill"></i> 2</span>
+                                {% elif loop.index == 3 %}
+                                <span class="badge bg-danger"><i class="bi bi-trophy-fill"></i> 3</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">{{ loop.index }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span data-bs-toggle="tooltip" data-bs-html="true" title="设备: {{ item.account.device or '未设置' }}<br>手机号: {{ item.account.phone or '未设置' }}" style="cursor: help;">
+                                    {{ item.account.nickname or '未设置' }}
+                                </span>
+                            </td>
+                            <td class="d-none d-md-table-cell">{{ item.account.wechat_id }}</td>
+                            <td>
+                                {% if item.points == 0 %}
+                                <span class="badge bg-secondary">未注册</span>
+                                {% else %}
+                                <span class="fw-bold text-primary">{{ item.points }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">
+                                {% if item.report_time %}
+                                {{ item.report_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">暂无积分数据</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
+</script>
+{% endblock %}

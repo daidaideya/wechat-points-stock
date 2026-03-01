@@ -1,0 +1,46 @@
+from sqlalchemy.orm import Session
+from app import models
+from datetime import datetime, timedelta
+
+def get_or_create_settings(db: Session) -> models.SystemSettings:
+    settings = db.query(models.SystemSettings).first()
+    if not settings:
+        settings = models.SystemSettings(
+            max_log_entries=10000,
+            max_retention_days=30,
+            updated_at=datetime.utcnow()
+        )
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+def prune_points_history(db: Session, max_entries: int, max_days: int):
+    if max_days is not None and max_days > 0:
+        threshold = datetime.utcnow() - timedelta(days=max_days)
+        db.query(models.PointsHistory).filter(models.PointsHistory.report_time < threshold).delete()
+    if max_entries is not None and max_entries > 0:
+        # Check current count first to avoid expensive query if not needed
+        # But count() is also a query. 
+        # The subquery approach is: get IDs beyond limit.
+        # If total < max_entries, offset returns empty.
+        ids_to_delete = [
+            r.id for r in db.query(models.PointsHistory.id)
+            .order_by(models.PointsHistory.report_time.desc())
+            .offset(max_entries).all()
+        ]
+        if ids_to_delete:
+            db.query(models.PointsHistory).filter(models.PointsHistory.id.in_(ids_to_delete)).delete(synchronize_session=False)
+
+def prune_stock_history(db: Session, max_entries: int, max_days: int):
+    if max_days is not None and max_days > 0:
+        threshold = datetime.utcnow() - timedelta(days=max_days)
+        db.query(models.StockHistory).filter(models.StockHistory.change_time < threshold).delete()
+    if max_entries is not None and max_entries > 0:
+        ids_to_delete = [
+            r.id for r in db.query(models.StockHistory.id)
+            .order_by(models.StockHistory.change_time.desc())
+            .offset(max_entries).all()
+        ]
+        if ids_to_delete:
+            db.query(models.StockHistory).filter(models.StockHistory.id.in_(ids_to_delete)).delete(synchronize_session=False)
