@@ -918,6 +918,22 @@ async def stock_list(
     # Group products by program
     products_by_program = {}
     for product in products:
+        # Normalize image url for direct inline thumbnail display
+        display_image_url = None
+        if product.image_local_path:
+            path_str = str(product.image_local_path)
+            if path_str.startswith("/static/"):
+                display_image_url = path_str
+            elif path_str.startswith("static/"):
+                display_image_url = "/" + path_str
+            else:
+                display_image_url = path_str
+        elif product.image_url:
+            display_image_url = str(product.image_url)
+
+        # Attach transient attribute for template rendering
+        product.display_image_url = display_image_url
+
         program_id = product.program_id
         if program_id not in products_by_program:
             program_name = product.program.program_name if product.program else program_id

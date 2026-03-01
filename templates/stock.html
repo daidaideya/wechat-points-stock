@@ -51,51 +51,47 @@
             </h2>
             <div id="collapse{{ program_id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ program_id }}">
                 <div class="accordion-body">
-                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center mb-3 pb-2 border-bottom">
-                        <span class="text-muted small me-3 d-none d-md-inline">管理操作:</span>
-                        <div class="d-flex flex-wrap w-100 w-md-auto gap-2">
-                            <div class="btn-group btn-group-sm flex-grow-1 flex-md-grow-0">
-                                <button class="btn btn-outline-secondary program-btn-sort flex-grow-1 flex-md-grow-0" onclick="toggleProductSort('{{ program_id }}', this)" title="按积分从低到高排序商品">
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between mb-3 pb-2 border-bottom gap-2">
+                        <div class="text-muted small">常用操作</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary program-btn-sort" onclick="toggleProductSort('{{ program_id }}', this)" title="按积分排序（升序/降序/默认）">
                                     <i class="bi bi-sort-numeric-down me-1"></i>排序
                                 </button>
-                                <button class="btn btn-outline-secondary program-btn-affordable flex-grow-1 flex-md-grow-0" onclick="toggleFilter('{{ program_id }}', 'affordable', this)" title="仅展示当前可兑换商品">
+                                <button class="btn btn-outline-secondary program-btn-affordable" onclick="toggleFilter('{{ program_id }}', 'affordable', this)" title="仅展示可兑换商品">
                                     <i class="bi bi-check-circle me-1"></i>可兑换
                                 </button>
-                                <button class="btn btn-outline-secondary program-btn-instock flex-grow-1 flex-md-grow-0" onclick="toggleFilter('{{ program_id }}', 'instock', this)" title="仅展示有库存商品">
+                                <button class="btn btn-outline-secondary program-btn-instock" onclick="toggleFilter('{{ program_id }}', 'instock', this)" title="仅展示有库存商品">
                                     <i class="bi bi-box-seam me-1"></i>有货
                                 </button>
                             </div>
-                            <div class="d-flex flex-grow-1 flex-md-grow-0 gap-2">
-                                <a href="#" onclick="showRankingModal(event, '{{ program_id }}')" class="btn btn-sm btn-outline-primary flex-grow-1 flex-md-grow-0 text-nowrap" title="查看用户积分列表">
-                                    <i class="bi bi-box-arrow-up-right me-1"></i>详情
-                                </a>
-                                <button class="btn btn-sm btn-outline-danger flex-grow-1 flex-md-grow-0 text-nowrap" onclick="deleteProgram('{{ program_id }}', '{{ program_data.program_name }}');" title="删除小程序">
-                                    <i class="bi bi-trash me-1"></i>删除
-                                </button>
-                            </div>
+                            <a href="#" onclick="showRankingModal(event, '{{ program_id }}')" class="btn btn-sm btn-outline-primary text-nowrap" title="查看用户积分列表">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>积分详情
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger text-nowrap" onclick="deleteProgram('{{ program_id }}', '{{ program_data.program_name }}');" title="删除小程序">
+                                <i class="bi bi-trash me-1"></i>删除
+                            </button>
                         </div>
                     </div>
-                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-2" id="products-{{ program_id }}" data-max-points="{{ program_data.max_user_points }}">
+                    <div class="stock-list" id="products-{{ program_id }}" data-max-points="{{ program_data.max_user_points }}">
                         {% for product in program_data.products %}
-                        <div class="col product-item" data-points="{{ product.points }}" data-stock="{{ product.stock }}">
-                            <div class="card h-100 shadow-sm border-0 bg-light">
-                                <div class="card-body p-2 d-flex align-items-center justify-content-between">
-                                    <div class="me-2 text-wrap" style="min-width: 0;">
-                                        <span class="fw-bold text-dark" style="font-size: 0.9rem;">{{ product.product_name }}</span>
-                                    </div>
-                                    <div class="d-flex flex-column align-items-end flex-shrink-0 ms-2">
-                                        <span class="text-danger fw-bold small mb-1">{{ product.points }} 积分</span>
-                                        <div class="d-flex align-items-center">
-                                            <span class="badge {{ 'bg-success' if product.stock > 0 else 'bg-secondary' }} rounded-pill me-1" style="font-size: 0.7rem;">
-                                                库: {{ product.stock }}
-                                            </span>
-                                            {% if product.image_url or product.image_local_path %}
-                                            <i class="bi bi-image text-primary" style="cursor: pointer; font-size: 0.9rem;" 
-                                               onclick="event.stopPropagation(); showImage(this, '{{ product.image_local_path or product.image_url }}')" 
-                                               title="查看图片"></i>
-                                            {% endif %}
-                                        </div>
-                                    </div>
+                        <div class="product-item stock-row" data-points="{{ product.points }}" data-stock="{{ product.stock }}">
+                            <div class="stock-thumb-wrap">
+                                {% if product.display_image_url %}
+                                <img src="{{ product.display_image_url }}" alt="{{ product.product_name }}" class="stock-thumb stock-thumb-clickable" loading="lazy" referrerpolicy="no-referrer" onclick="showImagePreview('{{ product.display_image_url }}')" onerror="this.style.display='none';this.nextElementSibling.classList.remove('d-none');">
+                                <div class="stock-thumb-placeholder d-none"><i class="bi bi-image"></i></div>
+                                {% else %}
+                                <div class="stock-thumb-placeholder"><i class="bi bi-image"></i></div>
+                                {% endif %}
+                            </div>
+                            <div class="stock-main">
+                                <div class="stock-title" title="{{ product.product_name }}">{{ product.product_name }}</div>
+                                <div class="stock-meta text-muted">{{ program_data.program_name }}</div>
+                            </div>
+                            <div class="stock-side text-end">
+                                <div class="stock-points">{{ product.points }} 积分</div>
+                                <div>
+                                    <span class="badge {{ 'bg-success' if product.stock > 0 else 'bg-secondary' }}">库存 {{ product.stock }}</span>
                                 </div>
                             </div>
                         </div>
@@ -145,7 +141,7 @@
         </div>
     </div>
 
-    <!-- Image Preview Modal -->
+<!-- Image Preview Modal -->
 <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content bg-transparent border-0 shadow-none">
@@ -162,44 +158,117 @@
 </div>
 
 <style>
+.stock-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.stock-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    background: #f8f9fa;
+    border: 1px solid #eef1f4;
+    border-radius: 10px;
+    padding: 10px;
+    min-height: 84px;
+}
+.stock-thumb-wrap {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.stock-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #fff;
+    border: 1px solid #e9ecef;
+}
+.stock-thumb-clickable {
+    cursor: zoom-in;
+}
+.stock-thumb-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    border: 1px dashed #cfd4da;
+    color: #98a2ad;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+}
+.stock-main {
+    min-width: 0;
+}
+.stock-title {
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
+}
+.stock-meta {
+    font-size: 12px;
+    margin-top: 3px;
+}
+.stock-side {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2px;
+}
+.stock-points {
+    color: #dc3545;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 0;
+}
+@media (max-width: 1199.98px) {
+    .stock-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 767.98px) {
+    .stock-list {
+        grid-template-columns: 1fr;
+    }
+}
 .preview-close-btn {
     position: absolute;
     top: 10px;
     right: 10px;
     width: 36px;
     height: 36px;
-    background-color: rgba(128, 128, 128, 0.8);
+    background-color: rgba(128, 128, 128, 0.85);
     border: 2px solid white;
     border-radius: 4px;
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.25s ease-in-out;
     z-index: 1060;
     padding: 0;
     cursor: pointer;
 }
 .preview-close-btn:hover {
-    background-color: rgba(80, 80, 80, 1.0);
-    color: white;
-    transform: scale(1.05);
-    box-shadow: 0 0 8px rgba(0,0,0,0.3);
-}
-.preview-close-btn i {
-    font-size: 1.2rem;
-    font-weight: bold;
+    background-color: rgba(80, 80, 80, 1);
 }
 </style>
 
 <script>
-let imagePreviewModal;
 let rankingModalInstance = null;
+let imagePreviewModal = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     imagePreviewModal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
-    // rankingModalInstance will be initialized on demand or here
-    
+
     // Add enter key listener for search
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
@@ -207,12 +276,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Add event listeners for action buttons to stop propagation
-    // Note: Since buttons are now inside the collapse body, they don't trigger accordion toggle.
-    // So explicit stopPropagation is less critical but still good practice if nested.
-    // But we removed the class 'action-btn-group' from header. 
-    // The new container doesn't have this class. Let's remove this legacy code.
+    // 默认保持全部折叠，避免首屏展开造成内存与渲染压力
 });
+
+function showImagePreview(src) {
+    const img = document.getElementById('previewImage');
+    img.src = src;
+    img.alt = 'Product Image';
+    if (imagePreviewModal) {
+        imagePreviewModal.show();
+    }
+}
 
 function showRankingModal(event, programId) {
     event.preventDefault();
@@ -282,20 +356,6 @@ function renderRankingTable(items) {
             </tr>
         `;
     }).join('');
-}
-
-function showImage(icon, src) {
-    const img = document.getElementById('previewImage');
-    img.src = src;
-    img.onerror = function() {
-        this.src = ''; // Clear src or show error placeholder
-        // Optionally show a toast or alert
-        // alert('图片加载失败'); 
-        // Better: replace with error placeholder
-        // For now, let's just keep it simple or set a placeholder
-        // this.src = '/static/img/placeholder_error.png'; 
-    };
-    imagePreviewModal.show();
 }
 
 function searchProducts() {
@@ -370,14 +430,33 @@ function toggleGlobalExpand(btn) {
         const collapses = document.querySelectorAll('.accordion-collapse');
         collapses.forEach(el => {
             // Use Bootstrap Collapse API
-            // Check if instance exists
             let bsCollapse = bootstrap.Collapse.getInstance(el);
             if (!bsCollapse) {
                 bsCollapse = new bootstrap.Collapse(el, { toggle: false });
             }
-            
+
             if (globalState.expanded) {
-                bsCollapse.show();
+                // 只展开“至少有一个可兑换商品”的小程序
+                // 可兑换条件：商品积分 <= 该小程序最高用户积分 且 库存 > 0
+                const programId = el.id.replace('collapse', '');
+                const container = document.getElementById('products-' + programId);
+                let hasRedeemable = false;
+
+                if (container) {
+                    const maxPoints = parseFloat(container.dataset.maxPoints) || 0;
+                    const items = Array.from(container.querySelectorAll('.product-item'));
+                    hasRedeemable = items.some(item => {
+                        const points = parseFloat(item.dataset.points) || 0;
+                        const stock = parseInt(item.dataset.stock) || 0;
+                        return points <= maxPoints && stock > 0;
+                    });
+                }
+
+                if (hasRedeemable) {
+                    bsCollapse.show();
+                } else {
+                    bsCollapse.hide();
+                }
             } else {
                 bsCollapse.hide();
             }
