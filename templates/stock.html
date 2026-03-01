@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block title %}库存管理 - 积分监控系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col-12 col-md-6 mb-3 mb-md-0">
+            <h2 class="mb-2">商品库存管理</h2>
+            <div class="btn-group btn-group-sm flex-wrap w-100 w-md-auto">
+                <button class="btn btn-outline-secondary flex-grow-1 flex-md-grow-0" onclick="toggleGlobalSort(this)" id="globalSortBtn" title="对所有小程序进行商品排序">
+                    <i class="bi bi-sort-numeric-down me-1"></i>全部排序
+                </button>
+                <button class="btn btn-outline-secondary flex-grow-1 flex-md-grow-0" onclick="toggleGlobalFilter('affordable', this)" id="globalAffordableBtn" title="仅展示所有小程序的可兑换商品">
+                    <i class="bi bi-check-circle me-1"></i>可兑换
+                </button>
+                <button class="btn btn-outline-secondary flex-grow-1 flex-md-grow-0" onclick="toggleGlobalFilter('instock', this)" id="globalInstockBtn" title="仅展示所有小程序的有货商品">
+                    <i class="bi bi-box-seam me-1"></i>有货
+                </button>
+                <button class="btn btn-outline-secondary flex-grow-1 flex-md-grow-0" onclick="toggleGlobalExpand(this)" id="globalExpandBtn" title="展开或折叠所有小程序">
+                    <i class="bi bi-arrows-expand me-1"></i>展开
+                </button>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="input-group">
+                <input type="text" id="searchInput" class="form-control" placeholder="搜索商品名称..." value="{{ q or '' }}">
+                <button class="btn btn-primary" onclick="searchProducts()">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion" id="productsAccordion">
+        {% for program_id, program_data in products_by_program.items() %}
+        <div class="accordion-item" data-program-id="{{ program_id }}">
+            <h2 class="accordion-header" id="heading{{ program_id }}">
+                <div class="accordion-button collapsed d-flex align-items-center position-relative" role="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ program_id }}" aria-expanded="false" aria-controls="collapse{{ program_id }}" style="cursor: pointer;">
+                    <div class="d-flex align-items-center flex-grow-1" style="min-width: 0;">
+                        <span class="me-2 text-primary fw-bold text-truncate" style="max-width: 200px;">
+                            <i class="bi bi-app-indicator me-1"></i>{{ program_data.program_name }}
+                        </span>
+                        <span class="badge bg-secondary ms-2 flex-shrink-0">{{ program_data.products|length }}</span>
+                        
+                        <span class="badge bg-warning text-dark ms-2 flex-shrink-0" title="最高用户积分">
+                            <i class="bi bi-trophy me-1"></i>{{ program_data.max_user_points }}
+                        </span>
+                    </div>
+                </div>
+            </h2>
+            <div id="collapse{{ program_id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ program_id }}">
+                <div class="accordion-body">
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center mb-3 pb-2 border-bottom">
+                        <span class="text-muted small me-3 d-none d-md-inline">管理操作:</span>
+                        <div class="d-flex flex-wrap w-100 w-md-auto gap-2">
+                            <div class="btn-group btn-group-sm flex-grow-1 flex-md-grow-0">
+                                <button class="btn btn-outline-secondary program-btn-sort flex-grow-1 flex-md-grow-0" onclick="toggleProductSort('{{ program_id }}', this)" title="按积分从低到高排序商品">
+                                    <i class="bi bi-sort-numeric-down me-1"></i>排序
+                                </button>
+                                <button class="btn btn-outline-secondary program-btn-affordable flex-grow-1 flex-md-grow-0" onclick="toggleFilter('{{ program_id }}', 'affordable', this)" title="仅展示当前可兑换商品">
+                                    <i class="bi bi-check-circle me-1"></i>可兑换
+                                </button>
+                                <button class="btn btn-outline-secondary program-btn-instock flex-grow-1 flex-md-grow-0" onclick="toggleFilter('{{ program_id }}', 'instock', this)" title="仅展示有库存商品">
+                                    <i class="bi bi-box-seam me-1"></i>有货
+                                </button>
+                            </div>
+                            <div class="d-flex flex-grow-1 flex-md-grow-0 gap-2">
+                                <a href="#" onclick="showRankingModal(event, '{{ program_id }}')" class="btn btn-sm btn-outline-primary flex-grow-1 flex-md-grow-0 text-nowrap" title="查看用户积分列表">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>详情
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger flex-grow-1 flex-md-grow-0 text-nowrap" onclick="deleteProgram('{{ program_id }}', '{{ program_data.program_name }}');" title="删除小程序">
+                                    <i class="bi bi-trash me-1"></i>删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-2" id="products-{{ program_id }}" data-max-points="{{ program_data.max_user_points }}">
+                        {% for product in program_data.products %}
+                        <div class="col product-item" data-points="{{ product.points }}" data-stock="{{ product.stock }}">
+                            <div class="card h-100 shadow-sm border-0 bg-light">
+                                <div class="card-body p-2 d-flex align-items-center justify-content-between">
+                                    <div class="me-2 text-wrap" style="min-width: 0;">
+                                        <span class="fw-bold text-dark" style="font-size: 0.9rem;">{{ product.product_name }}</span>
+                                    </div>
+                                    <div class="d-flex flex-column align-items-end flex-shrink-0 ms-2">
+                                        <span class="text-danger fw-bold small mb-1">{{ product.points }} 积分</span>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge {{ 'bg-success' if product.stock > 0 else 'bg-secondary' }} rounded-pill me-1" style="font-size: 0.7rem;">
+                                                库: {{ product.stock }}
+                                            </span>
+                                            {% if product.image_url or product.image_local_path %}
+                                            <i class="bi bi-image text-primary" style="cursor: pointer; font-size: 0.9rem;" 
+                                               onclick="event.stopPropagation(); showImage(this, '{{ product.image_local_path or product.image_url }}')" 
+                                               title="查看图片"></i>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">暂无商品数据</div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Upload Modal removed -->
+
+<!-- Modal for Program Ranking -->
+    <div class="modal fade" id="rankingModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rankingModalTitle">积分排行</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>排名</th>
+                                    <th>用户昵称</th>
+                                    <th class="d-none d-md-table-cell">Wechat ID</th>
+                                    <th>当前积分</th>
+                                    <th>更新时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rankingTableBody">
+                                <tr><td colspan="5" class="text-center">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-transparent border-0 shadow-none">
+            <div class="modal-body p-0 text-center d-flex justify-content-center">
+                <div class="position-relative d-inline-block">
+                    <button type="button" class="btn preview-close-btn" data-bs-dismiss="modal" aria-label="Close" title="关闭">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                    <img id="previewImage" src="" class="img-fluid rounded shadow" style="max-height: 85vh; object-fit: contain; background-color: white;" alt="Product Image">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.preview-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    background-color: rgba(128, 128, 128, 0.8);
+    border: 2px solid white;
+    border-radius: 4px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease-in-out;
+    z-index: 1060;
+    padding: 0;
+    cursor: pointer;
+}
+.preview-close-btn:hover {
+    background-color: rgba(80, 80, 80, 1.0);
+    color: white;
+    transform: scale(1.05);
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+}
+.preview-close-btn i {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+</style>
+
+<script>
+let imagePreviewModal;
+let rankingModalInstance = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    imagePreviewModal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
+    // rankingModalInstance will be initialized on demand or here
+    
+    // Add enter key listener for search
+    document.getElementById('searchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchProducts();
+        }
+    });
+
+    // Add event listeners for action buttons to stop propagation
+    // Note: Since buttons are now inside the collapse body, they don't trigger accordion toggle.
+    // So explicit stopPropagation is less critical but still good practice if nested.
+    // But we removed the class 'action-btn-group' from header. 
+    // The new container doesn't have this class. Let's remove this legacy code.
+});
+
+function showRankingModal(event, programId) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!rankingModalInstance) {
+        rankingModalInstance = new bootstrap.Modal(document.getElementById('rankingModal'));
+    }
+    
+    const titleEl = document.getElementById('rankingModalTitle');
+    const tbody = document.getElementById('rankingTableBody');
+    
+    titleEl.textContent = '加载中...';
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+    
+    rankingModalInstance.show();
+    
+    fetch(`/api/v1/programs/${programId}/ranking`)
+        .then(response => response.json())
+        .then(data => {
+            titleEl.textContent = `${data.program_name} - 积分排行`;
+            renderRankingTable(data.ranking);
+            
+            // Initialize tooltips inside modal
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('#rankingTableBody [data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            });
+        })
+        .catch(error => {
+            console.error('Error loading ranking:', error);
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">加载失败</td></tr>';
+        });
+}
+
+function renderRankingTable(items) {
+    const tbody = document.getElementById('rankingTableBody');
+    
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">暂无数据</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = items.map((item, index) => {
+        const rank = index + 1;
+        let rankBadge = '';
+        if (rank === 1) rankBadge = '<span class="badge bg-warning text-dark"><i class="bi bi-trophy-fill"></i> 1</span>';
+        else if (rank === 2) rankBadge = '<span class="badge bg-secondary"><i class="bi bi-trophy-fill"></i> 2</span>';
+        else if (rank === 3) rankBadge = '<span class="badge bg-danger"><i class="bi bi-trophy-fill"></i> 3</span>';
+        else rankBadge = `<span class="badge bg-light text-dark border">${rank}</span>`;
+        
+        const pointsBadge = item.points === 0 
+            ? '<span class="badge bg-secondary">未注册</span>' 
+            : `<span class="fw-bold text-primary">${item.points}</span>`;
+            
+        return `
+            <tr>
+                <td>${rankBadge}</td>
+                <td>
+                    <span data-bs-toggle="tooltip" data-bs-html="true" title="设备: ${item.device || '未设置'}<br>手机号: ${item.phone || '未设置'}" style="cursor: help;">
+                        ${item.nickname || '未设置'}
+                    </span>
+                </td>
+                <td class="d-none d-md-table-cell">${item.wechat_id}</td>
+                <td>${pointsBadge}</td>
+                <td class="text-muted small">${item.report_time || '-'}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function showImage(icon, src) {
+    const img = document.getElementById('previewImage');
+    img.src = src;
+    img.onerror = function() {
+        this.src = ''; // Clear src or show error placeholder
+        // Optionally show a toast or alert
+        // alert('图片加载失败'); 
+        // Better: replace with error placeholder
+        // For now, let's just keep it simple or set a placeholder
+        // this.src = '/static/img/placeholder_error.png'; 
+    };
+    imagePreviewModal.show();
+}
+
+function searchProducts() {
+    const query = document.getElementById('searchInput').value.trim();
+    const url = new URL(window.location.href);
+    if (query) {
+        url.searchParams.set('q', query);
+    } else {
+        url.searchParams.delete('q');
+    }
+    window.location.href = url.toString();
+}
+
+function deleteProgram(programId, programName) {
+    if (confirm(`确定要删除小程序 "${programName}" 及其所有商品和积分记录吗？此操作不可恢复！`)) {
+        fetch(`/api/v1/programs/${programId}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('删除失败');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除出错');
+        });
+    }
+}
+
+const programFilters = new Map(); // Store filter states: {programId: {sort: 'asc'|'desc'|null, affordable: bool, instock: bool}}
+const originalOrders = new Map(); // Store original DOM elements order
+const globalState = { sort: null, affordable: false, instock: false, expanded: false }; // Global state: sort is null, 'asc', or 'desc'
+
+function getProgramState(programId) {
+    // Ensure programId is treated as string to avoid map key mismatch
+    const pid = String(programId);
+    if (!programFilters.has(pid)) {
+        programFilters.set(pid, { sort: null, affordable: false, instock: false });
+    }
+    return programFilters.get(pid);
+}
+
+function updateSortButtonUI(btn, sortState) {
+    // Reset classes and icons
+    btn.classList.remove('active', 'bg-secondary', 'text-white');
+    const icon = btn.querySelector('i');
+    if (icon) {
+        icon.className = 'bi me-1'; // Reset base class
+    }
+    
+    if (sortState === 'asc') {
+        btn.classList.add('active', 'bg-secondary', 'text-white');
+        btn.title = "按积分从低到高排序 (点击切换为从高到低)";
+        if (icon) icon.classList.add('bi-sort-numeric-down');
+    } else if (sortState === 'desc') {
+        btn.classList.add('active', 'bg-secondary', 'text-white');
+        btn.title = "按积分从高到低排序 (点击恢复默认)";
+        if (icon) icon.classList.add('bi-sort-numeric-down-alt');
+    } else {
+        btn.title = "点击按积分排序";
+        if (icon) icon.classList.add('bi-sort-numeric-down');
+    }
+}
+
+function toggleGlobalExpand(btn) {
+    try {
+        globalState.expanded = !globalState.expanded;
+        
+        const collapses = document.querySelectorAll('.accordion-collapse');
+        collapses.forEach(el => {
+            // Use Bootstrap Collapse API
+            // Check if instance exists
+            let bsCollapse = bootstrap.Collapse.getInstance(el);
+            if (!bsCollapse) {
+                bsCollapse = new bootstrap.Collapse(el, { toggle: false });
+            }
+            
+            if (globalState.expanded) {
+                bsCollapse.show();
+            } else {
+                bsCollapse.hide();
+            }
+        });
+        
+        // Update Button UI
+        if (globalState.expanded) {
+            btn.innerHTML = '<i class="bi bi-arrows-collapse me-1"></i>全部折叠';
+            btn.classList.add('active', 'bg-secondary', 'text-white');
+            btn.title = "折叠所有小程序";
+        } else {
+            btn.innerHTML = '<i class="bi bi-arrows-expand me-1"></i>全部展开';
+            btn.classList.remove('active', 'bg-secondary', 'text-white');
+            btn.title = "展开所有小程序";
+        }
+        
+    } catch (e) {
+        console.error('Error in toggleGlobalExpand:', e);
+    }
+}
+
+function toggleGlobalSort(btn) {
+    try {
+        // Cycle: null -> 'asc' -> 'desc' -> null
+        if (globalState.sort === null) {
+            globalState.sort = 'asc';
+        } else if (globalState.sort === 'asc') {
+            globalState.sort = 'desc';
+        } else {
+            globalState.sort = null;
+        }
+        
+        // Update global button UI
+        updateSortButtonUI(btn, globalState.sort);
+        
+        // Apply to all programs
+        document.querySelectorAll('.accordion-item[data-program-id]').forEach(item => {
+            const pid = item.dataset.programId;
+            const state = getProgramState(pid);
+            
+            // Sync state
+            state.sort = globalState.sort;
+            
+            // Update individual button UI
+            const progBtn = item.querySelector('.program-btn-sort');
+            if (progBtn) {
+                updateSortButtonUI(progBtn, state.sort);
+            }
+            
+            applyFiltersAndSort(pid);
+        });
+    } catch (e) {
+        console.error('Error in toggleGlobalSort:', e);
+    }
+}
+
+function toggleGlobalFilter(type, btn) {
+    try {
+        globalState[type] = !globalState[type];
+        
+        // Update global button UI
+        if (globalState[type]) {
+            btn.classList.add('active', 'bg-secondary', 'text-white');
+        } else {
+            btn.classList.remove('active', 'bg-secondary', 'text-white');
+        }
+        
+        // Apply to all programs
+        document.querySelectorAll('.accordion-item[data-program-id]').forEach(item => {
+            const pid = item.dataset.programId;
+            const state = getProgramState(pid);
+            
+            // Only update if different
+            if (state[type] !== globalState[type]) {
+                state[type] = globalState[type];
+                
+                // Update individual button UI
+                const progBtn = item.querySelector(`.program-btn-${type}`);
+                if (progBtn) {
+                    if (state[type]) {
+                        progBtn.classList.add('active', 'bg-secondary', 'text-white');
+                    } else {
+                        progBtn.classList.remove('active', 'bg-secondary', 'text-white');
+                    }
+                }
+                
+                applyFiltersAndSort(pid);
+            }
+        });
+    } catch (e) {
+        console.error('Error in toggleGlobalFilter:', e);
+    }
+}
+
+function toggleProductSort(programId, btn) {
+    try {
+        console.log('Toggling sort for program:', programId);
+        const pid = String(programId);
+        const state = getProgramState(pid);
+        
+        // Cycle: null -> 'asc' -> 'desc' -> null
+        if (state.sort === null) {
+            state.sort = 'asc';
+        } else if (state.sort === 'asc') {
+            state.sort = 'desc';
+        } else {
+            state.sort = null;
+        }
+        
+        // Update button UI
+        updateSortButtonUI(btn, state.sort);
+        
+        applyFiltersAndSort(pid);
+    } catch (e) {
+        console.error('Error in toggleProductSort:', e);
+    }
+}
+
+function toggleFilter(programId, type, btn) {
+    try {
+        console.log(`Toggling filter ${type} for program:`, programId);
+        const pid = String(programId);
+        const state = getProgramState(pid);
+        state[type] = !state[type];
+        
+        // Update button UI
+        if (state[type]) {
+            btn.classList.add('active', 'bg-secondary', 'text-white');
+        } else {
+            btn.classList.remove('active', 'bg-secondary', 'text-white');
+        }
+        
+        applyFiltersAndSort(pid);
+    } catch (e) {
+        console.error('Error in toggleFilter:', e);
+    }
+}
+
+function applyFiltersAndSort(programId) {
+    const pid = String(programId);
+    const container = document.getElementById('products-' + pid);
+    if (!container) {
+        console.warn('Product container not found for:', pid);
+        return;
+    }
+    
+    const state = getProgramState(pid);
+    const maxPoints = parseFloat(container.dataset.maxPoints) || 0;
+    
+    // Store original items if not present
+    if (!originalOrders.has(pid)) {
+        originalOrders.set(pid, Array.from(container.children));
+    }
+    
+    // Start with original items to ensure stable sort baseline
+    let items = [...originalOrders.get(pid)];
+    
+    // Filter
+    items.forEach(item => {
+        let visible = true;
+        const points = parseFloat(item.dataset.points) || 0;
+        const stock = parseInt(item.dataset.stock) || 0;
+        
+        if (state.affordable && points > maxPoints) {
+            visible = false;
+        }
+        if (state.instock && stock <= 0) {
+            visible = false;
+        }
+        
+        // Use d-none class for visibility toggling
+        if (visible) {
+            item.classList.remove('d-none');
+        } else {
+            item.classList.add('d-none');
+        }
+    });
+    
+    // Sort (only visible items effectively, but we sort all)
+    if (state.sort === 'asc') {
+        items.sort((a, b) => {
+            const pA = parseFloat(a.dataset.points) || 0;
+            const pB = parseFloat(b.dataset.points) || 0;
+            return pA - pB;
+        });
+    } else if (state.sort === 'desc') {
+        items.sort((a, b) => {
+            const pA = parseFloat(a.dataset.points) || 0;
+            const pB = parseFloat(b.dataset.points) || 0;
+            return pB - pA;
+        });
+    }
+    
+    // Apply changes to DOM
+    items.forEach(item => container.appendChild(item));
+}
+</script>
+{% endblock %}

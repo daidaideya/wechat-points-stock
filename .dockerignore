@@ -1,0 +1,24 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Version control
+.git
+.gitignore
+
+# Environment variables
+.env
+
+# Logs and databases
+logs/
+*.log
+data/
+*.db
+
+# Temporary files
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: wechat-points-stock
+    ports:
+      - "5711:5711"
+    volumes:
+      - /vol1/1000/docker/wechat-points-stock/data:/app/data
+      - /vol1/1000/docker/wechat-points-stock/logs:/app/logs
+      - /vol1/1000/docker/wechat-points-stock/static/uploads:/app/static/uploads
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
