@@ -1,20 +1,23 @@
-#!/bin/bash
-# start.sh
+#!/bin/sh
+set -e
 
-# Activate virtual environment
-source venv/bin/activate
+if [ -f "venv/bin/activate" ]; then
+    . venv/bin/activate
+fi
 
-# Set PYTHONPATH
-export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)"
 
-# Create necessary directories
-mkdir -p logs
-mkdir -p data
-mkdir -p static/uploads
+mkdir -p logs data static/uploads
 
-# Start server
-uvicorn app.main:app \
-    --host 0.0.0.0 \
-    --port 5711 \
-    --workers 2 \
-    --access-log
+if [ ! -f "data/database.db" ]; then
+    echo "[start] Database not found, initializing..."
+    python scripts/init_db.py
+else
+    echo "[start] Database already exists, skip init."
+fi
+
+HOST="${HOST:-0.0.0.0}"
+PORT="${PORT:-5711}"
+WORKERS="${UVICORN_WORKERS:-2}"
+
+exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers "$WORKERS" --access-log

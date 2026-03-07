@@ -33,6 +33,7 @@ class MiniProgram(Base):
     sort_order = Column(Integer, default=0) # Kept for backward compatibility if needed, or repurposed
     is_favorite = Column(Integer, default=0) # 0: False, 1: True
     note = Column(String, nullable=True) # Personal notes/remarks for the program
+    tags = Column(String, nullable=True) # Comma-separated personal tags for the program
 
     points = relationship("PointsHistory", back_populates="program")
     products = relationship("Product", back_populates="program")
@@ -61,6 +62,8 @@ class Product(Base):
     image_url = Column(String)
     points = Column(Integer, default=0)
     stock = Column(Integer, default=0)
+    is_hidden = Column(Integer, default=0)
+    hidden_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         UniqueConstraint('program_id', 'product_id', name='uix_program_product'),

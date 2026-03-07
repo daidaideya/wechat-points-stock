@@ -19,7 +19,9 @@ class ProductResponse(ProductBase):
     product_id: str
     program_id: str
     image_local_path: Optional[str] = None
-    
+    is_hidden: Optional[int] = 0
+    hidden_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
 

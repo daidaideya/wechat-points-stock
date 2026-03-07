@@ -1,30 +1,37 @@
-# Use an official Python runtime as a parent image
+FROM docker.1ms.run/library/node:20-alpine AS frontend-builder
+
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
 FROM docker.1ms.run/library/python:3.11-slim
 
-# Set the working directory in the container
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    TZ=Asia/Shanghai
+
 WORKDIR /app
 
-# Copy the requirements file into the container at /app
-COPY requirements.txt .
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install any needed packages specified in requirements.txt
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the current directory contents into the container at /app
-COPY . .
+COPY app ./app
+COPY scripts ./scripts
+COPY entrypoint.sh ./entrypoint.sh
+COPY start.sh ./start.sh
+COPY migrate_note.py ./migrate_note.py
+COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
-# Make port 5711 available to the world outside this container
+RUN mkdir -p logs data static/uploads \
+    && chmod +x ./entrypoint.sh ./start.sh
+
 EXPOSE 5711
 
-# Define environment variable
-ENV PYTHONPATH=/app
-
-# Create necessary directories
-RUN mkdir -p logs data static/uploads
-
-# Make entrypoint script executable
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
-
-# Run entrypoint script when the container launches
-CMD ["./entrypoint.sh"]
+CMD ["sh", "./entrypoint.sh"]
