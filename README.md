@@ -1,171 +1,245 @@
-# WeChat Points & Stock Monitor (积分监控系统)
+# WeChat Points & Stock Monitor（积分监控系统）
 
-一个基于 FastAPI 和 SQLite 的轻量级积分与库存监控系统，专为树莓派等嵌入式环境设计。支持多用户、多小程序积分追踪，库存管理，以及可视化数据看板。
+当前项目已切换为 **[`Vue 3`](frontend/package.json) + [`Vite`](frontend/vite.config.js) + [`Element Plus`](frontend/package.json) 前端 SPA** 与 **[`FastAPI`](app/main.py) 后端 API** 的前后端分离模式。
 
-## 🌟 核心功能
+- 前端负责全部页面渲染、路由与交互；
+- 后端仅负责 API、静态资源分发、前端构建产物托管与路由兜底；
+- 旧的 Jinja2 模板页面方案已停止使用，不再作为运行入口。
 
-### 1. 积分监控 (Points Monitor)
-- **多维度视图**：
-  - **按用户聚合**：查看每个微信用户的活跃小程序数量、各小程序积分详情。
-  - **按小程序聚合**：查看特定小程序的积分排行榜（Top N 用户）。
-- **实时状态**：
-  - 自动区分“未注册”用户（0分）与活跃用户。
-  - 支持折叠/展开用户详情，按需异步加载数据，优化性能。
-- **管理操作**：
-  - 支持删除单条积分记录。
+## 技术栈
 
-### 2. 小程序管理 (Mini Program Management)
-- **列表与搜索**：
-  - 分页展示小程序列表（默认 21 条/页）。
-  - **增强搜索**：支持**拼音全拼**（如 `jingdong`）、**首字母**（如 `jd`）及汉字/ID搜索。
-- **授权类型管理**：
-  - 支持三种授权模式切换：`Code` (默认), `Token`, `App`。
-  - 在列表页直接通过下拉菜单快速切换类型。
-- **置顶功能**：
-  - 支持将常用小程序置顶（显示在列表最前）。
-  - 可视化置顶状态（蓝色实心箭头 vs 灰色空心箭头）。
+- 后端：Python 3.11+、[`FastAPI`](app/main.py)、SQLAlchemy、SQLite
+- 前端：[`Vue 3`](frontend/package.json)、[`Vite`](frontend/vite.config.js)、[`Element Plus`](frontend/package.json)、Axios、[`Vue Router`](frontend/src/router.js)
+- 搜索增强：`pypinyin`
+- 部署方式：[`Docker`](Dockerfile)、[`Docker Compose`](docker-compose.yml)
 
-### 3. 库存管理 (Stock Management)
-- **商品管理**：
-  - 支持创建、编辑商品信息（名称、图片、积分、库存）。
-  - **自动聚合**：库存后台按小程序维度聚合展示商品。
-- **全局搜索**：
-  - 支持在库存页面跨小程序搜索商品（按名称）。
-- **API 集成**：
-  - 提供青龙面板专用上报接口，支持自动创建商品和更新库存/价格。
-  - 自动记录库存变更历史。
+## 当前页面结构
 
-### 4. 数据看板 (Dashboard)
-- 实时统计用户总数、小程序总数。
-- 最近积分变动日志流。
+SPA 路由已统一由 [`frontend/src/router.js`](frontend/src/router.js) 管理，包含：
 
-## 🛠 技术栈
+- [`/dashboard`](frontend/src/views/DashboardPage.vue)
+- [`/programs`](frontend/src/views/ProgramsPage.vue)
+- [`/favorites`](frontend/src/views/FavoritesPage.vue)
+- [`/programs/:programId`](frontend/src/views/ProgramDetailPage.vue)
+- [`/users`](frontend/src/views/UsersPage.vue)
+- [`/points`](frontend/src/views/PointsPage.vue)
+- [`/stock`](frontend/src/views/StockPage.vue)
+- [`/settings`](frontend/src/views/SettingsPage.vue)
 
-- **后端**：Python 3.11 + FastAPI
-- **数据库**：SQLite + SQLAlchemy (ORM)
-- **前端**：Jinja2 模板 + Bootstrap 5 + Vanilla JS
-- **搜索增强**：`pypinyin` (用于中文拼音搜索)
-- **部署目标**：Linux (Raspberry Pi / Debian / Ubuntu)
+## 后端 API 概览
 
-## 🚀 快速开始
+主要 API 由 [`app/routers/web.py`](app/routers/web.py) 与 [`app/routers/stock.py`](app/routers/stock.py) 提供。
 
-### 1. 环境准备
-确保已安装 Python 3.11+。
+### 仪表盘
+- `GET /api/v1/dashboard`
+
+### 小程序
+- `GET /api/v1/programs`
+- `GET /api/v1/programs/favorites`
+- `GET /api/v1/programs/unreported`
+- `GET /api/v1/programs/{program_id}`
+- `GET /api/v1/programs/{program_id}/stock`
+- `GET /api/v1/programs/{program_id}/ranking`
+- `PUT /api/v1/programs/{program_id}`
+- `DELETE /api/v1/programs/{program_id}`
+
+### 用户与积分
+- `GET /api/v1/accounts`
+- `GET /api/v1/accounts/{wechat_id}`
+- `GET /api/v1/accounts/{wechat_id}/points_details`
+- `PUT /api/v1/accounts/{wechat_id}`
+- `PUT /api/v1/accounts/sort-order`
+- `DELETE /api/v1/accounts/{wechat_id}`
+- `DELETE /api/v1/accounts/{wechat_id}/programs/{program_id}`
+- `GET /api/v1/points`
+
+### 设置
+- `GET /api/v1/settings/logs`
+- `POST /api/v1/settings/logs`
+
+### 库存
+- `GET /api/v1/stock/programs`
+- `GET /api/v1/stock/programs/{program_id}/products`
+- `GET /api/v1/stock/search`
+- `POST /api/v1/stock/product`
+- `POST /api/v1/stock-report`
+
+## 开发运行
+
+### 1. 安装后端依赖
+Windows：
 
 ```bash
-# 克隆仓库
-git clone <repository-url>
-cd wechat-points-stock
-
-# 创建虚拟环境
-python3 -m venv venv
-source venv/bin/activate
-
-# 安装依赖
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. 数据库初始化
-系统启动时会自动创建 `data/database.db`。如果需要应用最新的数据库迁移（如添加字段）：
+Linux/macOS：
 
 ```bash
-# 示例：添加 auth_type 字段
-python3 scripts/migrate_add_auth_type.py
-
-# 示例：添加 sort_order 字段
-python3 scripts/migrate_add_program_sort_order.py
-
-# 示例：添加 phone 字段索引 (v1.1.1 Update)
-python3 scripts/migrate_add_phone_index.py
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 3. 启动服务
+### 2. 安装前端依赖
+
 ```bash
-# 开发模式（支持热重载）
-python3 main.py
+cd frontend
+npm install
 ```
-服务默认运行在 `http://0.0.0.0:8000`。
 
-## 📂 项目结构
+### 3. 启动开发环境
+先启动后端：
 
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+再启动前端：
+
+```bash
+cd frontend
+npm run dev
+```
+
+访问地址：
+- 前端开发服务器：`http://127.0.0.1:5173/app/`
+- 后端 API：`http://127.0.0.1:8000/api/v1/...`
+
+说明：[`frontend/vite.config.js`](frontend/vite.config.js) 已代理 `/api` 与 `/static` 到后端。
+
+## 生产运行
+
+### 1. 构建前端
+
+```bash
+cd frontend
+npm run build
+```
+
+### 2. 启动后端
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+生产访问地址：
+- SPA 入口：`http://127.0.0.1:8000/`
+- 兼容入口：`http://127.0.0.1:8000/app`
+
+后端入口与前端回退逻辑位于 [`app/main.py`](app/main.py) ：
+- 根路径 `/` 返回 [`frontend/dist/index.html`](frontend/dist/index.html)
+- 任意非 API 前端路由刷新时自动回退到 SPA 入口
+- `/static` 继续由后端分发上传图片等静态文件
+
+## Docker 部署
+
+当前项目已支持通过 [`Dockerfile`](Dockerfile) 进行前后端一体化构建：
+
+- 第一阶段使用 `Node 20` 构建 [`frontend/dist`](frontend/dist)
+- 第二阶段使用 `Python 3.11` 安装后端依赖并运行 [`FastAPI`](app/main.py)
+- 容器启动时由 [`entrypoint.sh`](entrypoint.sh) 自动检查数据库、初始化目录并启动服务
+
+### 1. 使用 Docker Compose 启动
+
+```bash
+docker compose up -d --build
+```
+
+启动后默认访问：
+
+- `http://127.0.0.1:5711/`
+- `http://127.0.0.1:5711/app`
+
+### 2. 持久化目录
+
+[`docker-compose.yml`](docker-compose.yml) 已默认挂载以下目录：
+
+- [`./data`](data)
+- [`./logs`](logs)
+- [`./static/uploads`](static/uploads)
+
+这样容器重建后，数据库、日志和上传文件仍会保留在宿主机。
+
+### 3. 环境变量
+
+[`docker-compose.yml`](docker-compose.yml) 默认加载 [`.env`](.env) 文件，并设置：
+
+- `TZ=Asia/Shanghai`
+
+[`entrypoint.sh`](entrypoint.sh) 还支持以下可选启动参数：
+
+- `HOST`
+- `PORT`
+- `UVICORN_WORKERS`
+
+### 4. 单独构建镜像
+
+```bash
+docker build -t wechat-points-stock .
+```
+
+### 5. 单独运行容器
+
+```bash
+docker run -d \
+  --name wechat-points-stock \
+  -p 5711:5711 \
+  --env-file .env \
+  -v ./data:/app/data \
+  -v ./logs:/app/logs \
+  -v ./static/uploads:/app/static/uploads \
+  wechat-points-stock
+```
+
+### 6. 部署注意事项
+
+- 首次启动时若 [`data/database.db`](data/database.db) 不存在，[`scripts/init_db.py`](scripts/init_db.py) 会自动初始化数据库
+- 若前端构建产物缺失，[`entrypoint.sh`](entrypoint.sh) 会直接退出，避免容器启动后页面不可访问
+- 当前服务由 `uvicorn` 直接启动，默认监听 `5711` 端口
+- 如果服务器已有反向代理，可将 Nginx / 宝塔 / 1Panel 转发到 `5711`
+
+## 项目结构
+
+```text
 wechat-points-stock/
 ├── app/
-│   ├── routers/        # API 路由 (web.py, qinglong.py, stock.py 等)
-│   ├── models.py       # 数据库模型 (WechatAccount, MiniProgram, PointsHistory, Product...)
-│   ├── database.py     # 数据库连接
-│   └── config.py       # 配置项
-├── templates/          # Jinja2 前端模板 (html)
-├── static/             # 静态资源 (css, js, images)
-├── scripts/            # 数据库迁移脚本
-├── data/               # SQLite 数据库文件存储
-├── main.py             # 程序入口
-└── requirements.txt    # 依赖列表
+│   ├── main.py
+│   ├── models.py
+│   └── routers/
+├── frontend/
+│   ├── src/
+│   │   ├── views/
+│   │   ├── App.vue
+│   │   ├── api.js
+│   │   ├── main.js
+│   │   └── router.js
+│   ├── dist/
+│   ├── package.json
+│   └── vite.config.js
+├── static/
+├── templates/            # 历史模板目录，已废弃
+├── data/
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt
 ```
 
-## 🔌 API 概览
+## 迁移说明
 
-### 小程序 (Programs)
-- `GET /api/v1/programs`: 分页获取小程序列表（支持 `q` 搜索参数）。
-- `PUT /api/v1/programs/{id}`: 更新小程序信息（`auth_type`, `is_pinned`）。
-- `DELETE /api/v1/programs/{id}`: 删除小程序及其所有数据。
+本轮改造重点：
 
-### 用户 (Accounts)
-- `GET /api/v1/accounts/{wechat_id}/points_details`: 获取特定用户的详细积分数据。
-- `DELETE /api/v1/accounts/{wechat_id}`: 删除用户。
+- 将原服务端页面能力从 [`app/routers/web.py`](app/routers/web.py) 中剥离，仅保留 API
+- 将库存 HTML 视图从 [`app/routers/stock.py`](app/routers/stock.py) 中剥离，仅保留 API
+- 将全站主要页面迁移到 [`frontend/src/views`](frontend/src/views)
+- 由 [`frontend/src/App.vue`](frontend/src/App.vue) 提供统一布局
+- 由 [`app/main.py`](app/main.py) 托管 SPA 入口并处理前端路由刷新回退
+- 增加基于 [`Dockerfile`](Dockerfile) 与 [`docker-compose.yml`](docker-compose.yml) 的一体化容器部署方式
 
-### 库存与商品 (Stock & Products)
-- **管理接口**:
-  - `POST /api/v1/stock/product`: 创建或更新商品信息（需提供 `program_id`, `product_name`）。
-  - `GET /api/v1/stock/programs`: 获取包含商品统计的小程序列表。
-  - `GET /api/v1/stock/programs/{program_id}/products`: 获取指定小程序的商品列表。
-  - `GET /api/v1/stock/search`: 全局商品搜索（支持 `q` 参数）。
-- **青龙上报接口**:
-  - `POST /api/v1/stock-report`: 批量上报商品库存与积分信息。
-    - Header: `Authorization: Bearer <API_TOKEN>`
-    - Body: 
-      ```json
-      {
-        "program_id": "wx...", 
-        "products": [
-           {"product_name": "...", "stock": 10, "points": 100, "image_url": "..."}
-        ]
-      }
-      ```
+## 已知说明
 
-## 🔄 更新日志
-
-### v1.1.1 (2026-02-07)
-- **API 兼容性与用户识别优化**：
-  - 优化积分上报接口：支持自动识别手机号格式的 `wechat_id`。
-  - **手机号绑定逻辑**：
-    - 若上报的 `wechat_id` 为手机号且已在系统绑定微信账号，自动关联并使用该微信账号的昵称。
-    - 若手机号未绑定，用户昵称自动设置为空，避免显示乱码或脚本默认名。
-  - **向下兼容**：完全兼容原有手机号+密码登录的脚本，无需修改脚本代码。
-  - **数据库优化**：为 `wechat_accounts` 表的 `phone` 字段添加索引，提升查询性能。
-
-### v1.1.0 (2026-02-06)
-- **库存管理模块增强**：
-  - 新增商品图片的按需加载与模态框预览功能。
-  - 优化小程序维度的折叠/展开视图。
-  - 支持显示小程序下的“最高用户积分”。
-  - 新增小程序删除功能，支持一键清理关联商品与积分记录。
-  - 新增跳转至小程序积分详情页的快捷入口，并支持按积分从低到高排序。
-  - **商品列表排序**：支持在库存页面直接按积分从低到高对商品进行排序（纯客户端实现，无跳转）。
-  - **交互体验优化**：
-    - 将管理操作按钮（排序/详情/删除）迁移至折叠面板内部，杜绝误触。
-    - 优化按钮组层级，解决与下拉菜单的点击冲突。
-    - 适配长文本显示，优化移动端布局。
-  - 修复图片加载失败时的 404 错误与显示异常。
-
-### v1.0.0 (Initial Release)
-- 基础功能上线：用户管理、小程序管理、积分追踪。
-
-## 📝 开发计划
-
-- [x] 小程序列表分页与滚动加载
-- [x] 小程序拼音搜索支持
-- [x] 小程序授权类型切换 (Code/Token/App)
-- [x] 小程序置顶功能
-- [x] 库存管理模块 (API + 前端搜索 + 可视化优化)
-- [ ] 移动端适配优化
+- 当前构建可通过，但 [`Vite`](frontend/vite.config.js) 仍提示前端主包较大，主要来自 [`Element Plus`](frontend/package.json) 与当前全量打包；后续可继续通过路由懒加载与手动拆包优化。
+- [`templates/`](templates/) 目录目前已不再作为运行入口使用，如需彻底物理删除，可在确认无历史回滚需求后清理。
+- 如需生产级高并发部署，可在容器前增加 Nginx，并按实际服务器配置调整 [`UVICORN_WORKERS`](entrypoint.sh) 。

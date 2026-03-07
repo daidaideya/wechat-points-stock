@@ -1,20 +1,22 @@
-version: '3.8'
-
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: wechat-points-stock
     ports:
       - "5711:5711"
-    volumes:
-      # 开发模式：将当前项目目录整体映射到容器 /app
-      - ./:/app
-      # 数据/日志/上传仍可落到宿主机固定目录，避免随项目目录变更
-      - /vol1/1000/docker/wechat-points-stock/data:/app/data
-      - /vol1/1000/docker/wechat-points-stock/logs:/app/logs
-      - /vol1/1000/docker/wechat-points-stock/static/uploads:/app/static/uploads
     env_file:
       - .env
     environment:
-      - TZ=Asia/Shanghai
+      TZ: Asia/Shanghai
+    entrypoint: ["sh", "/app/entrypoint.sh"]
+    volumes:
+      - ./:/workspace
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./migrate_note.py:/app/migrate_note.py
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./static/uploads:/app/static/uploads
     restart: unless-stopped
