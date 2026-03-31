@@ -108,7 +108,11 @@ npm run dev
 - 前端开发服务器：`http://127.0.0.1:5173/app/`
 - 后端 API：`http://127.0.0.1:8000/api/v1/...`
 
-说明：[`frontend/vite.config.js`](frontend/vite.config.js) 已代理 `/api` 与 `/static` 到后端。
+说明：
+- 当前项目开发阶段采用前后端分离模式，前端开发服务器与后端 API 分别运行在不同端口。
+- [`frontend/vite.config.js`](frontend/vite.config.js) 已代理 `/api` 与 `/static` 到后端。
+- 如果你只启动 `uvicorn` 并访问 `8000` 端口，看到的是 [`frontend/dist`](frontend/dist) 构建产物，而不是 [`frontend/src`](frontend/src) 的实时开发内容。
+- 如需单端口访问，请先构建前端后再由后端统一托管，详见下方“生产运行”。
 
 ## 生产运行
 
