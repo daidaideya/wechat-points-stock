@@ -1,17 +1,26 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import api, { clearAccessSession, getAccessSession } from './api'
 
-import DashboardPage from './views/DashboardPage.vue'
-import ProgramsPage from './views/ProgramsPage.vue'
-import ProgramDetailPage from './views/ProgramDetailPage.vue'
-import UsersPage from './views/UsersPage.vue'
-import PointsPage from './views/PointsPage.vue'
-import StockPage from './views/StockPage.vue'
-import SettingsPage from './views/SettingsPage.vue'
+const DashboardPage = () => import('./views/DashboardPage.vue')
+const ProgramsPage = () => import('./views/ProgramsPage.vue')
+const ProgramDetailPage = () => import('./views/ProgramDetailPage.vue')
+const UsersPage = () => import('./views/UsersPage.vue')
+const PointsPage = () => import('./views/PointsPage.vue')
+const StockPage = () => import('./views/StockPage.vue')
+const SettingsPage = () => import('./views/SettingsPage.vue')
+const FavoritesPage = () => import('./views/FavoritesPage.vue')
+const AccessGatePage = () => import('./views/AccessGatePage.vue')
 
 const routes = [
   {
     path: '/',
     redirect: '/dashboard',
+  },
+  {
+    path: '/access-gate',
+    name: 'access-gate',
+    component: AccessGatePage,
+    meta: { title: '访问验证', public: true },
   },
   {
     path: '/dashboard',
@@ -24,6 +33,12 @@ const routes = [
     name: 'programs',
     component: ProgramsPage,
     meta: { title: '小程序列表' },
+  },
+  {
+    path: '/favorites',
+    name: 'favorites',
+    component: FavoritesPage,
+    meta: { title: '重点关注' },
   },
   {
     path: '/programs/:programId',
@@ -61,6 +76,37 @@ const routes = [
 const router = createRouter({
   history: createWebHistory('/app/'),
   routes,
+})
+
+router.beforeEach(async (to) => {
+  if (to.meta?.public) {
+    return true
+  }
+
+  try {
+    const { data } = await api.get('/access/status')
+    if (!data?.enabled) {
+      return true
+    }
+
+    const accessKey = getAccessSession()
+    if (!accessKey) {
+      return {
+        name: 'access-gate',
+      }
+    }
+
+    await api.get('/access/status')
+    return true
+  } catch (error) {
+    if (error?.response?.status === 401) {
+      clearAccessSession()
+      return {
+        name: 'access-gate',
+      }
+    }
+    return true
+  }
 })
 
 router.afterEach((to) => {

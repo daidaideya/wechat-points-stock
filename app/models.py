@@ -9,6 +9,8 @@ class SystemSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     max_log_entries = Column(Integer, default=10000)
     max_retention_days = Column(Integer, default=30)
+    access_protection_enabled = Column(Integer, default=0)
+    access_key = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 class WechatAccount(Base):

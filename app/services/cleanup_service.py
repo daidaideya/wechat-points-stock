@@ -1,13 +1,45 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app import models
 from datetime import datetime, timedelta
 
+
+def ensure_system_settings_columns(db: Session):
+    expected_columns = {
+        "access_protection_enabled": "ALTER TABLE system_settings ADD COLUMN access_protection_enabled INTEGER DEFAULT 0",
+        "access_key": "ALTER TABLE system_settings ADD COLUMN access_key VARCHAR(255)",
+    }
+
+    connection = db.bind.connect()
+    try:
+        inspector = db.bind.dialect.get_columns(connection, "system_settings")
+        column_names = {column["name"] for column in inspector}
+    finally:
+        connection.close()
+
+    missing_statements = [
+        statement
+        for column_name, statement in expected_columns.items()
+        if column_name not in column_names
+    ]
+
+    if not missing_statements:
+        return
+
+    for statement in missing_statements:
+        db.execute(text(statement))
+    db.commit()
+
+
 def get_or_create_settings(db: Session) -> models.SystemSettings:
+    ensure_system_settings_columns(db)
     settings = db.query(models.SystemSettings).first()
     if not settings:
         settings = models.SystemSettings(
             max_log_entries=10000,
             max_retention_days=30,
+            access_protection_enabled=0,
+            access_key=None,
             updated_at=datetime.utcnow()
         )
         db.add(settings)

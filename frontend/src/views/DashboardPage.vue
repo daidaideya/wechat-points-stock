@@ -130,7 +130,6 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import {
   Box,
   Clock,
