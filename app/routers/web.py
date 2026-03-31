@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import json
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pypinyin import Style, lazy_pinyin, pinyin
@@ -30,6 +30,12 @@ class SortOrderUpdate(BaseModel):
 class LogSettingsUpdate(BaseModel):
     max_log_entries: int
     max_retention_days: int
+    access_protection_enabled: bool = False
+    access_key: Optional[str] = None
+
+
+class AccessVerifyRequest(BaseModel):
+    access_key: str
 
 
 class ProgramUpdate(BaseModel):
@@ -215,6 +221,29 @@ def build_program_payload(program, last_updates, has_stock_map):
     }
 
 
+def verify_access_or_raise(
+    db: Session,
+    x_access_key: Optional[str],
+    allow_empty_when_disabled: bool = True,
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    enabled = settings.access_protection_enabled == 1
+    stored_key = (settings.access_key or "").strip()
+
+    if not enabled:
+        return settings
+
+    if not stored_key:
+        if allow_empty_when_disabled:
+            return settings
+        raise HTTPException(status_code=403, detail="已开启访问保护，但尚未设置访问密钥")
+
+    if (x_access_key or "").strip() != stored_key:
+        raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
+
+    return settings
+
+
 def build_account_points_summary(db: Session, account: models.WechatAccount, all_programs):
     user_points = db.query(models.PointsHistory).filter(
         models.PointsHistory.wechat_id == account.wechat_id
@@ -373,21 +402,73 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/api/v1/settings/logs")
-async def get_log_settings(db: Session = Depends(get_db)):
+@router.get("/api/v1/access/status")
+async def get_access_status(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     settings = cleanup_service.get_or_create_settings(db)
+    enabled = settings.access_protection_enabled == 1
+    has_access_key = bool((settings.access_key or "").strip())
+
+    if enabled and has_access_key:
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    return {
+        "enabled": enabled and has_access_key,
+        "configured": has_access_key,
+    }
+
+
+@router.post("/api/v1/access/verify")
+async def verify_access_key(payload: AccessVerifyRequest, db: Session = Depends(get_db)):
+    settings = cleanup_service.get_or_create_settings(db)
+    enabled = settings.access_protection_enabled == 1
+    stored_key = (settings.access_key or "").strip()
+
+    if not enabled or not stored_key:
+        return JSONResponse(content={"status": "disabled"})
+
+    if payload.access_key.strip() != stored_key:
+        raise HTTPException(status_code=401, detail="访问密钥错误")
+
+    return JSONResponse(content={"status": "success"})
+
+
+@router.get("/api/v1/settings/logs")
+async def get_log_settings(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     return {
         "max_log_entries": settings.max_log_entries,
         "max_retention_days": settings.max_retention_days,
+        "access_protection_enabled": settings.access_protection_enabled == 1,
+        "access_key_configured": bool((settings.access_key or "").strip()),
         "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
     }
 
 
 @router.post("/api/v1/settings/logs")
-async def update_log_settings(update: LogSettingsUpdate, db: Session = Depends(get_db)):
+async def update_log_settings(
+    update: LogSettingsUpdate,
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
     settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     settings.max_log_entries = max(0, update.max_log_entries)
     settings.max_retention_days = max(0, update.max_retention_days)
+    settings.access_protection_enabled = 1 if update.access_protection_enabled else 0
+
+    if update.access_key is not None:
+        normalized_key = update.access_key.strip()
+        settings.access_key = normalized_key or None
+
     settings.updated_at = datetime.utcnow()
     db.add(settings)
     cleanup_service.prune_points_history(db, settings.max_log_entries, settings.max_retention_days)

@@ -1,5 +1,7 @@
 <template>
-  <div class="app-layout">
+  <router-view v-if="isPublicPage" />
+
+  <div v-else class="app-layout">
     <header class="mobile-topbar">
       <button class="mobile-menu-button" type="button" @click="mobileNavVisible = true">
         <el-icon><Menu /></el-icon>
@@ -196,6 +198,8 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const mobileNavVisible = ref(false)
+
+const isPublicPage = computed(() => Boolean(route.meta?.public))
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/programs/')) {

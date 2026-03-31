@@ -267,7 +267,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowRight, Box, EditPen, CollectionTag, Star } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
