@@ -159,7 +159,7 @@ const cards = computed(() => [
     description: '系统内已管理账号总数',
     emphasis: `今日活跃 ${summary.value.active_accounts_today ?? 0}`,
     icon: User,
-    tone: 'tone-blue',
+    tone: 'tone-wheat',
     action: 'route',
     route: '/points',
     clickable: true,
@@ -170,7 +170,7 @@ const cards = computed(() => [
     description: '当前已接入监控的小程序数量',
     emphasis: `特别关注 ${summary.value.favorite_count ?? 0}`,
     icon: Grid,
-    tone: 'tone-green',
+    tone: 'tone-sand',
     action: 'route',
     route: '/programs',
     clickable: true,
@@ -181,7 +181,7 @@ const cards = computed(() => [
     description: '库存库中已录入的商品数量',
     emphasis: `缺货 ${summary.value.out_of_stock_count ?? 0}`,
     icon: Box,
-    tone: 'tone-cyan',
+    tone: 'tone-honey',
     action: 'route',
     route: '/stock',
     clickable: true,
@@ -192,7 +192,7 @@ const cards = computed(() => [
     description: '当天尚未同步积分的小程序数量',
     emphasis: (summary.value.unreported_count ?? 0) > 0 ? '点击查看完整列表' : '当前状态正常',
     icon: Warning,
-    tone: 'tone-red',
+    tone: 'tone-apricot',
     action: 'dialog',
     clickable: true,
   },
@@ -202,7 +202,7 @@ const cards = computed(() => [
     description: '历史积分明细累计条数',
     emphasis: '支持时间维度追踪',
     icon: DataLine,
-    tone: 'tone-slate',
+    tone: 'tone-latte',
     clickable: false,
   },
   {
@@ -211,7 +211,7 @@ const cards = computed(() => [
     description: '已收藏的小程序重点集合',
     emphasis: '便于快速筛查重点项目',
     icon: Star,
-    tone: 'tone-amber',
+    tone: 'tone-gold',
     clickable: false,
   },
 ])
@@ -263,7 +263,7 @@ async function loadDashboard() {
     summary.value = data || {}
     recentUpdates.value = data?.recent_program_updates || []
     allUnreportedPrograms.value = unreportedItems
-    unreportedPrograms.value = unreportedItems.slice(0, 6)
+    unreportedPrograms.value = unreportedItems.slice(0, 5)
   } catch (error) {
     console.error(error)
     ElMessage.error('加载仪表盘失败')

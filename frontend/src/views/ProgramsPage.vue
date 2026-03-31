@@ -1,22 +1,23 @@
 <template>
-  <div class="page-stack programs-page">
-    <section class="toolbar-card programs-toolbar-card">
-      <div class="programs-toolbar-head compact">
+  <div class="page-stack programs-page programs-showcase-page">
+    <section class="toolbar-card programs-toolbar-card showcase-toolbar-card">
+      <div class="programs-toolbar-head showcase compact">
         <div>
-          <h2 class="section-title compact">快速检索小程序</h2>
-          <p class="section-description compact">支持名称、program_id、拼音、收藏状态和标签组合筛选。</p>
+          <h3 class="section-title compact">检索与筛选</h3>
+          <p class="section-description compact">支持名称、program_id、拼音、收藏状态与标签组合过滤。</p>
         </div>
-        <div class="toolbar-status-chip compact">
-          <span class="toolbar-status-value">{{ total }}</span>
-          <span class="toolbar-status-label">当前结果</span>
+        <div class="toolbar-status-chip compact warm-chip">
+          <span class="toolbar-status-value">{{ programs.length }}</span>
+          <span class="toolbar-status-label">本页展示</span>
         </div>
       </div>
 
-      <div class="toolbar-row programs-toolbar-row compact">
+      <div class="toolbar-row programs-toolbar-row showcase compact">
         <el-input
           v-model="searchKeyword"
           clearable
           size="large"
+          class="showcase-search-input"
           placeholder="搜索小程序名称 / program_id / 拼音"
           @keyup.enter="applyFilters"
           @clear="applyFilters"
@@ -26,51 +27,62 @@
           </template>
         </el-input>
 
-        <el-select v-model="favoriteFilter" size="large" class="toolbar-select" @change="applyFilters">
+        <el-select v-model="favoriteFilter" size="large" class="toolbar-select showcase-select" @change="applyFilters">
           <el-option label="全部" value="all" />
           <el-option label="仅收藏" value="favorite" />
           <el-option label="仅未收藏" value="unfavorite" />
         </el-select>
 
-        <el-button size="large" plain :disabled="!hasActiveFilters" @click="resetFilters">重置</el-button>
+        <el-button size="large" class="showcase-reset-button" plain :disabled="!hasActiveFilters" @click="resetFilters">重置</el-button>
       </div>
 
-      <div class="tag-toolbar programs-tag-toolbar compact">
+      <div class="tag-toolbar programs-tag-toolbar showcase compact">
         <div class="tag-toolbar-top compact">
           <span class="tag-toolbar-label">标签筛选</span>
           <span class="tag-toolbar-tip">点击切换，重复点击取消</span>
         </div>
-        <div class="tag-list content filter-tag-list compact">
-          <el-check-tag :checked="currentTag === ''" @change="selectTag('')">全部</el-check-tag>
-          <el-check-tag
+        <div class="tag-list content filter-tag-list showcase compact">
+          <button
+            type="button"
+            class="filter-chip"
+            :class="{ active: currentTag === '' }"
+            @click="selectTag('')"
+          >
+            全部
+          </button>
+          <button
             v-for="tag in availableTags"
             :key="tag"
-            :checked="currentTag === tag"
-            @change="selectTag(tag)"
+            type="button"
+            class="filter-chip"
+            :class="{ active: currentTag === tag }"
+            @click="selectTag(tag)"
           >
             {{ tag }}
-          </el-check-tag>
+          </button>
           <span v-if="!availableTags.length" class="empty-text">暂无可筛选标签</span>
         </div>
       </div>
     </section>
 
-    <section v-if="loading && programs.length === 0" class="skeleton-grid compact">
-      <el-card v-for="item in 6" :key="item" shadow="hover" class="program-card skeleton-card compact">
+    <section v-if="loading && programs.length === 0" class="showcase-grid skeleton-grid compact">
+      <el-card v-for="item in 6" :key="item" shadow="hover" class="program-card showcase-program-card skeleton-card compact">
         <el-skeleton animated>
           <template #template>
-            <el-skeleton-item variant="h3" style="width: 54%; height: 26px; margin-bottom: 14px" />
-            <el-skeleton-item variant="text" style="width: 82%; margin-bottom: 10px" />
-            <el-skeleton-item variant="text" style="width: 58%; margin-bottom: 14px" />
-            <el-skeleton-item variant="text" style="width: 100%; height: 28px; margin-bottom: 10px" />
-            <el-skeleton-item variant="text" style="width: 40%" />
+            <el-skeleton-item variant="circle" style="width: 52px; height: 52px; margin-bottom: 18px" />
+            <el-skeleton-item variant="h3" style="width: 52%; height: 26px; margin-bottom: 12px" />
+            <el-skeleton-item variant="text" style="width: 70%; margin-bottom: 10px" />
+            <el-skeleton-item variant="text" style="width: 92%; margin-bottom: 8px" />
+            <el-skeleton-item variant="text" style="width: 80%; margin-bottom: 18px" />
+            <el-skeleton-item variant="text" style="width: 100%; height: 34px; margin-bottom: 10px" />
+            <el-skeleton-item variant="text" style="width: 48%" />
           </template>
         </el-skeleton>
       </el-card>
     </section>
 
-    <section v-else class="program-grid compact">
-      <div v-if="loadError" class="program-state-card compact">
+    <section v-else class="showcase-grid compact">
+      <div v-if="loadError" class="program-state-card compact full-span">
         <el-result icon="error" title="列表加载失败" sub-title="请检查网络或接口状态后重试。">
           <template #extra>
             <el-button type="primary" @click="applyFilters">重新加载</el-button>
@@ -78,7 +90,7 @@
         </el-result>
       </div>
 
-      <div v-else-if="!programs.length" class="program-state-card compact">
+      <div v-else-if="!programs.length" class="program-state-card compact full-span">
         <el-empty description="没有符合条件的小程序">
           <template #description>
             <p>可尝试清空关键词、标签或收藏筛选后重新查看。</p>
@@ -89,95 +101,95 @@
         </el-empty>
       </div>
 
-      <el-card v-for="program in programs" v-else :key="program.program_id" shadow="hover" class="program-card program-entry-card compact">
-        <template #header>
-          <div class="program-card-header compact stacked-card-header">
-            <div class="title-wrap program-title-wrap compact full-width-title">
-              <div class="program-title-row compact">
-                <h3>{{ program.program_name || program.program_id }}</h3>
+      <article
+        v-for="program in programs"
+        v-else
+        :key="program.program_id"
+        class="showcase-card masonry-card"
+        :class="{
+          'is-favorite': program.is_favorite,
+          'has-stock': program.has_stock,
+        }"
+      >
+        <div class="showcase-card-top">
+          <div class="showcase-card-brand no-avatar-brand">
+            <div class="showcase-card-brand-text full-width-brand-text">
+              <div class="showcase-card-title-line">
+                <h3 class="showcase-card-title">{{ program.program_name || program.program_id }}</h3>
               </div>
-              <div class="program-subline stacked-subline">
-                <span class="program-id inline">{{ program.program_id }}</span>
-              </div>
-              <div class="card-actions program-card-actions compact icon-action-group under-id-actions">
-                <el-tooltip v-if="program.has_stock" content="查看库存" placement="top">
-                  <el-button
-                    circle
-                    size="small"
-                    type="success"
-                    plain
-                    class="icon-action-button round-icon-button"
-                    @click="openStockDialog(program)"
-                  >
-                    <el-icon><Box /></el-icon>
-                  </el-button>
-                </el-tooltip>
-
-                <el-tooltip content="编辑备注" placement="top">
-                  <el-button circle size="small" plain class="icon-action-button round-icon-button" @click="openNoteDialog(program)">
-                    <el-icon><EditPen /></el-icon>
-                  </el-button>
-                </el-tooltip>
-
-                <el-tooltip content="编辑标签" placement="top">
-                  <el-button circle size="small" plain class="icon-action-button round-icon-button" @click="openTagsDialog(program)">
-                    <el-icon><CollectionTag /></el-icon>
-                  </el-button>
-                </el-tooltip>
-
-                <el-tooltip content="查看详情" placement="top">
-                  <el-button circle size="small" plain class="icon-action-button round-icon-button" @click="router.push(`/programs/${program.program_id}`)">
-                    <el-icon><ArrowRight /></el-icon>
-                  </el-button>
-                </el-tooltip>
-
-                <el-tooltip :content="program.is_favorite ? '取消收藏' : '加入收藏'" placement="top">
-                  <el-button
-                    circle
-                    size="small"
-                    :type="program.is_favorite ? 'warning' : 'default'"
-                    :plain="!program.is_favorite"
-                    class="icon-action-button round-icon-button favorite-action-button"
-                    @click="toggleFavorite(program)"
-                    :loading="updatingProgramId === program.program_id"
-                  >
-                    <el-icon><Star /></el-icon>
-                  </el-button>
-                </el-tooltip>
-
+              <div class="showcase-card-meta-row compact-meta-row">
+                <span class="showcase-card-dot stock-dot" :class="{ active: isUpdatedToday(program.last_update_time) }"></span>
+                <span class="showcase-card-id">{{ program.program_id }}</span>
               </div>
             </div>
           </div>
-        </template>
 
-        <div class="program-card-body compact">
-          <div v-if="program.note" class="program-inline-section compact note-inline-section moved-up">
-            <span class="inline-section-label">备注</span>
-            <p class="note-text compact">{{ program.note }}</p>
-          </div>
+          <div class="showcase-card-actions floating-actions ref-action-group">
+            <el-tooltip content="编辑备注" placement="top">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openNoteDialog(program)">
+                <el-icon><EditPen /></el-icon>
+              </button>
+            </el-tooltip>
 
-          <div v-if="(program.tags || []).length" class="program-inline-section compact">
-            <span class="inline-section-label">标签</span>
-            <div class="tag-list compact mini-tag-list">
-              <el-tag v-for="tag in program.tags || []" :key="`${program.program_id}-${tag}`" size="small" round>
-                {{ tag }}
-              </el-tag>
-            </div>
-          </div>
+            <el-tooltip :content="program.has_stock ? '查看库存' : '查看详情'" placement="top">
+              <button
+                type="button"
+                class="showcase-icon-button ref-action-button icon-plain-button"
+                @click="program.has_stock ? openStockDialog(program) : router.push(`/programs/${program.program_id}`)"
+              >
+                <el-icon><Box /></el-icon>
+              </button>
+            </el-tooltip>
 
-          <div class="program-footer-line compact aligned-footer-line">
-            <div class="program-time-inline aligned-time-inline">
-              <el-icon class="program-time-icon"><Clock /></el-icon>
-              <span class="program-time-text">{{ formatDate(program.last_update_time) }}</span>
-            </div>
+            <el-tooltip :content="program.is_favorite ? '取消收藏' : '加入收藏'" placement="top">
+              <button
+                type="button"
+                class="showcase-icon-button ref-action-button favorite-toggle ref-action-button-favorite icon-plain-button"
+                :class="{ active: program.is_favorite }"
+                @click="toggleFavorite(program)"
+              >
+                <el-icon v-if="updatingProgramId !== program.program_id"><Star /></el-icon>
+                <span v-else class="showcase-button-loading">...</span>
+              </button>
+            </el-tooltip>
+
+            <el-tooltip :content="(program.tags || []).length ? '编辑标签' : '添加标签'" placement="top">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openTagsDialog(program)">
+                <el-icon><CollectionTag /></el-icon>
+              </button>
+            </el-tooltip>
+
+            <el-tooltip content="查看详情" placement="top">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="router.push(`/programs/${program.program_id}`)">
+                <el-icon><ArrowRight /></el-icon>
+              </button>
+            </el-tooltip>
           </div>
         </div>
-      </el-card>
+
+        <div class="showcase-card-chips compact-card-chips">
+          <span v-if="(program.tags || []).length" class="showcase-chip success">
+            标签：{{ (program.tags || []).join(' / ') }}
+          </span>
+          <span v-else class="showcase-chip warning">标签：未设置标签</span>
+        </div>
+
+        <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
+          {{ program.note || '暂无备注' }}
+        </p>
+
+        <div class="showcase-card-footer compact-footer">
+          <div class="showcase-footer-meta">
+            <span class="showcase-footer-icon">◔</span>
+            <span class="showcase-footer-time">{{ formatDate(program.last_update_time) }}</span>
+          </div>
+        </div>
+      </article>
     </section>
 
     <div v-if="programs.length && !loadError" ref="loadMoreSentinel" class="infinite-sentinel" aria-hidden="true"></div>
 
-    <div v-if="programs.length && !loadError" class="infinite-status-bar">
+    <div v-if="programs.length && !loadError" class="infinite-status-bar showcase-status-bar">
       <span v-if="loadingMore" class="infinite-status-text">正在加载更多...</span>
       <span v-else-if="!hasMore" class="infinite-status-text done">已加载全部数据</span>
       <span v-else class="infinite-status-text">继续下滑可自动加载更多</span>
@@ -256,7 +268,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowRight, Box, Clock, CollectionTag, EditPen, Star } from '@element-plus/icons-vue'
+import { ArrowRight, Box, EditPen, CollectionTag, Star } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
 
@@ -315,6 +327,17 @@ function formatDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function isUpdatedToday(value) {
+  if (!value) return false
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+
+  const now = new Date()
+  return date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
 }
 
 function getRequestParams(nextPage = 1) {
@@ -485,6 +508,7 @@ async function saveTags() {
 }
 
 async function toggleFavorite(program) {
+  if (updatingProgramId.value) return
   updatingProgramId.value = program.program_id
   try {
     await api.put(`/programs/${program.program_id}`, { is_favorite: !program.is_favorite })
@@ -497,7 +521,6 @@ async function toggleFavorite(program) {
     updatingProgramId.value = ''
   }
 }
-
 
 async function openStockDialog(program) {
   stockDialogVisible.value = true
@@ -528,3 +551,567 @@ onBeforeUnmount(() => {
   destroyInfiniteScroll()
 })
 </script>
+
+<style scoped>
+.programs-showcase-page {
+  position: relative;
+  gap: 22px;
+  padding: 6px 2px 18px;
+}
+
+.programs-showcase-page::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 0 260px;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(rgba(229, 209, 176, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(229, 209, 176, 0.16) 1px, transparent 1px),
+    linear-gradient(180deg, #fffaf0 0%, #fff7eb 100%);
+  background-size: 24px 24px, 24px 24px, 100% 100%;
+  background-position: 0 0, 0 0, 0 0;
+}
+
+.showcase-toolbar-card {
+  border-radius: 26px;
+  border: 1px solid rgba(235, 220, 194, 0.88);
+  background: rgba(255, 252, 247, 0.9);
+  box-shadow: 0 10px 24px rgba(126, 98, 63, 0.04);
+  backdrop-filter: blur(2px);
+}
+
+.programs-toolbar-head.showcase,
+.programs-toolbar-row.showcase,
+.programs-tag-toolbar.showcase {
+  position: relative;
+  z-index: 1;
+}
+
+.warm-chip {
+  background: linear-gradient(135deg, rgba(255, 244, 221, 0.96), rgba(255, 237, 213, 0.9));
+  color: #8b5e34;
+}
+
+.showcase-search-input :deep(.el-input__wrapper),
+.showcase-search-input :deep(.el-input-group__append),
+.showcase-select :deep(.el-select__wrapper) {
+  background: #fffaf3;
+  box-shadow: 0 0 0 1px rgba(232, 210, 184, 0.78) inset;
+}
+
+.showcase-search-input :deep(.el-input__wrapper.is-focus),
+.showcase-select :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px #d6a96b inset;
+}
+
+.showcase-reset-button {
+  border-color: rgba(219, 183, 141, 0.74);
+  color: #8b5e34;
+  background: #fff9f2;
+}
+
+.filter-tag-list.showcase {
+  gap: 10px;
+}
+
+.filter-chip {
+  border: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #fff8ef;
+  color: #8a6c4c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(231, 208, 176, 0.86);
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover {
+  transform: translateY(-1px);
+  background: #fff3de;
+}
+
+.filter-chip.active {
+  background: linear-gradient(135deg, #f5d8a8, #efc381);
+  color: #5b3b14;
+  box-shadow: 0 12px 24px rgba(225, 172, 88, 0.2);
+}
+
+.showcase-grid {
+  column-count: 4;
+  column-gap: 22px;
+}
+
+.full-span {
+  column-span: all;
+}
+
+.showcase-card {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 0 22px;
+  padding: 22px;
+  border-radius: 24px;
+  background: #fffdf9;
+  border: 1px solid rgba(239, 226, 208, 0.95);
+  box-shadow: 0 8px 18px rgba(126, 98, 63, 0.05);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.masonry-card:nth-child(3n) {
+  background: #fffdf9;
+}
+
+.masonry-card:nth-child(4n) {
+  background: #fffdf9;
+}
+
+.showcase-card::before {
+  display: none;
+}
+
+.showcase-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(230, 196, 154, 0.98);
+  box-shadow: 0 10px 24px rgba(126, 98, 63, 0.07);
+}
+
+.showcase-card.is-favorite {
+  border-color: rgba(240, 196, 113, 0.72);
+}
+
+.showcase-card.has-stock {
+  box-shadow: 0 8px 18px rgba(126, 98, 63, 0.05);
+}
+
+.showcase-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.showcase-card-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.no-avatar-brand {
+  gap: 0;
+}
+
+.full-width-brand-text,
+.showcase-card-brand-text {
+  min-width: 0;
+  width: 100%;
+}
+
+.showcase-card-title-line {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.showcase-card-title {
+  margin: 0;
+  color: #2f2418;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.showcase-card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: #9b7e5c;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.compact-meta-row {
+  margin-right: 10px;
+}
+
+.showcase-card-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.showcase-card-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(172, 133, 83, 0.45);
+}
+
+.stock-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  background: #cfd5dd;
+  box-shadow: 0 0 0 2px rgba(207, 213, 221, 0.18);
+}
+
+.stock-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.16);
+}
+
+.showcase-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.floating-actions {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ref-action-group {
+  gap: 8px;
+}
+
+.showcase-icon-button {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #8a6c4c;
+  box-shadow: none;
+  cursor: pointer;
+  transition: color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+}
+
+.ref-action-button {
+  padding: 0;
+  background: transparent;
+  color: #8e949f;
+  box-shadow: none;
+}
+
+.icon-plain-button {
+  min-width: 16px;
+  line-height: 1;
+  opacity: 0.95;
+}
+
+.icon-plain-button :deep(.el-icon) {
+  font-size: 15px;
+}
+
+.ref-action-button:hover {
+  color: #5f6b7a;
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.ref-action-button-favorite.active {
+  color: #e5a22d;
+  opacity: 1;
+}
+
+.ref-action-button-favorite.active:hover {
+  color: #d99623;
+}
+
+.showcase-button-loading {
+  font-size: 12px;
+  letter-spacing: 0.2em;
+}
+
+.showcase-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.compact-card-chips {
+  margin-top: 14px;
+}
+
+.showcase-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.showcase-chip.muted {
+  background: rgba(255, 242, 225, 0.92);
+  color: #966537;
+}
+
+.showcase-chip.success {
+  background: rgba(211, 239, 227, 0.92);
+  color: #21684f;
+}
+
+.showcase-chip.warning {
+  background: rgba(252, 237, 214, 0.92);
+  color: #a16207;
+}
+
+.showcase-card-note {
+  margin: 12px 0 0;
+  color: #6f5a44;
+  font-size: 14px;
+  line-height: 1.8;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+.masonry-note.empty {
+  min-height: 56px;
+}
+
+.showcase-card-note.empty {
+  color: #a0896e;
+}
+
+.showcase-endpoint-block {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+}
+
+.compact-endpoint-block {
+  padding: 12px 14px;
+}
+
+.showcase-block-label {
+  color: #b08a5b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.showcase-endpoint-value {
+  margin-top: 8px;
+  color: #3e2f22;
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.showcase-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.compact-tag-row {
+  gap: 7px;
+}
+
+.showcase-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 249, 239, 0.94);
+  color: #7a6143;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(233, 215, 191, 0.92);
+}
+
+.showcase-tag.empty {
+  color: #a0896e;
+}
+
+.showcase-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.compact-footer {
+  align-items: flex-end;
+}
+
+.showcase-footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  color: #8e7454;
+  font-size: 12px;
+}
+
+.showcase-footer-time {
+  white-space: nowrap;
+}
+
+.showcase-footer-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 243, 225, 0.92);
+  color: #a16207;
+  font-size: 12px;
+}
+
+.showcase-footer-actions {
+  display: flex;
+  align-items: center;
+}
+
+.compact-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.showcase-mini-action {
+  border: 0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 249, 240, 0.98);
+  color: #7b5d3d;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(232, 211, 183, 0.96);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.showcase-mini-action:hover {
+  transform: translateY(-1px);
+  background: #fff3df;
+}
+
+.stock-mini-action.active {
+  background: linear-gradient(135deg, #def7e7, #c3f0d1);
+  color: #166534;
+  box-shadow: inset 0 0 0 1px rgba(134, 239, 172, 0.9);
+}
+
+.tag-mini-action:hover {
+  color: #7c3aed;
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.92);
+}
+
+.favorite-mini-action.active {
+  background: linear-gradient(135deg, #f7d88f, #f0bc65);
+  color: #6b430d;
+  box-shadow: inset 0 0 0 1px rgba(239, 186, 89, 0.94);
+}
+
+.showcase-action-pill {
+  border: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f4d39e, #ebb96f);
+  color: #5d3a11;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(233, 183, 99, 0.22);
+}
+
+.showcase-action-pill.muted {
+  background: #fff6ea;
+  color: #8a6c4c;
+  box-shadow: inset 0 0 0 1px rgba(230, 204, 167, 0.92);
+}
+
+.showcase-status-bar {
+  padding-bottom: 10px;
+}
+
+@media (max-width: 1280px) {
+  .showcase-grid {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 1024px) {
+  .programs-showcase-page::before {
+    inset: 0;
+  }
+
+  .showcase-grid {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 768px) {
+  .showcase-toolbar-card,
+  .showcase-card {
+    border-radius: 22px;
+  }
+
+  .showcase-grid {
+    column-count: 1;
+  }
+
+  .showcase-card-top,
+  .showcase-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .showcase-card-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ref-action-group {
+    gap: 8px;
+  }
+
+  .compact-footer,
+  .compact-footer-actions {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+}
+</style>
