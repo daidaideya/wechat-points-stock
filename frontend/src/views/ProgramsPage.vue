@@ -135,7 +135,7 @@
               <button
                 type="button"
                 class="showcase-icon-button ref-action-button icon-plain-button"
-                @click="program.has_stock ? openStockDialog(program) : router.push(`/programs/${program.program_id}`)"
+                @click="program.has_stock ? openStockDialog(program) : goToProgramDetail(program)"
               >
                 <el-icon><Box /></el-icon>
               </button>
@@ -160,19 +160,35 @@
             </el-tooltip>
 
             <el-tooltip content="查看详情" placement="top">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="router.push(`/programs/${program.program_id}`)">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="goToProgramDetail(program)">
                 <el-icon><ArrowRight /></el-icon>
+              </button>
+            </el-tooltip>
+
+            <el-tooltip content="删除小程序" placement="top">
+              <button
+                type="button"
+                class="showcase-icon-button ref-action-button icon-plain-button danger-action-button"
+                :disabled="deletingProgramId === program.program_id"
+                @click="deleteProgram(program)"
+              >
+                <el-icon v-if="deletingProgramId !== program.program_id"><Delete /></el-icon>
+                <span v-else class="showcase-button-loading">...</span>
               </button>
             </el-tooltip>
           </div>
         </div>
 
-        <div class="showcase-card-chips compact-card-chips">
+        <button
+          type="button"
+          class="showcase-card-chips compact-card-chips clickable-chip-group"
+          @click="openTagsDialog(program)"
+        >
           <span v-if="(program.tags || []).length" class="showcase-chip success">
             标签：{{ (program.tags || []).join(' / ') }}
           </span>
           <span v-else class="showcase-chip warning">标签：未设置标签</span>
-        </div>
+        </button>
 
         <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
           {{ program.note || '暂无备注' }}
@@ -195,36 +211,95 @@
       <span v-else class="infinite-status-text">继续下滑可自动加载更多</span>
     </div>
 
-    <el-dialog v-model="noteDialogVisible" title="编辑备注" width="520px">
-      <el-input v-model="editingNote" type="textarea" :rows="5" maxlength="200" show-word-limit placeholder="请输入备注" />
+    <el-dialog v-model="noteDialogVisible" title="编辑备注" width="560px" class="showcase-dialog">
+      <div class="showcase-dialog-body">
+        <div class="showcase-dialog-intro">
+          <div>
+            <div class="showcase-dialog-title">维护小程序备注</div>
+            <div class="showcase-dialog-subtitle">为当前小程序补充说明，便于后续识别、分类和管理。</div>
+          </div>
+          <div class="showcase-dialog-badge">{{ currentProgram?.program_name || currentProgram?.program_id || '当前小程序' }}</div>
+        </div>
+
+        <div class="dialog-panel">
+          <div class="block-label">备注内容</div>
+          <el-input
+            v-model="editingNote"
+            class="showcase-dialog-textarea"
+            type="textarea"
+            :rows="6"
+            maxlength="200"
+            show-word-limit
+            placeholder="请输入备注"
+          />
+        </div>
+      </div>
+
       <template #footer>
         <el-button @click="noteDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="saveNote" :loading="savingNote">保存</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="tagsDialogVisible" title="编辑标签" width="560px">
-      <div class="dialog-section">
-        <div class="block-label">快捷标签</div>
-        <div class="tag-list content">
-          <el-tag v-for="tag in quickTags" :key="tag" class="clickable-tag" @click="appendTag(tag)">{{ tag }}</el-tag>
-          <el-tag class="clickable-tag add-tag" @click="promptCustomTag">+ 自定义</el-tag>
+    <el-dialog v-model="tagsDialogVisible" title="编辑标签" width="620px" class="showcase-dialog showcase-tags-dialog">
+      <div class="tags-dialog-body">
+        <div class="tags-dialog-intro">
+          <div>
+            <div class="tags-dialog-title">维护当前小程序标签</div>
+            <div class="tags-dialog-subtitle">点击下方标签即可快速添加或移除，支持自定义标签。</div>
+          </div>
+          <div class="tags-dialog-counter">已选 {{ editingTags.length }} 个</div>
+        </div>
+
+        <div class="dialog-section dialog-panel">
+          <div class="block-label">快捷标签</div>
+          <div class="tag-list content tags-dialog-list">
+            <button
+              v-for="tag in quickTags"
+              :key="tag"
+              type="button"
+              class="dialog-tag-chip"
+              :class="{ active: editingTags.includes(tag) }"
+              @click="toggleEditingTag(tag)"
+            >
+              {{ tag }}
+            </button>
+            <button type="button" class="dialog-tag-chip add-chip" @click="promptCustomTag">+ 自定义</button>
+          </div>
+        </div>
+
+        <div class="dialog-section dialog-panel">
+          <div class="block-label">已选标签</div>
+          <div class="tag-list content tags-dialog-list selected-tags-list">
+            <el-tag
+              v-for="tag in editingTags"
+              :key="tag"
+              class="selected-dialog-tag"
+              closable
+              @close="removeEditingTag(tag)"
+            >
+              {{ tag }}
+            </el-tag>
+            <div v-if="!editingTags.length" class="tags-empty-state">暂无标签，可从上方快捷标签或自定义输入中添加</div>
+          </div>
+        </div>
+
+        <div class="dialog-section dialog-panel compact-tip-panel">
+          <div class="block-label">自定义标签</div>
+          <el-input
+            v-model="customTagInput"
+            class="tags-custom-input"
+            maxlength="20"
+            placeholder="输入自定义标签后点击添加"
+            @keyup.enter="addCustomTagFromInput"
+          >
+            <template #append>
+              <el-button class="tags-add-button" @click="addCustomTagFromInput">添加</el-button>
+            </template>
+          </el-input>
+          <div class="tags-dialog-tip">支持增删改：点击快捷标签切换，点击已选标签右侧关闭按钮删除。</div>
         </div>
       </div>
-
-      <div class="dialog-section">
-        <div class="block-label">已选标签</div>
-        <div class="tag-list content">
-          <el-tag v-for="tag in editingTags" :key="tag" closable @close="removeEditingTag(tag)">{{ tag }}</el-tag>
-          <span v-if="!editingTags.length" class="empty-text">暂无标签</span>
-        </div>
-      </div>
-
-      <el-input v-model="customTagInput" maxlength="20" placeholder="输入自定义标签后点击添加" @keyup.enter="addCustomTagFromInput">
-        <template #append>
-          <el-button @click="addCustomTagFromInput">添加</el-button>
-        </template>
-      </el-input>
 
       <template #footer>
         <el-button @click="tagsDialogVisible = false">取消</el-button>
@@ -232,49 +307,67 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="stockDialogVisible" :title="stockDialogTitle" width="960px" top="5vh">
-      <div v-if="stockLoading" class="stock-loading">
-        <el-skeleton :rows="6" animated />
+    <el-dialog v-model="stockDialogVisible" :title="stockDialogTitle" width="1040px" top="5vh" class="showcase-dialog showcase-stock-dialog">
+      <div class="showcase-dialog-body stock-dialog-body">
+        <div class="showcase-dialog-intro">
+          <div>
+            <div class="showcase-dialog-title">库存详情总览</div>
+            <div class="showcase-dialog-subtitle">查看当前小程序商品库存、所需积分和最高用户积分。</div>
+          </div>
+          <div class="showcase-dialog-badge stock-badge">最高积分 {{ stockData?.max_user_points ?? 0 }}</div>
+        </div>
+
+        <div v-if="stockLoading" class="stock-loading dialog-panel">
+          <el-skeleton :rows="6" animated />
+        </div>
+        <template v-else>
+          <div class="stock-summary-card dialog-panel">
+            <div class="stock-summary-label">当前最高用户积分</div>
+            <div class="stock-summary-value">{{ stockData?.max_user_points ?? 0 }}</div>
+          </div>
+
+          <div class="dialog-panel stock-table-panel">
+            <el-table :data="stockData?.products || []" stripe class="showcase-dialog-table">
+              <el-table-column label="图片" width="96">
+                <template #default="scope">
+                  <el-image
+                    v-if="scope.row.image_url"
+                    :src="scope.row.image_url"
+                    fit="cover"
+                    class="product-thumb"
+                    :preview-src-list="[scope.row.image_url]"
+                    preview-teleported
+                  />
+                  <span v-else class="empty-text">无图</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="product_name" label="商品名称" min-width="320" />
+              <el-table-column prop="points" label="所需积分" width="120" />
+              <el-table-column prop="stock" label="库存" width="100">
+                <template #default="scope">
+                  <el-tag :type="scope.row.stock > 0 ? 'success' : 'danger'">{{ scope.row.stock }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </template>
       </div>
-      <template v-else>
-        <div class="stock-summary">当前最高用户积分：<strong>{{ stockData?.max_user_points ?? 0 }}</strong></div>
-        <el-table :data="stockData?.products || []" stripe>
-          <el-table-column label="图片" width="96">
-            <template #default="scope">
-              <el-image
-                v-if="scope.row.image_url"
-                :src="scope.row.image_url"
-                fit="cover"
-                class="product-thumb"
-                :preview-src-list="[scope.row.image_url]"
-                preview-teleported
-              />
-              <span v-else class="empty-text">无图</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="product_name" label="商品名称" min-width="320" />
-          <el-table-column prop="points" label="所需积分" width="120" />
-          <el-table-column prop="stock" label="库存" width="100">
-            <template #default="scope">
-              <el-tag :type="scope.row.stock > 0 ? 'success' : 'danger'">{{ scope.row.stock }}</el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
-      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, EditPen, CollectionTag, Star } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
+import { ArrowRight, Box, Delete, EditPen, CollectionTag, Star } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 
 const router = useRouter()
+const route = useRoute()
 const pageSize = 21
 const quickTags = ['现金类', '全品类', '母婴类', '快消类']
 const loadMoreSentinel = ref(null)
+const PROGRAMS_PAGE_STATE_KEY = 'programs-page-state'
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -291,6 +384,7 @@ const currentTag = ref('')
 const searchKeyword = ref('')
 const favoriteFilter = ref('all')
 const updatingProgramId = ref('')
+const deletingProgramId = ref('')
 const noteDialogVisible = ref(false)
 const tagsDialogVisible = ref(false)
 const stockDialogVisible = ref(false)
@@ -301,6 +395,7 @@ const customTagInput = ref('')
 const stockData = ref(null)
 
 let observer = null
+let restoringState = false
 
 const stockDialogTitle = computed(() => {
   if (!stockData.value?.program_name) return '库存详情'
@@ -319,6 +414,59 @@ function normalizeTags(input) {
     seen.add(item)
     return true
   }).slice(0, 20)
+}
+
+function savePageState() {
+  const state = {
+    searchKeyword: searchKeyword.value,
+    favoriteFilter: favoriteFilter.value,
+    currentTag: currentTag.value,
+    programs: programs.value,
+    availableTags: availableTags.value,
+    total: total.value,
+    page: page.value,
+    hasMore: hasMore.value,
+    scrollY: window.scrollY || window.pageYOffset || 0,
+  }
+  sessionStorage.setItem(PROGRAMS_PAGE_STATE_KEY, JSON.stringify(state))
+}
+
+function readPageState() {
+  try {
+    const raw = sessionStorage.getItem(PROGRAMS_PAGE_STATE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+async function restorePageState() {
+  const state = readPageState()
+  if (!state) return false
+
+  restoringState = true
+  searchKeyword.value = state.searchKeyword || ''
+  favoriteFilter.value = state.favoriteFilter || 'all'
+  currentTag.value = state.currentTag || ''
+  programs.value = Array.isArray(state.programs) ? state.programs : []
+  availableTags.value = Array.isArray(state.availableTags) ? state.availableTags : []
+  total.value = Number(state.total) || 0
+  page.value = Number(state.page) || 1
+  hasMore.value = Boolean(state.hasMore)
+  loadError.value = false
+  loading.value = false
+  loadingMore.value = false
+  await nextTick()
+  initInfiniteScroll()
+  window.scrollTo({ top: Number(state.scrollY) || 0, behavior: 'auto' })
+  restoringState = false
+  return true
+}
+
+function goToProgramDetail(program) {
+  savePageState()
+  router.push(`/programs/${program.program_id}`)
 }
 
 function formatDate(value) {
@@ -463,6 +611,14 @@ function appendTag(tag) {
   editingTags.value = normalizeTags([...editingTags.value, tag])
 }
 
+function toggleEditingTag(tag) {
+  if (editingTags.value.includes(tag)) {
+    removeEditingTag(tag)
+    return
+  }
+  appendTag(tag)
+}
+
 async function promptCustomTag() {
   try {
     const { value } = await ElMessageBox.prompt('请输入自定义标签', '新增标签', {
@@ -536,13 +692,55 @@ async function openStockDialog(program) {
   }
 }
 
+async function deleteProgram(program) {
+  if (deletingProgramId.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除小程序“${program.program_name || program.program_id}”吗？该操作会同时删除相关库存和积分记录。`,
+      '删除确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+  } catch {
+    return
+  }
+
+  deletingProgramId.value = program.program_id
+  try {
+    await api.delete(`/programs/${program.program_id}`)
+    programs.value = programs.value.filter((item) => item.program_id !== program.program_id)
+    total.value = Math.max(0, total.value - 1)
+    availableTags.value = Array.from(
+      new Set(
+        programs.value.flatMap((item) => normalizeTags(item.tags || [])),
+      ),
+    ).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    ElMessage.success('小程序已删除')
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('删除小程序失败')
+  } finally {
+    deletingProgramId.value = ''
+  }
+}
+
 watch(() => programs.value.length, async (value) => {
   if (!value || loadError.value) return
   await nextTick()
   initInfiniteScroll()
 })
 
-onMounted(() => {
+onMounted(async () => {
+  const hasSavedState = Boolean(readPageState())
+  const shouldRestore = route.query.restore === '1' || route.query.fromDetail === '1' || hasSavedState
+  if (shouldRestore && await restorePageState()) {
+    return
+  }
   fetchPrograms(1, false)
 })
 
@@ -779,6 +977,309 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex-wrap: nowrap;
   justify-content: flex-end;
+}
+
+.danger-action-button {
+  color: #c2410c;
+}
+
+.danger-action-button:hover,
+.danger-action-button:focus-visible {
+  color: #dc2626;
+  background: rgba(254, 226, 226, 0.92);
+}
+
+.danger-action-button:disabled {
+  color: #caa27a;
+  cursor: not-allowed;
+}
+
+.clickable-chip-group {
+  display: flex;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clickable-chip-group:focus-visible {
+  outline: 2px solid rgba(214, 169, 107, 0.5);
+  outline-offset: 4px;
+  border-radius: 16px;
+}
+
+.clickable-chip-group:hover .showcase-chip {
+  filter: brightness(0.98);
+  box-shadow: 0 8px 18px rgba(126, 98, 63, 0.08);
+}
+
+.showcase-dialog-body,
+.tags-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.showcase-dialog-intro,
+.tags-dialog-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 2px 6px;
+}
+
+.showcase-dialog-title,
+.tags-dialog-title {
+  color: #3a2a1d;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.showcase-dialog-subtitle,
+.tags-dialog-subtitle {
+  margin-top: 6px;
+  color: #9b7e5c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.showcase-dialog-badge,
+.tags-dialog-counter {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 244, 221, 0.96), rgba(255, 237, 213, 0.9));
+  color: #8b5e34;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(231, 202, 163, 0.72);
+}
+
+.stock-badge {
+  color: #a16207;
+}
+
+.dialog-panel {
+  padding: 16px 16px 14px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.96), rgba(255, 247, 235, 0.94));
+  box-shadow: inset 0 0 0 1px rgba(235, 220, 194, 0.88);
+}
+
+.compact-tip-panel {
+  padding-bottom: 16px;
+}
+
+.tags-dialog-list {
+  gap: 10px;
+}
+
+.dialog-tag-chip {
+  border: 0;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: #fffaf3;
+  color: #8a6c4c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(232, 210, 184, 0.82);
+  transition: all 0.2s ease;
+}
+
+.dialog-tag-chip:hover {
+  transform: translateY(-1px);
+  background: #fff2df;
+  color: #7a5530;
+}
+
+.dialog-tag-chip.active {
+  background: linear-gradient(135deg, #d8f2e5, #c4ead6);
+  color: #21684f;
+  box-shadow: 0 10px 22px rgba(103, 170, 136, 0.16);
+}
+
+.dialog-tag-chip.add-chip {
+  background: linear-gradient(135deg, rgba(243, 248, 255, 0.96), rgba(230, 241, 255, 0.94));
+  color: #2563eb;
+  box-shadow: inset 0 0 0 1px rgba(174, 205, 255, 0.86);
+}
+
+.dialog-tag-chip.add-chip:hover {
+  background: linear-gradient(135deg, rgba(233, 243, 255, 0.98), rgba(219, 235, 255, 0.96));
+  color: #1d4ed8;
+}
+
+.selected-tags-list {
+  min-height: 44px;
+}
+
+.selected-dialog-tag {
+  --el-tag-bg-color: rgba(214, 241, 230, 0.96);
+  --el-tag-border-color: rgba(155, 209, 182, 0.88);
+  --el-tag-hover-color: rgba(198, 233, 217, 1);
+  --el-tag-text-color: #21684f;
+  padding-inline: 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.tags-empty-state {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #9b7e5c;
+  font-size: 13px;
+  line-height: 1.6;
+  box-shadow: inset 0 0 0 1px rgba(238, 225, 204, 0.92);
+}
+
+.showcase-dialog-textarea :deep(.el-textarea__inner),
+.tags-custom-input :deep(.el-input__wrapper),
+.tags-custom-input :deep(.el-input-group__append) {
+  background: #fffaf3;
+  box-shadow: 0 0 0 1px rgba(232, 210, 184, 0.78) inset;
+}
+
+.showcase-dialog-textarea :deep(.el-textarea__inner) {
+  min-height: 148px;
+  border-radius: 18px;
+  color: #5f4932;
+  line-height: 1.75;
+}
+
+.tags-custom-input :deep(.el-input__wrapper.is-focus),
+.showcase-dialog-textarea :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px #d6a96b inset;
+}
+
+.tags-add-button {
+  color: #8b5e34;
+  font-weight: 700;
+}
+
+.tags-dialog-tip {
+  margin-top: 10px;
+  color: #a0815d;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.stock-dialog-body {
+  gap: 14px;
+}
+
+.stock-summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stock-summary-label {
+  color: #9b7e5c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stock-summary-value {
+  color: #a16207;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.stock-table-panel {
+  padding-top: 12px;
+}
+
+.showcase-dialog-table :deep(.el-table) {
+  --el-table-border-color: rgba(236, 221, 199, 0.92);
+  --el-table-header-bg-color: rgba(255, 248, 238, 0.96);
+  --el-table-tr-bg-color: rgba(255, 253, 249, 0.96);
+  --el-table-row-hover-bg-color: rgba(255, 245, 229, 0.92);
+  --el-table-text-color: #57412d;
+  --el-table-header-text-color: #8b5e34;
+}
+
+.showcase-dialog-table :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.showcase-dialog-table :deep(th.el-table__cell) {
+  font-weight: 700;
+}
+
+.showcase-dialog-table :deep(.el-table__cell) {
+  padding: 14px 0;
+}
+
+.product-thumb {
+  width: 62px;
+  height: 62px;
+  border-radius: 16px;
+  box-shadow: 0 6px 16px rgba(126, 98, 63, 0.12);
+}
+
+.stock-loading {
+  padding: 16px;
+}
+
+.showcase-dialog :deep(.el-dialog) {
+  border-radius: 28px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 253, 249, 0.98), rgba(255, 248, 238, 0.98));
+  box-shadow: 0 26px 60px rgba(97, 72, 43, 0.16);
+}
+
+.showcase-dialog :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 24px 28px 10px;
+}
+
+.showcase-dialog :deep(.el-dialog__title) {
+  color: #2f2418;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.showcase-dialog :deep(.el-dialog__body) {
+  padding: 8px 28px 18px;
+}
+
+.showcase-dialog :deep(.el-dialog__footer) {
+  padding: 10px 28px 26px;
+}
+
+.showcase-dialog :deep(.el-dialog__headerbtn) {
+  top: 24px;
+  right: 24px;
+}
+
+.showcase-dialog :deep(.el-dialog__headerbtn .el-dialog__close) {
+  color: #a18461;
+}
+
+.showcase-dialog :deep(.el-dialog__footer .el-button) {
+  min-width: 92px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.showcase-dialog :deep(.el-dialog__footer .el-button--default) {
+  border-color: rgba(219, 183, 141, 0.74);
+  color: #8b5e34;
+  background: #fff9f2;
+}
+
+.showcase-dialog :deep(.el-dialog__footer .el-button--primary) {
+  border: 0;
+  background: linear-gradient(135deg, #f0c37c, #d9a25f);
+  box-shadow: 0 12px 24px rgba(219, 162, 88, 0.22);
 }
 
 .floating-actions {
