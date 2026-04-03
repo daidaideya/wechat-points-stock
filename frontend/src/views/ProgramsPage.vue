@@ -179,16 +179,19 @@
           </div>
         </div>
 
-        <button
-          type="button"
+        <div
           class="showcase-card-chips compact-card-chips clickable-chip-group"
-          @click="openTagsDialog(program)"
+          role="button"
+          tabindex="0"
+          @click.stop="openTagsDialog(program)"
+          @keydown.enter.prevent="openTagsDialog(program)"
+          @keydown.space.prevent="openTagsDialog(program)"
         >
           <span v-if="(program.tags || []).length" class="showcase-chip success">
             标签：{{ (program.tags || []).join(' / ') }}
           </span>
           <span v-else class="showcase-chip warning">标签：未设置标签</span>
-        </button>
+        </div>
 
         <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
           {{ program.note || '暂无备注' }}
@@ -365,7 +368,6 @@ import api from '../api'
 const router = useRouter()
 const route = useRoute()
 const pageSize = 21
-const quickTags = ['现金类', '全品类', '母婴类', '快消类']
 const loadMoreSentinel = ref(null)
 const PROGRAMS_PAGE_STATE_KEY = 'programs-page-state'
 
@@ -402,6 +404,11 @@ const stockDialogTitle = computed(() => {
   return `${stockData.value.program_name} - 库存详情`
 })
 
+const quickTags = computed(() => {
+  const knownSet = new Set(availableTags.value)
+  return [...availableTags.value, ...editingTags.value.filter((tag) => !knownSet.has(tag))]
+})
+
 const hasActiveFilters = computed(() => {
   return Boolean(searchKeyword.value.trim()) || favoriteFilter.value !== 'all' || Boolean(currentTag.value)
 })
@@ -414,6 +421,23 @@ function normalizeTags(input) {
     seen.add(item)
     return true
   }).slice(0, 20)
+}
+
+function mergeTagsByUsage(...tagGroups) {
+  const counts = new Map()
+
+  tagGroups.flat().forEach((tag) => {
+    const normalized = String(tag || '').trim()
+    if (!normalized) return
+    counts.set(normalized, (counts.get(normalized) || 0) + 1)
+  })
+
+  return Array.from(counts.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1]
+      return a[0].localeCompare(b[0], 'zh-CN')
+    })
+    .map(([tag]) => tag)
 }
 
 function savePageState() {
@@ -652,7 +676,11 @@ async function saveTags() {
     const { data } = await api.put(`/programs/${currentProgram.value.program_id}`, { tags: editingTags.value })
     currentProgram.value.tags = data.tags || [...editingTags.value]
     tagsDialogVisible.value = false
-    availableTags.value = Array.from(new Set([...availableTags.value, ...currentProgram.value.tags])).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    availableTags.value = mergeTagsByUsage(
+      programs.value.flatMap((item) => normalizeTags(item.tags || [])),
+      availableTags.value,
+      currentProgram.value.tags,
+    )
     ElMessage.success('标签已保存')
   } catch (error) {
     console.error(error)
@@ -715,11 +743,10 @@ async function deleteProgram(program) {
     await api.delete(`/programs/${program.program_id}`)
     programs.value = programs.value.filter((item) => item.program_id !== program.program_id)
     total.value = Math.max(0, total.value - 1)
-    availableTags.value = Array.from(
-      new Set(
-        programs.value.flatMap((item) => normalizeTags(item.tags || [])),
-      ),
-    ).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    availableTags.value = mergeTagsByUsage(
+      programs.value.flatMap((item) => normalizeTags(item.tags || [])),
+      availableTags.value,
+    )
     ElMessage.success('小程序已删除')
   } catch (error) {
     console.error(error)

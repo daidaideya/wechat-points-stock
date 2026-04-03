@@ -139,15 +139,18 @@ def get_all_distinct_tags(db: Session) -> List[str]:
         models.MiniProgram.tags != "",
     ).all()
 
-    all_tags = []
-    seen = set()
+    tag_counts = {}
     for row in rows:
         for tag in normalize_program_tags(row[0]):
-            if tag not in seen:
-                seen.add(tag)
-                all_tags.append(tag)
+            tag_counts[tag] = tag_counts.get(tag, 0) + 1
 
-    return sorted(all_tags, key=lambda x: x.lower())
+    return [
+        tag
+        for tag, _count in sorted(
+            tag_counts.items(),
+            key=lambda item: (-item[1], item[0].lower()),
+        )
+    ]
 
 
 def normalize_image_url(product: models.Product) -> Optional[str]:
