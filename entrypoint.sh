@@ -11,7 +11,7 @@ else
 fi
 
 if [ ! -f "frontend/dist/index.html" ]; then
-    echo "[entrypoint] frontend/dist/index.html not found. Image may be built incorrectly."
+    echo "[entrypoint] frontend/dist/index.html not found. Please run npm run build in frontend first."
     exit 1
 fi
 
