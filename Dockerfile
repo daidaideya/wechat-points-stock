@@ -1,11 +1,3 @@
-FROM docker.1ms.run/library/node:20-alpine AS frontend-builder
-
-WORKDIR /frontend
-COPY frontend/package*.json ./
-RUN npm install
-COPY frontend/ ./
-RUN npm run build
-
 FROM docker.1ms.run/library/python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -27,10 +19,8 @@ COPY app ./app
 COPY scripts ./scripts
 COPY entrypoint.sh ./entrypoint.sh
 COPY start.sh ./start.sh
-COPY migrate_note.py ./migrate_note.py
-COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
-RUN mkdir -p logs data static/uploads \
+RUN mkdir -p frontend/dist logs data static/uploads \
     && chmod +x ./entrypoint.sh ./start.sh
 
 EXPOSE 5711

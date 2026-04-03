@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: wechat-points-stock
     ports:
       - "5711:5711"
     env_file:
@@ -12,11 +11,10 @@ services:
       TZ: Asia/Shanghai
     entrypoint: ["sh", "/app/entrypoint.sh"]
     volumes:
-      - ./:/workspace
       - ./app:/app/app
-      - ./scripts:/app/scripts
-      - ./migrate_note.py:/app/migrate_note.py
       - ./data:/app/data
       - ./logs:/app/logs
       - ./static/uploads:/app/static/uploads
+      - ./scripts:/app/scripts
+      - ./frontend/dist:/app/frontend/dist
     restart: unless-stopped
