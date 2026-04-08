@@ -34,6 +34,9 @@
               <el-button plain @click="hiddenDrawerVisible = true">
                 已隐藏 {{ hiddenTotal }}
               </el-button>
+              <el-button plain @click="offShelfDrawerVisible = true">
+                已下架 {{ offShelfTotal }}
+              </el-button>
               <el-button type="primary" plain @click="refreshStockCenter" :loading="refreshing">刷新数据</el-button>
             </div>
 
@@ -125,40 +128,42 @@
             </div>
 
             <div class="stock-gallery-main">
-              <div class="stock-gallery-title-row">
-                <h3 class="stock-gallery-title">{{ item.product_name || item.product_id }}</h3>
-                <div class="stock-gallery-actions">
-                  <el-button
-                    size="small"
-                    plain
-                    type="danger"
-                    :loading="hidingProductId === item.id"
-                    @click="hideProduct(item)"
-                  >
-                    不感兴趣
-                  </el-button>
+              <div class="stock-gallery-top-row">
+                <div class="stock-gallery-title-block">
+                  <h3 class="stock-gallery-title">{{ item.product_name || item.product_id }}</h3>
+                  <div class="stock-gallery-program-row merged-program-row">
+                    <div class="stock-gallery-program-name">{{ item.program_name || item.program_id }}</div>
+                    <div class="stock-gallery-chip-row inline-program-action-row">
+                      <el-tag size="small" round effect="plain" :type="item.redeemable ? 'success' : 'info'">
+                        {{ item.redeemable ? '可兑换' : '不可兑换' }}
+                      </el-tag>
+                      <el-button
+                        size="small"
+                        plain
+                        type="danger"
+                        :loading="hidingProductId === item.id"
+                        @click="hideProduct(item)"
+                      >
+                        不感兴趣
+                      </el-button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div class="stock-gallery-meta-row primary">
-                <span class="stock-gallery-price">{{ item.points ?? 0 }} 积分</span>
-                <span class="stock-gallery-stock">库存 {{ item.stock ?? 0 }}</span>
-                <el-tag size="small" round effect="plain" :type="item.redeemable ? 'success' : 'info'">
-                  {{ item.redeemable ? '可兑换' : '不可兑换' }}
-                </el-tag>
-                <el-tag size="small" round effect="plain" :type="item.hasImage ? 'success' : 'info'">
-                  {{ item.hasImage ? '有图' : '无图' }}
-                </el-tag>
-              </div>
-
-              <div class="stock-gallery-meta-row secondary">
-                <span class="stock-gallery-label">小程序</span>
-                <span class="stock-gallery-value">{{ item.program_name || item.program_id }}</span>
-                <span class="stock-gallery-divider">·</span>
-                <span class="stock-gallery-score-badge">
-                  <span class="stock-gallery-score-label">最高分</span>
-                  <span class="stock-gallery-score-value">{{ item.maxUserPoints }}</span>
-                </span>
+              <div class="stock-gallery-core-row three-col-core-row">
+                <div class="stock-gallery-core-item">
+                  <span class="stock-core-label">积分</span>
+                  <span class="stock-core-value accent">{{ item.points ?? 0 }}</span>
+                </div>
+                <div class="stock-gallery-core-item">
+                  <span class="stock-core-label">库存</span>
+                  <span class="stock-core-value">{{ item.stock ?? 0 }}</span>
+                </div>
+                <div class="stock-gallery-core-item compact">
+                  <span class="stock-core-label">最高分</span>
+                  <span class="stock-core-value accent">{{ item.maxUserPoints }}</span>
+                </div>
               </div>
             </div>
           </article>
@@ -297,6 +302,71 @@
         </div>
       </div>
     </el-drawer>
+
+    <el-drawer
+      v-model="offShelfDrawerVisible"
+      title="已下架商品"
+      size="680px"
+      @open="fetchOffShelfProducts()"
+    >
+      <div class="hidden-products-drawer">
+        <div class="hidden-products-toolbar">
+          <el-input
+            v-model="offShelfKeywordInput"
+            clearable
+            placeholder="搜索已下架商品 / 小程序"
+            @keyup.enter="fetchOffShelfProducts()"
+            @clear="fetchOffShelfProducts()"
+          >
+            <template #append>
+              <el-button @click="fetchOffShelfProducts()">搜索</el-button>
+            </template>
+          </el-input>
+          <el-tag round effect="plain" type="warning">下架数 {{ offShelfTotal }}</el-tag>
+        </div>
+
+        <div v-if="offShelfLoading" class="hidden-products-loading">
+          <el-skeleton :rows="6" animated />
+        </div>
+
+        <el-empty v-else-if="!offShelfPrograms.length" description="暂无已下架商品">
+          <template #description>
+            <p>自动比对后判定为下架的商品会按小程序聚合展示在这里。</p>
+          </template>
+        </el-empty>
+
+        <div v-else class="off-shelf-program-list">
+          <article v-for="group in offShelfPrograms" :key="group.program_id" class="off-shelf-program-card">
+            <div class="off-shelf-program-head">
+              <div>
+                <div class="off-shelf-program-name">{{ group.program_name || group.program_id }}</div>
+                <div class="off-shelf-program-id">{{ group.program_id }}</div>
+              </div>
+              <el-tag round effect="plain" type="danger">下架 {{ group.count }}</el-tag>
+            </div>
+
+            <div class="off-shelf-product-list">
+              <div v-for="item in group.products" :key="`${group.program_id}-${item.product_id}`" class="off-shelf-product-item">
+                <el-image
+                  v-if="item.image_url || item.image_local_path"
+                  :src="item.image_url || item.image_local_path"
+                  class="hidden-product-thumb"
+                  fit="cover"
+                  :preview-src-list="[item.image_url || item.image_local_path]"
+                  preview-teleported
+                />
+                <div v-else class="hidden-product-thumb hidden-product-thumb-empty">无图</div>
+                <div class="hidden-product-main">
+                  <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
+                  <div class="hidden-product-meta">{{ item.points ?? 0 }} 积分 · 库存 {{ item.stock ?? 0 }}</div>
+                  <div class="hidden-product-time">下架时间：{{ formatHiddenAt(item.hidden_at) }}</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -326,6 +396,11 @@ const hiddenLoading = ref(false)
 const hiddenProducts = ref([])
 const hiddenTotal = ref(0)
 const hiddenKeywordInput = ref('')
+const offShelfDrawerVisible = ref(false)
+const offShelfLoading = ref(false)
+const offShelfPrograms = ref([])
+const offShelfTotal = ref(0)
+const offShelfKeywordInput = ref('')
 const hidingProductId = ref(null)
 const restoringProductId = ref(null)
 
@@ -557,6 +632,29 @@ async function fetchHiddenProducts(page = 1) {
   }
 }
 
+async function fetchOffShelfProducts() {
+  offShelfLoading.value = true
+  try {
+    const keyword = offShelfKeywordInput.value.trim()
+    const params = {}
+    if (keyword) params.q = keyword
+    const { data } = await api.get('/stock/off-shelf', { params })
+    offShelfPrograms.value = Array.isArray(data.items)
+      ? data.items.map((group) => ({
+          ...group,
+          products: Array.isArray(group.products) ? group.products.map(normalizeProduct) : [],
+        }))
+      : []
+    offShelfTotal.value = Number(data.total || 0)
+  } catch (error) {
+    console.error(error)
+    offShelfPrograms.value = []
+    ElMessage.error('加载已下架商品失败')
+  } finally {
+    offShelfLoading.value = false
+  }
+}
+
 async function hideProduct(product) {
   try {
     await ElMessageBox.confirm(
@@ -584,6 +682,9 @@ async function hideProduct(product) {
     if (hiddenDrawerVisible.value) {
       await fetchHiddenProducts(1)
     }
+    if (offShelfDrawerVisible.value) {
+      await fetchOffShelfProducts()
+    }
     ElMessage.success('已隐藏该商品')
   } catch (error) {
     console.error(error)
@@ -601,6 +702,9 @@ async function restoreProduct(product) {
     hiddenTotal.value = Math.max(0, hiddenTotal.value - 1)
     stockCenterCache = null
     await loadStockCenter({ forceRefresh: true, silent: true })
+    if (offShelfDrawerVisible.value) {
+      await fetchOffShelfProducts()
+    }
     ElMessage.success('商品已恢复显示')
   } catch (error) {
     console.error(error)
@@ -624,9 +728,16 @@ watch(hiddenDrawerVisible, (visible) => {
   }
 })
 
+watch(offShelfDrawerVisible, (visible) => {
+  if (visible) {
+    fetchOffShelfProducts()
+  }
+})
+
 onMounted(async () => {
   await loadStockCenter()
   await fetchHiddenProducts(1)
+  await fetchOffShelfProducts()
 })
 
 onBeforeUnmount(() => {
@@ -635,3 +746,406 @@ onBeforeUnmount(() => {
   }
 })
 </script>
+
+<style scoped>
+.stock-page {
+  gap: 20px;
+}
+.stock-content-stack {
+  gap: 20px;
+}
+.stock-table-card {
+  border-radius: 24px;
+}
+.stock-gallery-card {
+  border: 1px solid rgba(233, 220, 200, 0.92);
+  background: rgba(255, 252, 247, 0.92);
+  box-shadow: 0 18px 40px rgba(126, 98, 63, 0.06);
+}
+.stock-table-header-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.stock-search-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.stock-search-bar :deep(.el-input) {
+  flex: 1;
+}
+.stock-table-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.stock-summary-item {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 245, 229, 0.9);
+  color: #8b5e34;
+  font-weight: 700;
+  cursor: pointer;
+}
+.stock-summary-item.active {
+  background: linear-gradient(135deg, #f0c37c, #d9a25f);
+  color: #fff;
+}
+.stock-summary-item.success {
+  background: rgba(220, 252, 231, 0.88);
+  color: #166534;
+}
+.stock-summary-item.danger {
+  background: rgba(254, 226, 226, 0.9);
+  color: #b91c1c;
+}
+.stock-summary-item.brand {
+  background: rgba(219, 234, 254, 0.88);
+  color: #1d4ed8;
+}
+.stock-toolbar-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stock-meta-left {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stock-meta-right {
+  color: #9b7e5c;
+  font-size: 13px;
+}
+.stock-gallery-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.stock-gallery-item {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+  align-items: stretch;
+}
+.stock-gallery-image-wrap {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  flex: 0 0 168px;
+}
+.stock-gallery-image,
+.stock-gallery-image-empty,
+.stock-detail-image,
+.stock-detail-image-empty,
+.hidden-product-thumb,
+.hidden-product-thumb-empty {
+  width: 100%;
+  height: 168px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+.stock-gallery-image-empty,
+.stock-detail-image-empty,
+.hidden-product-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(250, 240, 224, 0.9);
+  color: #9b7e5c;
+  font-size: 13px;
+}
+.stock-gallery-image-mask {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+}
+.stock-gallery-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.stock-gallery-top-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.stock-gallery-title-block {
+  min-width: 0;
+  flex: 1;
+}
+.stock-gallery-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #3a2a1d;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.stock-gallery-program-name {
+  color: #8f7658;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.merged-program-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.inline-program-action-row {
+  margin-top: 0;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+.stock-gallery-actions {
+  flex: 0 0 auto;
+}
+.stock-gallery-core-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.two-col-core-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.three-col-core-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.stock-gallery-core-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 252, 247, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+}
+.stock-gallery-core-item.compact {
+  background: rgba(255, 245, 229, 0.78);
+}
+.stock-core-label {
+  color: #a08668;
+  font-size: 12px;
+  line-height: 1;
+}
+.stock-core-value {
+  color: #5f4932;
+  font-size: 20px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+.stock-core-value.accent {
+  color: #a16207;
+}
+.stock-gallery-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.simplified-chip-row {
+  margin-top: 12px;
+}
+.under-stock-row {
+  justify-content: flex-start;
+}
+.ordered-action-row {
+  gap: 10px;
+}
+.stock-pagination-row {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9b7e5c;
+}
+.stock-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.stock-detail-hero {
+  display: flex;
+  gap: 16px;
+}
+.stock-detail-image,
+.stock-detail-image-empty {
+  width: 160px;
+  height: 160px;
+}
+.stock-detail-info {
+  flex: 1;
+}
+.stock-detail-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: #2f2418;
+}
+.stock-detail-subline,
+.stock-detail-subtext,
+.hidden-product-time,
+.off-shelf-program-id {
+  margin-top: 6px;
+  color: #9b7e5c;
+  font-size: 13px;
+}
+.stock-detail-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.stock-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.stock-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+}
+.stock-detail-item.wide {
+  grid-column: 1 / -1;
+}
+.stock-detail-label {
+  color: #9b7e5c;
+  font-size: 13px;
+}
+.hidden-products-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.hidden-products-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.hidden-products-toolbar :deep(.el-input) {
+  flex: 1;
+}
+.hidden-products-list,
+.off-shelf-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hidden-product-card,
+.off-shelf-product-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+}
+.hidden-product-thumb,
+.hidden-product-thumb-empty {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+}
+.hidden-product-main {
+  flex: 1;
+  min-width: 0;
+}
+.hidden-product-name,
+.off-shelf-program-name {
+  color: #3a2a1d;
+  font-weight: 700;
+}
+.hidden-product-meta {
+  margin-top: 6px;
+  color: #7b6650;
+  font-size: 13px;
+}
+.off-shelf-program-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.off-shelf-program-card {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 250, 245, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+}
+.off-shelf-program-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.hidden-products-loading {
+  padding: 12px 0;
+}
+.stock-state-card {
+  padding: 24px 8px;
+}
+.stock-infinite-sentinel {
+  height: 2px;
+}
+
+@media (max-width: 1200px) {
+  .stock-gallery-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .stock-search-bar,
+  .hidden-products-toolbar,
+  .stock-detail-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stock-gallery-list {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-gallery-item {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-gallery-image-wrap {
+    width: 100%;
+    height: 220px;
+    flex-basis: auto;
+  }
+
+  .stock-gallery-image,
+  .stock-gallery-image-empty {
+    height: 220px;
+  }
+
+  .stock-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

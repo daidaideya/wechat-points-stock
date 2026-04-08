@@ -209,7 +209,112 @@ def get_program_has_stock_map(db: Session, program_ids: List[str]):
     return has_stock_map
 
 
-def build_program_payload(program, last_updates, has_stock_map):
+def get_program_stock_summary_map(db: Session, program_ids: List[str]):
+    if not program_ids:
+        return {}
+
+    rows = db.query(
+        models.Product.program_id,
+        func.count(models.Product.id).label("product_count"),
+    ).filter(
+        models.Product.program_id.in_(program_ids),
+        or_(models.Product.is_hidden == 0, models.Product.is_hidden.is_(None)),
+    ).group_by(models.Product.program_id).all()
+
+    summary_map = {program_id: {"product_count": 0} for program_id in program_ids}
+    for row in rows:
+        summary_map[row.program_id] = {
+            "product_count": int(row.product_count or 0),
+        }
+    return summary_map
+
+
+def get_program_stock_change_map(db: Session, program_ids: List[str]):
+    if not program_ids:
+        return {}
+
+    tz_offset = timedelta(hours=8)
+    now_cst = datetime.utcnow() + tz_offset
+    today_cst = now_cst.date()
+    previous_day_cst = today_cst - timedelta(days=1)
+
+    change_map = {
+        program_id: {
+            "added_count": 0,
+            "removed_count": 0,
+            "changed": False,
+        }
+        for program_id in program_ids
+    }
+
+    report_rows = db.query(
+        models.StockHistory.program_id,
+        models.StockHistory.product_id,
+        func.max(models.StockHistory.change_time).label("last_change_time"),
+    ).filter(
+        models.StockHistory.program_id.in_(program_ids),
+    ).group_by(
+        models.StockHistory.program_id,
+        models.StockHistory.product_id,
+    ).all()
+
+    latest_report_dates = {}
+    for row in report_rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        latest_date = latest_report_dates.get(row.program_id)
+        if latest_date is None or report_date > latest_date:
+            latest_report_dates[row.program_id] = report_date
+
+    previous_report_dates = {program_id: None for program_id in program_ids}
+    for row in report_rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        latest_date = latest_report_dates.get(row.program_id)
+        if latest_date is None or report_date >= latest_date:
+            continue
+        previous_date = previous_report_dates.get(row.program_id)
+        if previous_date is None or report_date > previous_date:
+            previous_report_dates[row.program_id] = report_date
+
+    latest_product_ids = defaultdict(set)
+    previous_product_ids = defaultdict(set)
+    for row in report_rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        if report_date == latest_report_dates.get(row.program_id):
+            latest_product_ids[row.program_id].add(row.product_id)
+        if report_date == previous_report_dates.get(row.program_id):
+            previous_product_ids[row.program_id].add(row.product_id)
+
+    for program_id in program_ids:
+        latest_ids = latest_product_ids.get(program_id, set())
+        previous_ids = previous_product_ids.get(program_id, set())
+
+        if not latest_ids and not previous_ids:
+            continue
+
+        added_count = len(latest_ids - previous_ids) if previous_ids else 0
+        removed_count = len(previous_ids - latest_ids) if previous_ids else 0
+
+        latest_date = latest_report_dates.get(program_id)
+        should_show = latest_date == today_cst or latest_date == previous_day_cst
+
+        change_map[program_id] = {
+            "added_count": added_count if should_show else 0,
+            "removed_count": removed_count if should_show else 0,
+            "changed": should_show and (added_count > 0 or removed_count > 0),
+        }
+
+    return change_map
+
+
+def build_program_payload(program, last_updates, has_stock_map, stock_summary_map=None, stock_change_map=None):
+    stock_summary = (stock_summary_map or {}).get(program.program_id, {})
+    stock_change = (stock_change_map or {}).get(program.program_id, {})
     return {
         "id": program.id,
         "program_id": program.program_id,
@@ -219,6 +324,12 @@ def build_program_payload(program, last_updates, has_stock_map):
         "is_favorite": program.is_favorite == 1,
         "last_update_time": last_updates.get(program.program_id),
         "has_stock": has_stock_map.get(program.program_id, False),
+        "product_count": int(stock_summary.get("product_count", 0)),
+        "stock_change": {
+            "added_count": int(stock_change.get("added_count", 0)),
+            "removed_count": int(stock_change.get("removed_count", 0)),
+            "changed": bool(stock_change.get("changed", False)),
+        },
         "note": program.note,
         "tags": get_program_tags(program),
     }
@@ -657,7 +768,9 @@ async def get_programs_api(
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
     has_stock_map = get_program_has_stock_map(db, program_ids)
-    items = [build_program_payload(program, last_updates, has_stock_map) for program in programs]
+    stock_summary_map = get_program_stock_summary_map(db, program_ids)
+    stock_change_map = get_program_stock_change_map(db, program_ids)
+    items = [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map) for program in programs]
 
     return {
         "items": items,
@@ -682,8 +795,10 @@ async def get_favorite_programs(db: Session = Depends(get_db)):
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
     has_stock_map = get_program_has_stock_map(db, program_ids)
+    stock_summary_map = get_program_stock_summary_map(db, program_ids)
+    stock_change_map = get_program_stock_change_map(db, program_ids)
     return {
-        "items": [build_program_payload(program, last_updates, has_stock_map) for program in programs]
+        "items": [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map) for program in programs]
     }
 
 
@@ -694,13 +809,15 @@ async def get_unreported_programs(db: Session = Depends(get_db)):
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
     has_stock_map = get_program_has_stock_map(db, program_ids)
+    stock_summary_map = get_program_stock_summary_map(db, program_ids)
+    stock_change_map = get_program_stock_change_map(db, program_ids)
     today_str = datetime.now().strftime("%Y-%m-%d")
 
     items = []
     for program in programs:
         last_time_iso = last_updates.get(program.program_id)
         if not last_time_iso or last_time_iso.split("T")[0] != today_str:
-            payload = build_program_payload(program, last_updates, has_stock_map)
+            payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map)
             payload["last_report_time"] = last_time_iso
             items.append(payload)
     return {"items": items}
@@ -735,8 +852,10 @@ async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Se
 
     last_updates = get_program_last_updates(db, [program_id])
     has_stock_map = get_program_has_stock_map(db, [program_id])
+    stock_summary_map = get_program_stock_summary_map(db, [program_id])
+    stock_change_map = get_program_stock_change_map(db, [program_id])
     return {
-        **build_program_payload(program, last_updates, has_stock_map),
+        **build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map),
         "ranking": ranking,
     }
 
@@ -746,6 +865,10 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     products = db.query(models.Product).filter(models.Product.program_id == program_id).all()
+
+    tz_offset = timedelta(hours=8)
+    now_cst = datetime.utcnow() + tz_offset
+    today_cst = now_cst.date()
 
     subquery = db.query(
         models.PointsHistory.wechat_id,
@@ -762,23 +885,108 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
         ),
     ).scalar()
 
+    report_rows = db.query(
+        models.StockHistory.product_id,
+        func.max(models.StockHistory.change_time).label("last_change_time"),
+    ).filter(
+        models.StockHistory.program_id == program_id,
+    ).group_by(models.StockHistory.product_id).all()
+
+    latest_report_date = None
+    previous_report_date = None
+    for row in report_rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        if latest_report_date is None or report_date > latest_report_date:
+            previous_report_date = latest_report_date
+            latest_report_date = report_date
+        elif report_date != latest_report_date and (previous_report_date is None or report_date > previous_report_date):
+            previous_report_date = report_date
+
+    latest_product_ids = set()
+    previous_product_ids = set()
+    for row in report_rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        if report_date == latest_report_date:
+            latest_product_ids.add(row.product_id)
+        if report_date == previous_report_date:
+            previous_product_ids.add(row.product_id)
+
+    added_product_ids = latest_product_ids - previous_product_ids if previous_product_ids else set()
+    removed_product_ids = previous_product_ids - latest_product_ids if previous_product_ids else set()
+    should_show_changes = latest_report_date == today_cst and previous_report_date is not None
+
     items = []
+    changed_lookup = {}
+
     for product in products:
-        items.append({
+        is_visible = product.is_hidden in (0, None)
+        change_type = None
+        if should_show_changes and product.product_id in added_product_ids:
+            change_type = "added"
+        elif should_show_changes and product.product_id in removed_product_ids:
+            change_type = "removed"
+
+        product_payload = {
             "id": product.id,
             "product_id": product.product_id,
             "product_name": product.product_name,
             "points": product.points,
             "stock": product.stock,
             "image_url": normalize_image_url(product),
-        })
+            "is_hidden": product.is_hidden == 1,
+            "hidden_at": product.hidden_at.isoformat() if product.hidden_at else None,
+            "change_type": change_type,
+        }
+
+        if is_visible:
+            items.append(product_payload)
+
+        if change_type:
+            changed_lookup[product.product_id] = product_payload
+
+    if should_show_changes and removed_product_ids:
+        missing_removed_ids = removed_product_ids - set(changed_lookup.keys())
+        if missing_removed_ids:
+            removed_products = db.query(models.Product).filter(
+                models.Product.program_id == program_id,
+                models.Product.product_id.in_(missing_removed_ids),
+            ).all()
+            for product in removed_products:
+                changed_lookup[product.product_id] = {
+                    "id": product.id,
+                    "product_id": product.product_id,
+                    "product_name": product.product_name,
+                    "points": product.points,
+                    "stock": product.stock,
+                    "image_url": normalize_image_url(product),
+                    "is_hidden": product.is_hidden == 1,
+                    "hidden_at": product.hidden_at.isoformat() if product.hidden_at else None,
+                    "change_type": "removed",
+                }
+
     items.sort(key=lambda x: (x["stock"] <= 0, x["points"]))
+    change_items = list(changed_lookup.values())
+    change_items.sort(key=lambda x: (0 if x["change_type"] == "added" else 1, x["points"], x["product_name"] or ""))
+
+    added_count = len(added_product_ids) if should_show_changes else 0
+    removed_count = len(removed_product_ids) if should_show_changes else 0
 
     return {
         "program_id": program_id,
         "program_name": program.program_name if program else program_id,
         "max_user_points": max_points_val if max_points_val is not None else 0,
+        "product_count": len(items),
+        "stock_change": {
+            "added_count": added_count,
+            "removed_count": removed_count,
+            "changed": added_count > 0 or removed_count > 0,
+        },
         "products": items,
+        "changed_products": change_items,
     }
 
 

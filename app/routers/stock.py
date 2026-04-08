@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -303,6 +303,96 @@ def get_hidden_products(
         "page": page,
         "size": size,
         "items": items,
+    }
+
+
+@router.get("/off-shelf")
+def get_off_shelf_products(
+    q: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    ensure_product_columns(db)
+
+    tz_offset = timedelta(hours=8)
+    now_cst = datetime.utcnow() + tz_offset
+    today_cst = now_cst.date()
+
+    rows = db.query(
+        models.StockHistory.program_id,
+        models.StockHistory.product_id,
+        func.max(models.StockHistory.change_time).label("last_change_time"),
+    ).group_by(
+        models.StockHistory.program_id,
+        models.StockHistory.product_id,
+    ).all()
+
+    latest_report_dates = {}
+    previous_report_dates = {}
+    grouped_dates = {}
+
+    for row in rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        grouped_dates.setdefault(row.program_id, set()).add(report_date)
+
+    for program_id, dates in grouped_dates.items():
+        sorted_dates = sorted(dates, reverse=True)
+        latest_report_dates[program_id] = sorted_dates[0] if sorted_dates else None
+        previous_report_dates[program_id] = sorted_dates[1] if len(sorted_dates) > 1 else None
+
+    latest_product_ids = {}
+    previous_product_ids = {}
+    for row in rows:
+        if not row.last_change_time:
+            continue
+        report_date = (row.last_change_time + tz_offset).date()
+        if report_date == latest_report_dates.get(row.program_id):
+            latest_product_ids.setdefault(row.program_id, set()).add(row.product_id)
+        if report_date == previous_report_dates.get(row.program_id):
+            previous_product_ids.setdefault(row.program_id, set()).add(row.product_id)
+
+    off_shelf_groups = []
+    for program_id, previous_ids in previous_product_ids.items():
+        latest_ids = latest_product_ids.get(program_id, set())
+        removed_ids = previous_ids - latest_ids
+        latest_date = latest_report_dates.get(program_id)
+        if not removed_ids or latest_date != today_cst:
+            continue
+
+        program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
+        product_rows = db.query(models.Product).filter(
+            models.Product.program_id == program_id,
+            models.Product.product_id.in_(removed_ids),
+        ).order_by(models.Product.points.asc(), models.Product.id.asc()).all()
+
+        products = []
+        for product in product_rows:
+            if q and q not in (product.product_name or "") and q not in (product.product_id or "") and q not in (program.program_name if program else program_id):
+                continue
+            products.append({
+                "id": product.id,
+                "product_id": product.product_id,
+                "product_name": product.product_name,
+                "points": product.points,
+                "stock": product.stock,
+                "image_url": normalize_stock_image_url(product),
+                "hidden_at": product.hidden_at.isoformat() if product.hidden_at else None,
+            })
+
+        if products:
+            off_shelf_groups.append({
+                "program_id": program_id,
+                "program_name": program.program_name if program else program_id,
+                "count": len(products),
+                "products": products,
+            })
+
+    off_shelf_groups.sort(key=lambda item: (-item["count"], item["program_name"] or item["program_id"]))
+    return {
+        "total": sum(group["count"] for group in off_shelf_groups),
+        "program_count": len(off_shelf_groups),
+        "items": off_shelf_groups,
     }
 
 
