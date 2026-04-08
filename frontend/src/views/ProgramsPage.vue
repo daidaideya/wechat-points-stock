@@ -121,6 +121,31 @@
                 <span class="showcase-card-dot stock-dot" :class="{ active: isUpdatedToday(program.last_update_time) }"></span>
                 <span class="showcase-card-id">{{ program.program_id }}</span>
               </div>
+              <div
+                class="showcase-card-tag-row"
+                role="button"
+                tabindex="0"
+                @click.stop="openTagsDialog(program)"
+                @keydown.enter.prevent="openTagsDialog(program)"
+                @keydown.space.prevent="openTagsDialog(program)"
+              >
+                <span v-if="(program.tags || []).length" class="showcase-chip success inline-tag-chip">
+                  标签：{{ (program.tags || []).join(' / ') }}
+                </span>
+                <span v-else class="showcase-chip warning inline-tag-chip">标签：未设置标签</span>
+              </div>
+              <div class="showcase-card-stock-row">
+                <div class="stock-count-display">
+                  <span class="stock-count-icon">
+                    <el-icon><PriceTag /></el-icon>
+                  </span>
+                  <span class="stock-count-value">{{ formatProductCount(program) }}</span>
+                </div>
+                <div v-if="hasStockChange(program)" class="showcase-card-change-row inline-change-row">
+                  <span v-if="program.stock_change?.added_count" class="showcase-chip success stock-change-chip">+{{ program.stock_change.added_count }}</span>
+                  <span v-if="program.stock_change?.removed_count" class="showcase-chip warning stock-change-chip">-{{ program.stock_change.removed_count }}</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -177,20 +202,6 @@
               </button>
             </el-tooltip>
           </div>
-        </div>
-
-        <div
-          class="showcase-card-chips compact-card-chips clickable-chip-group"
-          role="button"
-          tabindex="0"
-          @click.stop="openTagsDialog(program)"
-          @keydown.enter.prevent="openTagsDialog(program)"
-          @keydown.space.prevent="openTagsDialog(program)"
-        >
-          <span v-if="(program.tags || []).length" class="showcase-chip success">
-            标签：{{ (program.tags || []).join(' / ') }}
-          </span>
-          <span v-else class="showcase-chip warning">标签：未设置标签</span>
         </div>
 
         <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
@@ -317,19 +328,56 @@
             <div class="showcase-dialog-title">库存详情总览</div>
             <div class="showcase-dialog-subtitle">查看当前小程序商品库存、所需积分和最高用户积分。</div>
           </div>
-          <div class="showcase-dialog-badge stock-badge">最高积分 {{ stockData?.max_user_points ?? 0 }}</div>
+          <div class="stock-dialog-badges">
+            <div class="showcase-dialog-badge stock-badge">商品 {{ stockData?.product_count ?? 0 }}</div>
+            <div class="showcase-dialog-badge stock-badge">最高积分 {{ stockData?.max_user_points ?? 0 }}</div>
+            <div v-if="stockData?.stock_change?.added_count" class="showcase-dialog-badge stock-badge success-badge">+{{ stockData.stock_change.added_count }}</div>
+            <div v-if="stockData?.stock_change?.removed_count" class="showcase-dialog-badge stock-badge warning-badge">-{{ stockData.stock_change.removed_count }}</div>
+          </div>
         </div>
 
         <div v-if="stockLoading" class="stock-loading dialog-panel">
           <el-skeleton :rows="6" animated />
         </div>
         <template v-else>
-          <div class="stock-summary-card dialog-panel">
-            <div class="stock-summary-label">当前最高用户积分</div>
-            <div class="stock-summary-value">{{ stockData?.max_user_points ?? 0 }}</div>
+          <div class="stock-summary-grid">
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">当前商品数量</div>
+              <div class="stock-summary-value">{{ stockData?.product_count ?? 0 }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">当前最高用户积分</div>
+              <div class="stock-summary-value">{{ stockData?.max_user_points ?? 0 }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">较昨日新增商品</div>
+              <div class="stock-summary-value success-text">{{ stockData?.stock_change?.added_count ?? 0 }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">较昨日下架商品</div>
+              <div class="stock-summary-value warning-text">{{ stockData?.stock_change?.removed_count ?? 0 }}</div>
+            </div>
+          </div>
+
+          <div v-if="stockData?.changed_products?.length" class="dialog-panel stock-change-panel">
+            <div class="stock-section-title">今日库存变动</div>
+            <div class="stock-change-list">
+              <div v-for="item in stockData.changed_products" :key="`${item.change_type}-${item.product_id}`" class="stock-change-item">
+                <div class="stock-change-main">
+                  <span class="stock-change-name">{{ item.product_name }}</span>
+                  <span class="stock-change-meta">{{ item.points || 0 }} 积分</span>
+                </div>
+                <div class="stock-change-side">
+                  <el-tag :type="item.change_type === 'added' ? 'success' : 'warning'">
+                    {{ item.change_type === 'added' ? '新增' : '下架' }}
+                  </el-tag>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="dialog-panel stock-table-panel">
+            <div class="stock-section-title">当前在架商品</div>
             <el-table :data="stockData?.products || []" stripe class="showcase-dialog-table">
               <el-table-column label="图片" width="96">
                 <template #default="scope">
@@ -361,7 +409,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, Delete, EditPen, CollectionTag, Star } from '@element-plus/icons-vue'
+import { ArrowRight, Box, Delete, EditPen, CollectionTag, Star, PriceTag } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 
@@ -498,6 +546,15 @@ function formatDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function formatProductCount(program) {
+  const count = Number(program?.product_count) || 0
+  return `${count}`
+}
+
+function hasStockChange(program) {
+  return Boolean((Number(program?.stock_change?.added_count) || 0) > 0 || (Number(program?.stock_change?.removed_count) || 0) > 0)
 }
 
 function isUpdatedToday(value) {
@@ -966,16 +1023,109 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  min-width: 0;
+  width: 100%;
 }
 
 .compact-meta-row {
   margin-right: 10px;
 }
 
+.showcase-card-stock-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.showcase-card-tag-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 6px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.showcase-card-change-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.inline-change-row {
+  margin-top: 0;
+}
+
+.stock-count-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #7c5833;
+}
+
+.stock-count-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 244, 221, 0.96), rgba(255, 237, 213, 0.9));
+  color: #b7791f;
+  box-shadow: inset 0 0 0 1px rgba(231, 202, 163, 0.72);
+}
+
+.stock-count-value {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 800;
+  color: #a16207;
+}
+
+.showcase-card-tag-inline {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.meta-tag-inline {
+  margin-left: auto;
+  max-width: calc(100% - 118px);
+}
+
+.inline-tag-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.stock-count-chip {
+  font-weight: 700;
+}
+
+.stock-change-chip {
+  min-width: 40px;
+  justify-content: center;
+}
+
 .showcase-card-id {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .showcase-card-dot {
@@ -1087,6 +1237,21 @@ onBeforeUnmount(() => {
 
 .stock-badge {
   color: #a16207;
+}
+
+.stock-dialog-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.success-badge {
+  color: #15803d;
+}
+
+.warning-badge {
+  color: #b45309;
 }
 
 .dialog-panel {
@@ -1207,6 +1372,61 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
+.stock-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stock-section-title {
+  margin-bottom: 12px;
+  color: #7b5a37;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stock-change-panel {
+  padding-top: 14px;
+}
+
+.stock-change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stock-change-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
+}
+
+.stock-change-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stock-change-name {
+  color: #4a3623;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stock-change-meta {
+  color: #9b7e5c;
+  font-size: 12px;
+}
+
+.stock-change-side {
+  flex: 0 0 auto;
+}
+
 .stock-summary-label {
   color: #9b7e5c;
   font-size: 13px;
@@ -1218,6 +1438,14 @@ onBeforeUnmount(() => {
   font-size: 30px;
   line-height: 1;
   font-weight: 800;
+}
+
+.success-text {
+  color: #15803d;
+}
+
+.warning-text {
+  color: #b45309;
 }
 
 .stock-table-panel {
