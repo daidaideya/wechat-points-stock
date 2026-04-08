@@ -135,12 +135,18 @@
                 <span v-else class="showcase-chip warning inline-tag-chip">标签：未设置标签</span>
               </div>
               <div class="showcase-card-stock-row">
-                <div class="stock-count-display">
+                <button
+                  type="button"
+                  class="stock-count-display stock-count-button"
+                  :disabled="!program.has_stock"
+                  :title="program.has_stock ? '查看库存' : '暂无库存可查看'"
+                  @click="program.has_stock ? openStockDialog(program) : goToProgramDetail(program)"
+                >
                   <span class="stock-count-icon">
                     <el-icon><PriceTag /></el-icon>
                   </span>
                   <span class="stock-count-value">{{ formatProductCount(program) }}</span>
-                </div>
+                </button>
                 <div v-if="hasStockChange(program)" class="showcase-card-change-row inline-change-row">
                   <span v-if="program.stock_change?.added_count" class="showcase-chip success stock-change-chip">+{{ program.stock_change.added_count }}</span>
                   <span v-if="program.stock_change?.removed_count" class="showcase-chip warning stock-change-chip">-{{ program.stock_change.removed_count }}</span>
@@ -1065,6 +1071,29 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-width: 0;
   color: #7c5833;
+}
+
+.stock-count-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.stock-count-button:hover {
+  transform: translateY(-1px);
+}
+
+.stock-count-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stock-count-button:focus-visible {
+  outline: 2px solid rgba(223, 159, 80, 0.45);
+  outline-offset: 4px;
+  border-radius: 12px;
 }
 
 .stock-count-icon {

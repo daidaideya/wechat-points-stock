@@ -40,6 +40,39 @@
               <el-button type="primary" plain @click="refreshStockCenter" :loading="refreshing">刷新数据</el-button>
             </div>
 
+            <div class="stock-filter-toolbar">
+              <div class="stock-filter-label-wrap">
+                <div class="stock-filter-badge">标签筛选</div>
+                <div class="stock-filter-title-group">
+                  <span class="stock-filter-label">按小程序标签筛选库存商品</span>
+                  <span class="stock-filter-tip">可快速定位同类商品，点击标签立即切换</span>
+                </div>
+              </div>
+              <div class="stock-tag-list">
+                <button
+                  type="button"
+                  class="stock-tag-chip stock-tag-chip-all"
+                  :class="{ active: currentTag === '' }"
+                  @click="selectTag('')"
+                >
+                  <span class="stock-tag-chip-dot"></span>
+                  <span>全部</span>
+                </button>
+                <button
+                  v-for="tag in availableTags"
+                  :key="tag"
+                  type="button"
+                  class="stock-tag-chip"
+                  :class="{ active: currentTag === tag }"
+                  @click="selectTag(tag)"
+                >
+                  <span class="stock-tag-chip-dot"></span>
+                  <span>{{ tag }}</span>
+                </button>
+                <span v-if="!availableTags.length" class="stock-tag-empty">暂无可筛选标签</span>
+              </div>
+            </div>
+
             <div class="stock-table-summary">
               <button
                 type="button"
@@ -80,6 +113,7 @@
                 <el-tag round effect="plain" type="info">当前结果 {{ filteredProducts.length }}</el-tag>
                 <el-tag round effect="plain" type="info">已加载 {{ visibleProducts.length }} 条</el-tag>
                 <el-tag v-if="searchKeyword" round effect="plain" type="warning">关键词：{{ searchKeyword }}</el-tag>
+                <el-tag v-if="currentTag" round effect="plain" type="success">标签：{{ currentTag }}</el-tag>
                 <el-tag v-if="loadedFromCache" round effect="plain" type="success">缓存命中</el-tag>
               </div>
               <div class="stock-meta-right">
@@ -386,6 +420,8 @@ const loadedFromCache = ref(false)
 const keywordInput = ref('')
 const searchKeyword = ref('')
 const activeStatus = ref('all')
+const currentTag = ref('')
+const availableTags = ref([])
 const allProducts = shallowRef([])
 const visibleCount = ref(PAGE_SIZE)
 const detailDrawerVisible = ref(false)
@@ -449,7 +485,9 @@ const filteredProducts = computed(() => {
       (activeStatus.value === 'out_of_stock' && !item.inStock) ||
       (activeStatus.value === 'redeemable' && item.redeemable)
 
-    return matchKeyword && matchStatus
+    const matchTag = !currentTag.value || (Array.isArray(item.tags) && item.tags.includes(currentTag.value))
+
+    return matchKeyword && matchStatus && matchTag
   })
 })
 
@@ -481,8 +519,13 @@ function normalizeProduct(item) {
 }
 
 function normalizeStockCenterResponse(data) {
+  availableTags.value = Array.isArray(data?.available_tags) ? data.available_tags : []
+
   const items = Array.isArray(data?.items) ? data.items : []
-  return items.map(normalizeProduct).sort((a, b) => {
+  return items.map((item) => normalizeProduct({
+    ...item,
+    tags: Array.isArray(item.tags) ? item.tags : [],
+  })).sort((a, b) => {
     if (a.redeemable !== b.redeemable) {
       return Number(b.redeemable) - Number(a.redeemable)
     }
@@ -569,10 +612,16 @@ function applyMetricFilter(status) {
   resetVisibleCount()
 }
 
+function selectTag(tag) {
+  currentTag.value = currentTag.value === tag ? '' : tag
+  resetVisibleCount()
+}
+
 function resetFilters() {
   keywordInput.value = ''
   searchKeyword.value = ''
   activeStatus.value = 'all'
+  currentTag.value = ''
   resetVisibleCount()
 }
 
@@ -774,6 +823,105 @@ onBeforeUnmount(() => {
 }
 .stock-search-bar :deep(.el-input) {
   flex: 1;
+}
+.stock-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255, 248, 238, 0.98), rgba(255, 253, 248, 0.92));
+  border: 1px solid rgba(236, 219, 193, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 12px 26px rgba(125, 95, 58, 0.06);
+}
+.stock-filter-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.stock-filter-badge {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f5c77e, #e7a95c);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: 0 10px 20px rgba(225, 163, 79, 0.22);
+}
+.stock-filter-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.stock-filter-label {
+  color: #5f452b;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.stock-filter-tip {
+  color: #9b7e5c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.stock-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.stock-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(226, 207, 181, 0.95);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #7c6143;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow: 0 6px 14px rgba(130, 100, 64, 0.05);
+}
+.stock-tag-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(226, 175, 102, 0.95);
+  background: rgba(255, 249, 241, 0.96);
+  color: #9a6224;
+  box-shadow: 0 10px 22px rgba(198, 146, 72, 0.14);
+}
+.stock-tag-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(233, 184, 110, 0.95), rgba(216, 145, 58, 0.95));
+  box-shadow: 0 0 0 4px rgba(244, 207, 157, 0.3);
+}
+.stock-tag-chip.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #f1c983, #df9f50);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(213, 153, 72, 0.28);
+}
+.stock-tag-chip.active .stock-tag-chip-dot {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22);
+}
+.stock-tag-chip-all {
+  background: rgba(255, 250, 244, 0.92);
+}
+.stock-tag-empty {
+  color: #ab8d6a;
+  font-size: 13px;
 }
 .stock-table-summary {
   display: flex;
@@ -1115,6 +1263,13 @@ onBeforeUnmount(() => {
   .stock-gallery-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .stock-filter-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .stock-tag-list {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1123,6 +1278,29 @@ onBeforeUnmount(() => {
   .stock-detail-hero {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .stock-filter-toolbar {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .stock-filter-label-wrap {
+    align-items: flex-start;
+  }
+
+  .stock-filter-badge {
+    padding: 7px 12px;
+  }
+
+  .stock-tag-list {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .stock-tag-chip {
+    padding: 9px 12px;
+    font-size: 12px;
   }
 
   .stock-gallery-list {

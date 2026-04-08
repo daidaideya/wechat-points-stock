@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas_stock
 from app.database import get_db
+from app.routers.web import get_all_distinct_tags, get_program_tags
 from app.services import cleanup_service
 
 router = APIRouter(prefix="/api/v1/stock", tags=["stock-management"])
@@ -185,11 +186,7 @@ def get_stock_center(db: Session = Depends(get_db)):
     ).group_by(models.PointsHistory.program_id).all()
     max_points_map = {row.program_id: int(row.max_user_points or 0) for row in max_points_rows}
 
-    program_rows = db.query(
-        models.MiniProgram.program_id,
-        models.MiniProgram.program_name,
-        models.MiniProgram.sort_order,
-    ).order_by(
+    program_rows = db.query(models.MiniProgram).order_by(
         desc(models.MiniProgram.sort_order),
         models.MiniProgram.id.asc(),
     ).all()
@@ -198,6 +195,7 @@ def get_stock_center(db: Session = Depends(get_db)):
             "program_id": row.program_id,
             "program_name": row.program_name or row.program_id,
             "max_user_points": max_points_map.get(row.program_id, 0),
+            "tags": get_program_tags(row),
         }
         for row in program_rows
     }
@@ -213,6 +211,7 @@ def get_stock_center(db: Session = Depends(get_db)):
             "program_id": product.program_id,
             "program_name": product.program_id,
             "max_user_points": max_points_map.get(product.program_id, 0),
+            "tags": [],
         })
         items.append({
             "id": product.id,
@@ -225,6 +224,7 @@ def get_stock_center(db: Session = Depends(get_db)):
             "points": product.points,
             "stock": product.stock,
             "max_user_points": program_info["max_user_points"],
+            "tags": program_info["tags"],
         })
 
     programs = []
@@ -239,6 +239,7 @@ def get_stock_center(db: Session = Depends(get_db)):
     return {
         "programs": programs,
         "items": items,
+        "available_tags": get_all_distinct_tags(db),
     }
 
 
