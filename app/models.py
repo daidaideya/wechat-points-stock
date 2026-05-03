@@ -36,6 +36,8 @@ class MiniProgram(Base):
     is_favorite = Column(Integer, default=0) # 0: False, 1: True
     note = Column(String, nullable=True) # Personal notes/remarks for the program
     tags = Column(String, nullable=True) # Comma-separated personal tags for the program
+    is_archived = Column(Integer, default=0) # 0: False, 1: True. Archived programs are hidden from default views.
+    archived_at = Column(DateTime, nullable=True)
 
     points = relationship("PointsHistory", back_populates="program")
     products = relationship("Product", back_populates="program")
