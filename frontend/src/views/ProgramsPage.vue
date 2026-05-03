@@ -33,6 +33,12 @@
           <el-option label="仅未收藏" value="unfavorite" />
         </el-select>
 
+        <el-select v-model="statusFilter" size="large" class="toolbar-select showcase-select" @change="applyFilters">
+          <el-option label="活跃（默认）" value="active" />
+          <el-option label="仅归档" value="archived" />
+          <el-option label="全部状态" value="all" />
+        </el-select>
+
         <el-button size="large" class="showcase-reset-button" plain :disabled="!hasActiveFilters" @click="resetFilters">重置</el-button>
       </div>
 
@@ -109,8 +115,10 @@
         :class="{
           'is-favorite': program.is_favorite,
           'has-stock': program.has_stock,
+          'is-archived': program.is_archived,
         }"
       >
+        <div v-if="program.is_archived" class="archived-badge">已归档</div>
         <div class="showcase-card-top">
           <div class="showcase-card-brand no-avatar-brand">
             <div class="showcase-card-brand-text full-width-brand-text">
@@ -165,17 +173,30 @@
               </button>
             </el-tooltip>
 
-            <el-tooltip content="删除小程序" placement="top">
+            <el-dropdown trigger="click" placement="bottom-end" @command="(cmd) => handleProgramCommand(cmd, program)">
               <button
                 type="button"
-                class="showcase-icon-button ref-action-button icon-plain-button danger-action-button"
-                :disabled="deletingProgramId === program.program_id"
-                @click="deleteProgram(program)"
+                title="更多操作"
+                class="showcase-icon-button ref-action-button icon-plain-button"
+                :disabled="archivingProgramId === program.program_id || deletingProgramId === program.program_id"
+                @click.stop
               >
-                <el-icon v-if="deletingProgramId !== program.program_id"><Delete /></el-icon>
+                <el-icon v-if="archivingProgramId !== program.program_id && deletingProgramId !== program.program_id"><MoreFilled /></el-icon>
                 <span v-else class="showcase-button-loading">...</span>
               </button>
-            </el-tooltip>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="archive">
+                    <el-icon><Box /></el-icon>
+                    <span>{{ program.is_archived ? '取消归档' : '归档' }}</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>
+                    <el-icon><Delete /></el-icon>
+                    <span class="dropdown-danger-text">删除</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
         </div>
 
@@ -361,7 +382,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, Delete, EditPen, CollectionTag, Star } from '@element-plus/icons-vue'
+import { ArrowRight, Box, Delete, EditPen, CollectionTag, MoreFilled, Star } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 
@@ -385,8 +406,10 @@ const availableTags = ref([])
 const currentTag = ref('')
 const searchKeyword = ref('')
 const favoriteFilter = ref('all')
+const statusFilter = ref('active')
 const updatingProgramId = ref('')
 const deletingProgramId = ref('')
+const archivingProgramId = ref('')
 const noteDialogVisible = ref(false)
 const tagsDialogVisible = ref(false)
 const stockDialogVisible = ref(false)
@@ -410,7 +433,7 @@ const quickTags = computed(() => {
 })
 
 const hasActiveFilters = computed(() => {
-  return Boolean(searchKeyword.value.trim()) || favoriteFilter.value !== 'all' || Boolean(currentTag.value)
+  return Boolean(searchKeyword.value.trim()) || favoriteFilter.value !== 'all' || Boolean(currentTag.value) || statusFilter.value !== 'active'
 })
 
 function normalizeTags(input) {
@@ -444,6 +467,7 @@ function savePageState() {
   const state = {
     searchKeyword: searchKeyword.value,
     favoriteFilter: favoriteFilter.value,
+    statusFilter: statusFilter.value,
     currentTag: currentTag.value,
     programs: programs.value,
     availableTags: availableTags.value,
@@ -472,6 +496,7 @@ async function restorePageState() {
   restoringState = true
   searchKeyword.value = state.searchKeyword || ''
   favoriteFilter.value = state.favoriteFilter || 'all'
+  statusFilter.value = state.statusFilter || 'active'
   currentTag.value = state.currentTag || ''
   programs.value = Array.isArray(state.programs) ? state.programs : []
   availableTags.value = Array.isArray(state.availableTags) ? state.availableTags : []
@@ -518,6 +543,8 @@ function getRequestParams(nextPage = 1) {
   if (favoriteFilter.value === 'favorite') params.is_favorite = true
   else if (favoriteFilter.value === 'unfavorite') params.is_favorite = false
   if (currentTag.value) params.tag = currentTag.value
+  if (statusFilter.value && statusFilter.value !== 'active') params.status = statusFilter.value
+  else params.status = 'active'
   return params
 }
 
@@ -562,6 +589,7 @@ function resetFilters() {
   searchKeyword.value = ''
   favoriteFilter.value = 'all'
   currentTag.value = ''
+  statusFilter.value = 'active'
   applyFilters()
 }
 
@@ -756,6 +784,47 @@ async function deleteProgram(program) {
   }
 }
 
+async function archiveProgram(program) {
+  if (archivingProgramId.value) return
+  const willArchive = !program.is_archived
+  archivingProgramId.value = program.program_id
+  try {
+    const { data } = await api.put(`/programs/${program.program_id}`, { is_archived: willArchive })
+    program.is_archived = Boolean(data?.is_archived ?? willArchive)
+    program.archived_at = data?.archived_at ?? (willArchive ? new Date().toISOString() : null)
+    if (willArchive) {
+      // backend auto-clears favorite when archiving
+      program.is_favorite = Boolean(data?.is_favorite ?? false)
+    }
+
+    // If current view filters out this program after the change, drop it from the list
+    const dropFromList =
+      (statusFilter.value === 'active' && willArchive) ||
+      (statusFilter.value === 'archived' && !willArchive) ||
+      (favoriteFilter.value === 'favorite' && willArchive && !program.is_favorite)
+
+    if (dropFromList) {
+      programs.value = programs.value.filter((item) => item.program_id !== program.program_id)
+      total.value = Math.max(0, total.value - 1)
+    }
+
+    ElMessage.success(willArchive ? '已归档' : '已取消归档')
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(willArchive ? '归档失败' : '取消归档失败')
+  } finally {
+    archivingProgramId.value = ''
+  }
+}
+
+function handleProgramCommand(command, program) {
+  if (command === 'archive') {
+    archiveProgram(program)
+  } else if (command === 'delete') {
+    deleteProgram(program)
+  }
+}
+
 watch(() => programs.value.length, async (value) => {
   if (!value || loadError.value) return
   await nextTick()
@@ -763,10 +832,16 @@ watch(() => programs.value.length, async (value) => {
 })
 
 onMounted(async () => {
+  const validStatus = new Set(['active', 'archived', 'all'])
+  const queryStatus = typeof route.query.status === 'string' ? route.query.status : ''
+  const hasExplicitStatusQuery = validStatus.has(queryStatus)
   const hasSavedState = Boolean(readPageState())
-  const shouldRestore = route.query.restore === '1' || route.query.fromDetail === '1' || hasSavedState
+  const shouldRestore = !hasExplicitStatusQuery && (route.query.restore === '1' || route.query.fromDetail === '1' || hasSavedState)
   if (shouldRestore && await restorePageState()) {
     return
+  }
+  if (hasExplicitStatusQuery) {
+    statusFilter.value = queryStatus
   }
   fetchPrograms(1, false)
 })
@@ -910,6 +985,38 @@ onBeforeUnmount(() => {
 
 .showcase-card.is-favorite {
   border-color: rgba(240, 196, 113, 0.72);
+}
+
+.showcase-card.is-archived {
+  opacity: 0.62;
+  filter: grayscale(0.55);
+  background: rgba(248, 244, 235, 0.92);
+}
+
+.showcase-card.is-archived:hover {
+  opacity: 0.85;
+  filter: grayscale(0.2);
+}
+
+.archived-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(120, 113, 108, 0.92);
+  color: #f5f5f4;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 10px rgba(68, 64, 60, 0.18);
+  pointer-events: none;
+}
+
+.dropdown-danger-text {
+  color: #c2410c;
+  font-weight: 600;
 }
 
 .showcase-card.has-stock {

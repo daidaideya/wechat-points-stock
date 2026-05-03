@@ -44,6 +44,7 @@ class ProgramUpdate(BaseModel):
     is_favorite: Optional[bool] = None
     note: Optional[str] = None
     tags: Optional[List[str]] = None
+    is_archived: Optional[bool] = None
 
 
 def get_program_pinyin_data(program_name: Optional[str]):
@@ -107,6 +108,8 @@ def ensure_mini_program_columns(db: Session):
         "is_favorite": "ALTER TABLE mini_programs ADD COLUMN is_favorite INTEGER DEFAULT 0",
         "note": "ALTER TABLE mini_programs ADD COLUMN note VARCHAR",
         "tags": "ALTER TABLE mini_programs ADD COLUMN tags VARCHAR",
+        "is_archived": "ALTER TABLE mini_programs ADD COLUMN is_archived INTEGER DEFAULT 0",
+        "archived_at": "ALTER TABLE mini_programs ADD COLUMN archived_at DATETIME",
     }
 
     connection = db.bind.connect()
@@ -137,6 +140,7 @@ def get_all_distinct_tags(db: Session) -> List[str]:
     rows = db.query(models.MiniProgram.tags).filter(
         models.MiniProgram.tags.isnot(None),
         models.MiniProgram.tags != "",
+        or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)),
     ).all()
 
     tag_counts = {}
@@ -221,6 +225,8 @@ def build_program_payload(program, last_updates, has_stock_map):
         "has_stock": has_stock_map.get(program.program_id, False),
         "note": program.note,
         "tags": get_program_tags(program),
+        "is_archived": getattr(program, "is_archived", 0) == 1,
+        "archived_at": program.archived_at.isoformat() if getattr(program, "archived_at", None) else None,
     }
 
 
@@ -356,14 +362,17 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     favorite_count = db.query(models.MiniProgram).filter(models.MiniProgram.is_favorite == 1).count()
     token_auth_count = db.query(models.MiniProgram).filter(models.MiniProgram.auth_type == "token").count()
     cached_images_count = db.query(models.Product).filter(models.Product.image_local_path.isnot(None)).count()
+    archived_count = db.query(models.MiniProgram).filter(models.MiniProgram.is_archived == 1).count()
 
     programs = db.query(models.MiniProgram).all()
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
     today_str = datetime.now().strftime("%Y-%m-%d")
     unreported_count = 0
-    for program_id in program_ids:
-        last_time_iso = last_updates.get(program_id)
+    for program in programs:
+        if (getattr(program, "is_archived", 0) or 0) == 1:
+            continue
+        last_time_iso = last_updates.get(program.program_id)
         if not last_time_iso or last_time_iso.split("T")[0] != today_str:
             unreported_count += 1
 
@@ -374,10 +383,16 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     ).distinct().count()
 
     raw_history = db.query(models.PointsHistory).order_by(models.PointsHistory.report_time.desc()).limit(50).all()
+    archived_program_ids = {
+        row[0]
+        for row in db.query(models.MiniProgram.program_id).filter(models.MiniProgram.is_archived == 1).all()
+    }
     recent_program_updates = []
     seen_programs = set()
     for item in raw_history:
         if item.program_id in seen_programs:
+            continue
+        if item.program_id in archived_program_ids:
             continue
         recent_program_updates.append({
             "program_id": item.program_id,
@@ -401,6 +416,7 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
         "token_auth_count": token_auth_count,
         "cached_images_count": cached_images_count,
         "active_accounts_today": active_accounts_today,
+        "archived_count": archived_count,
         "recent_program_updates": recent_program_updates,
     }
 
@@ -601,12 +617,21 @@ async def get_programs_api(
     q: Optional[str] = None,
     is_favorite: Optional[bool] = None,
     tag: Optional[str] = None,
+    status: Optional[str] = "active",
     db: Session = Depends(get_db),
 ):
     ensure_mini_program_columns(db)
     query = db.query(models.MiniProgram)
     programs = []
     total = 0
+
+    normalized_status = (status or "active").strip().lower()
+    if normalized_status not in {"active", "archived", "all"}:
+        normalized_status = "active"
+    if normalized_status == "active":
+        query = query.filter(or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)))
+    elif normalized_status == "archived":
+        query = query.filter(models.MiniProgram.is_archived == 1)
 
     if is_favorite is not None:
         if is_favorite:
@@ -667,6 +692,7 @@ async def get_programs_api(
         "has_more": (page * size) < total,
         "available_tags": get_all_distinct_tags(db),
         "current_tag": normalized_tag or None,
+        "status": normalized_status,
     }
 
 
@@ -675,6 +701,7 @@ async def get_favorite_programs(db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     programs = db.query(models.MiniProgram).filter(
         models.MiniProgram.is_favorite == 1,
+        or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)),
     ).order_by(
         models.MiniProgram.sort_order.desc(),
         models.MiniProgram.id.asc(),
@@ -690,7 +717,9 @@ async def get_favorite_programs(db: Session = Depends(get_db)):
 @router.get("/api/v1/programs/unreported")
 async def get_unreported_programs(db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
-    programs = db.query(models.MiniProgram).order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
+    programs = db.query(models.MiniProgram).filter(
+        or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)),
+    ).order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
     has_stock_map = get_program_has_stock_map(db, program_ids)
@@ -846,10 +875,22 @@ async def update_program(program_id: str, update: ProgramUpdate, db: Session = D
     if update.tags is not None:
         program.tags = serialize_program_tags(update.tags)
 
+    if update.is_archived is not None:
+        if update.is_archived:
+            program.is_archived = 1
+            program.archived_at = datetime.utcnow()
+            program.is_favorite = 0  # archive auto-clears favorite
+        else:
+            program.is_archived = 0
+            program.archived_at = None
+
     db.commit()
     return JSONResponse(content={
         "status": "success",
         "tags": get_program_tags(program),
+        "is_archived": program.is_archived == 1,
+        "archived_at": program.archived_at.isoformat() if program.archived_at else None,
+        "is_favorite": program.is_favorite == 1,
     })
 
 

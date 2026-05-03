@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast; ast.parse\\(open\\(r'D:\\\\mycode\\\\wechat-points-stock\\\\app\\\\models.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\(r'D:\\\\mycode\\\\wechat-points-stock\\\\app\\\\routers\\\\web.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Python files parse OK'\\)\")",
+      "Bash(python -c \"from app import models; print\\('models import OK'\\); print\\([c.name for c in models.MiniProgram.__table__.columns]\\)\")"
+    ]
+  }
+}
