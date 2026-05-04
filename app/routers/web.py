@@ -244,6 +244,40 @@ def get_program_has_stock_map(db: Session, program_ids: List[str]):
     return has_stock_map
 
 
+def get_program_max_user_points_map(db: Session, program_ids: List[str]):
+    """For each program_id, return the highest current points among accounts
+    that have ever reported there. 'Current' = each account's latest report
+    per program. Same semantics as the per-program /stock endpoint, batched
+    so the listing page does not need one query per card."""
+    if not program_ids:
+        return {}
+
+    latest_subq = db.query(
+        models.PointsHistory.program_id.label("program_id"),
+        models.PointsHistory.wechat_id.label("wechat_id"),
+        func.max(models.PointsHistory.report_time).label("max_time"),
+    ).filter(
+        models.PointsHistory.program_id.in_(program_ids),
+    ).group_by(
+        models.PointsHistory.program_id,
+        models.PointsHistory.wechat_id,
+    ).subquery()
+
+    rows = db.query(
+        models.PointsHistory.program_id,
+        func.max(models.PointsHistory.points).label("max_points"),
+    ).join(
+        latest_subq,
+        and_(
+            models.PointsHistory.program_id == latest_subq.c.program_id,
+            models.PointsHistory.wechat_id == latest_subq.c.wechat_id,
+            models.PointsHistory.report_time == latest_subq.c.max_time,
+        ),
+    ).group_by(models.PointsHistory.program_id).all()
+
+    return {row.program_id: int(row.max_points or 0) for row in rows}
+
+
 def get_program_stock_summary_map(db: Session, program_ids: List[str]):
     if not program_ids:
         return {}
@@ -347,7 +381,7 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
     return change_map
 
 
-def build_program_payload(program, last_updates, has_stock_map, stock_summary_map=None, stock_change_map=None):
+def build_program_payload(program, last_updates, has_stock_map, stock_summary_map=None, stock_change_map=None, max_points_map=None):
     stock_summary = (stock_summary_map or {}).get(program.program_id, {})
     stock_change = (stock_change_map or {}).get(program.program_id, {})
     return {
@@ -360,6 +394,7 @@ def build_program_payload(program, last_updates, has_stock_map, stock_summary_ma
         "last_update_time": last_updates.get(program.program_id),
         "has_stock": has_stock_map.get(program.program_id, False),
         "product_count": int(stock_summary.get("product_count", 0)),
+        "max_user_points": int((max_points_map or {}).get(program.program_id, 0) or 0),
         "stock_change": {
             "added_count": int(stock_change.get("added_count", 0)),
             "removed_count": int(stock_change.get("removed_count", 0)),
@@ -570,9 +605,10 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     has_stock_map = get_program_has_stock_map(db, active_program_ids)
     stock_summary_map = get_program_stock_summary_map(db, active_program_ids)
     stock_change_map = get_program_stock_change_map(db, active_program_ids)
+    max_points_map = get_program_max_user_points_map(db, active_program_ids)
     unreported_top = []
     for program, last_time_iso in unreported_programs[:5]:
-        payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map)
+        payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map)
         payload["last_report_time"] = last_time_iso
         unreported_top.append(payload)
 
@@ -943,7 +979,8 @@ async def get_programs_api(
     has_stock_map = get_program_has_stock_map(db, program_ids)
     stock_summary_map = get_program_stock_summary_map(db, program_ids)
     stock_change_map = get_program_stock_change_map(db, program_ids)
-    items = [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map) for program in programs]
+    max_points_map = get_program_max_user_points_map(db, program_ids)
+    items = [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map) for program in programs]
 
     return {
         "items": items,
@@ -972,8 +1009,9 @@ async def get_favorite_programs(db: Session = Depends(get_db)):
     has_stock_map = get_program_has_stock_map(db, program_ids)
     stock_summary_map = get_program_stock_summary_map(db, program_ids)
     stock_change_map = get_program_stock_change_map(db, program_ids)
+    max_points_map = get_program_max_user_points_map(db, program_ids)
     return {
-        "items": [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map) for program in programs]
+        "items": [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map) for program in programs]
     }
 
 
@@ -988,13 +1026,14 @@ async def get_unreported_programs(db: Session = Depends(get_db)):
     has_stock_map = get_program_has_stock_map(db, program_ids)
     stock_summary_map = get_program_stock_summary_map(db, program_ids)
     stock_change_map = get_program_stock_change_map(db, program_ids)
+    max_points_map = get_program_max_user_points_map(db, program_ids)
     today_str = datetime.now().strftime("%Y-%m-%d")
 
     items = []
     for program in programs:
         last_time_iso = last_updates.get(program.program_id)
         if not last_time_iso or last_time_iso.split("T")[0] != today_str:
-            payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map)
+            payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map)
             payload["last_report_time"] = last_time_iso
             items.append(payload)
     return {"items": items}
@@ -1031,8 +1070,9 @@ async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Se
     has_stock_map = get_program_has_stock_map(db, [program_id])
     stock_summary_map = get_program_stock_summary_map(db, [program_id])
     stock_change_map = get_program_stock_change_map(db, [program_id])
+    max_points_map = get_program_max_user_points_map(db, [program_id])
     return {
-        **build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map),
+        **build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map),
         "ranking": ranking,
     }
 

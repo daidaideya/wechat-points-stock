@@ -155,6 +155,17 @@
                   </span>
                   <span class="stock-count-value">{{ formatProductCount(program) }}</span>
                 </button>
+                <span class="stock-row-divider" aria-hidden="true"></span>
+                <div
+                  class="points-count-display"
+                  :class="{ 'is-empty': !Number(program.max_user_points) }"
+                  :title="Number(program.max_user_points) ? `当前账号最高积分：${program.max_user_points}` : '暂无账号积分数据'"
+                >
+                  <span class="points-count-icon">
+                    <el-icon><Coin /></el-icon>
+                  </span>
+                  <span class="points-count-value">{{ formatMaxPoints(program) }}</span>
+                </div>
                 <div v-if="hasStockChange(program)" class="showcase-card-change-row inline-change-row">
                   <span v-if="program.stock_change?.added_count" class="showcase-chip success stock-change-chip">+{{ program.stock_change.added_count }}</span>
                   <span v-if="program.stock_change?.removed_count" class="showcase-chip warning stock-change-chip">-{{ program.stock_change.removed_count }}</span>
@@ -436,7 +447,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Star } from '@element-plus/icons-vue'
+import { ArrowRight, Box, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Star } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 
@@ -582,6 +593,14 @@ function formatDate(value) {
 function formatProductCount(program) {
   const count = Number(program?.product_count) || 0
   return `${count}`
+}
+
+function formatMaxPoints(program) {
+  const value = Number(program?.max_user_points) || 0
+  if (value <= 0) return '0'
+  if (value >= 10000) return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}w`
+  if (value >= 1000) return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`
+  return `${value}`
 }
 
 function hasStockChange(program) {
@@ -1220,6 +1239,51 @@ onBeforeUnmount(() => {
   line-height: 1;
   font-weight: 800;
   color: #a16207;
+}
+
+/* 最高积分指标，紧挨商品数量按钮，配色用蓝绿调与橙色商品块区分 */
+.points-count-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #1d6f6c;
+}
+
+.points-count-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(214, 240, 230, 0.96), rgba(189, 226, 220, 0.9));
+  color: #0f766e;
+  box-shadow: inset 0 0 0 1px rgba(155, 209, 198, 0.78);
+}
+
+.points-count-value {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 800;
+  color: #0f766e;
+  font-variant-numeric: tabular-nums;
+}
+
+.points-count-display.is-empty {
+  opacity: 0.45;
+}
+
+.points-count-display.is-empty .points-count-value {
+  color: #6b7280;
+}
+
+.stock-row-divider {
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(180deg, transparent, rgba(199, 169, 130, 0.45), transparent);
+  margin: 0 4px;
+  flex: 0 0 auto;
 }
 
 .showcase-card-tag-inline {
