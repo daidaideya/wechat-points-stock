@@ -1,12 +1,32 @@
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import images, qinglong, stock, web
 
 app = FastAPI(title="WeChat Points & Stock Monitor")
+
+# gzip JSON / HTML / JS responses over the wire. element-plus.js (~845KB) and
+# the larger API payloads (/points, /dashboard) shrink ~3-4x for clients that
+# advertise gzip. minimum_size avoids gzipping tiny responses where the
+# overhead would dominate.
+app.add_middleware(GZipMiddleware, minimum_size=512)
+
+
+@app.middleware("http")
+async def add_static_cache_headers(request: Request, call_next):
+    """Vite emits hashed filenames under /assets, so they are safe to cache
+    for a long time. Without this header browsers re-validate every reload
+    which is the dominant first-paint latency on slow links."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith(("/assets/", "/app/assets/", "/static/uploads/")):
+        response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+    return response
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = Path("/workspace")

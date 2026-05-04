@@ -136,6 +136,37 @@ def ensure_program_tags_column(db: Session):
     ensure_mini_program_columns(db)
 
 
+_INDEXES_ENSURED = False
+
+
+def ensure_indexes(db: Session):
+    """Create hot-path indexes that SQLite does not auto-create from FK
+    declarations. The /points and /accounts endpoints filter PointsHistory
+    by wechat_id and order by report_time, both of which scan the whole
+    table without these. Runs once per process."""
+    global _INDEXES_ENSURED
+    if _INDEXES_ENSURED:
+        return
+    statements = [
+        "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_id ON points_history (wechat_id)",
+        "CREATE INDEX IF NOT EXISTS ix_points_history_program_id ON points_history (program_id)",
+        "CREATE INDEX IF NOT EXISTS ix_points_history_report_time ON points_history (report_time)",
+        "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program ON points_history (wechat_id, program_id)",
+        "CREATE INDEX IF NOT EXISTS ix_stock_history_program_id ON stock_history (program_id)",
+        "CREATE INDEX IF NOT EXISTS ix_stock_history_change_time ON stock_history (change_time)",
+        "CREATE INDEX IF NOT EXISTS ix_products_program_id ON products (program_id)",
+    ]
+    try:
+        for stmt in statements:
+            db.execute(text(stmt))
+        db.commit()
+        _INDEXES_ENSURED = True
+    except Exception as exc:
+        db.rollback()
+        # Don't crash the request if index creation fails; just log and move on.
+        print(f"[ensure_indexes] failed: {exc}")
+
+
 def get_all_distinct_tags(db: Session) -> List[str]:
     rows = db.query(models.MiniProgram.tags).filter(
         models.MiniProgram.tags.isnot(None),
@@ -364,10 +395,46 @@ def verify_access_or_raise(
     return settings
 
 
-def build_account_points_summary(db: Session, account: models.WechatAccount, all_programs):
-    user_points = db.query(models.PointsHistory).filter(
-        models.PointsHistory.wechat_id == account.wechat_id
+def fetch_points_history_grouped(db: Session, wechat_ids):
+    """One-shot pull of all PointsHistory rows for a set of wechat_ids,
+    grouped per wechat_id, descending by report_time. Avoids the N+1
+    pattern where each account triggers its own history query."""
+    if not wechat_ids:
+        return {}
+    rows = db.query(models.PointsHistory).filter(
+        models.PointsHistory.wechat_id.in_(wechat_ids)
     ).order_by(models.PointsHistory.report_time.desc()).all()
+    grouped = defaultdict(list)
+    for row in rows:
+        grouped[row.wechat_id].append(row)
+    return grouped
+
+
+def get_archived_program_ids(db: Session):
+    return {
+        row[0]
+        for row in db.query(models.MiniProgram.program_id).filter(
+            models.MiniProgram.is_archived == 1
+        ).all()
+    }
+
+
+def build_account_points_summary(
+    db: Session,
+    account: models.WechatAccount,
+    all_programs,
+    archived_program_ids: Optional[set] = None,
+    program_name_map: Optional[dict] = None,
+    user_points=None,
+):
+    archived_program_ids = archived_program_ids or set()
+    if program_name_map is None:
+        program_name_map = {p.program_id: p.program_name for p in all_programs}
+
+    if user_points is None:
+        user_points = db.query(models.PointsHistory).filter(
+            models.PointsHistory.wechat_id == account.wechat_id
+        ).order_by(models.PointsHistory.report_time.desc()).all()
 
     latest_map = {}
     history_map = defaultdict(list)
@@ -401,6 +468,9 @@ def build_account_points_summary(db: Session, account: models.WechatAccount, all
                 break
         return current_points - prev_points
 
+    def resolve_name(program_id):
+        return program_name_map.get(program_id) or program_id
+
     points_items = []
     processed_program_ids = set()
     active_program_count = 0
@@ -413,7 +483,7 @@ def build_account_points_summary(db: Session, account: models.WechatAccount, all
                 active_program_count += 1
             points_items.append({
                 "program_id": current.program_id,
-                "program_name": current.program.program_name if current.program else current.program_id,
+                "program_name": resolve_name(current.program_id),
                 "points": current.points,
                 "diff": calculate_diff(current.program_id, current.points),
                 "report_time": current.report_time.isoformat() if current.report_time else None,
@@ -430,11 +500,13 @@ def build_account_points_summary(db: Session, account: models.WechatAccount, all
     for program_id, current in latest_map.items():
         if program_id in processed_program_ids:
             continue
+        if program_id in archived_program_ids:
+            continue
         if current.points != 0:
             active_program_count += 1
         points_items.append({
             "program_id": current.program_id,
-            "program_name": current.program.program_name if current.program else current.program_id,
+            "program_name": resolve_name(current.program_id),
             "points": current.points,
             "diff": calculate_diff(current.program_id, current.points),
             "report_time": current.report_time.isoformat() if current.report_time else None,
@@ -465,6 +537,7 @@ def build_account_points_summary(db: Session, account: models.WechatAccount, all
 @router.get("/api/v1/dashboard")
 async def get_dashboard_summary(db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
+    ensure_indexes(db)
     account_count = db.query(models.WechatAccount).count()
     program_count = db.query(models.MiniProgram).count()
     points_records_count = db.query(models.PointsHistory).count()
@@ -475,17 +548,33 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     cached_images_count = db.query(models.Product).filter(models.Product.image_local_path.isnot(None)).count()
     archived_count = db.query(models.MiniProgram).filter(models.MiniProgram.is_archived == 1).count()
 
-    programs = db.query(models.MiniProgram).all()
+    programs = db.query(models.MiniProgram).order_by(
+        models.MiniProgram.sort_order.desc(),
+        models.MiniProgram.id.asc(),
+    ).all()
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
     today_str = datetime.now().strftime("%Y-%m-%d")
-    unreported_count = 0
-    for program in programs:
-        if (getattr(program, "is_archived", 0) or 0) == 1:
-            continue
+
+    archived_program_ids = {p.program_id for p in programs if (p.is_archived or 0) == 1}
+    active_programs = [p for p in programs if p.program_id not in archived_program_ids]
+    active_program_ids = [p.program_id for p in active_programs]
+
+    unreported_programs = []
+    for program in active_programs:
         last_time_iso = last_updates.get(program.program_id)
         if not last_time_iso or last_time_iso.split("T")[0] != today_str:
-            unreported_count += 1
+            unreported_programs.append((program, last_time_iso))
+    unreported_count = len(unreported_programs)
+
+    has_stock_map = get_program_has_stock_map(db, active_program_ids)
+    stock_summary_map = get_program_stock_summary_map(db, active_program_ids)
+    stock_change_map = get_program_stock_change_map(db, active_program_ids)
+    unreported_top = []
+    for program, last_time_iso in unreported_programs[:5]:
+        payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map)
+        payload["last_report_time"] = last_time_iso
+        unreported_top.append(payload)
 
     start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     start_of_day_utc = start_of_day - timedelta(hours=8)
@@ -494,10 +583,7 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     ).distinct().count()
 
     raw_history = db.query(models.PointsHistory).order_by(models.PointsHistory.report_time.desc()).limit(50).all()
-    archived_program_ids = {
-        row[0]
-        for row in db.query(models.MiniProgram.program_id).filter(models.MiniProgram.is_archived == 1).all()
-    }
+    program_name_map = {p.program_id: p.program_name for p in programs}
     recent_program_updates = []
     seen_programs = set()
     for item in raw_history:
@@ -507,7 +593,7 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
             continue
         recent_program_updates.append({
             "program_id": item.program_id,
-            "program_name": item.program.program_name if item.program else item.program_id,
+            "program_name": program_name_map.get(item.program_id) or item.program_id,
             "wechat_id": item.wechat_id,
             "points": item.points,
             "report_time": item.report_time.isoformat() if item.report_time else None,
@@ -529,6 +615,7 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
         "active_accounts_today": active_accounts_today,
         "archived_count": archived_count,
         "recent_program_updates": recent_program_updates,
+        "unreported_top": unreported_top,
     }
 
 
@@ -609,15 +696,32 @@ async def update_log_settings(
 
 @router.get("/api/v1/accounts")
 async def get_accounts(db: Session = Depends(get_db)):
+    ensure_mini_program_columns(db)
+    ensure_indexes(db)
     accounts = db.query(models.WechatAccount).order_by(
         models.WechatAccount.sort_order.asc(),
         models.WechatAccount.id.asc(),
     ).all()
-    all_programs = db.query(models.MiniProgram).order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
+    all_programs_full = db.query(models.MiniProgram).order_by(
+        models.MiniProgram.sort_order.desc(),
+        models.MiniProgram.id.asc(),
+    ).all()
+    archived_ids = {p.program_id for p in all_programs_full if (p.is_archived or 0) == 1}
+    all_programs = [p for p in all_programs_full if p.program_id not in archived_ids]
+    program_name_map = {p.program_id: p.program_name for p in all_programs_full}
+
+    history_grouped = fetch_points_history_grouped(db, [a.wechat_id for a in accounts])
 
     items = []
     for account in accounts:
-        summary = build_account_points_summary(db, account, all_programs)
+        summary = build_account_points_summary(
+            db,
+            account,
+            all_programs,
+            archived_program_ids=archived_ids,
+            program_name_map=program_name_map,
+            user_points=history_grouped.get(account.wechat_id, []),
+        )
         items.append({
             **summary["account"],
             "active_program_count": summary["active_program_count"],
@@ -627,21 +731,49 @@ async def get_accounts(db: Session = Depends(get_db)):
 
 @router.get("/api/v1/accounts/{wechat_id}")
 async def get_account(wechat_id: str, db: Session = Depends(get_db)):
+    ensure_mini_program_columns(db)
+    ensure_indexes(db)
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    all_programs = db.query(models.MiniProgram).order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
-    return build_account_points_summary(db, account, all_programs)
+    all_programs_full = db.query(models.MiniProgram).order_by(
+        models.MiniProgram.sort_order.desc(),
+        models.MiniProgram.id.asc(),
+    ).all()
+    archived_ids = {p.program_id for p in all_programs_full if (p.is_archived or 0) == 1}
+    all_programs = [p for p in all_programs_full if p.program_id not in archived_ids]
+    program_name_map = {p.program_id: p.program_name for p in all_programs_full}
+    return build_account_points_summary(
+        db,
+        account,
+        all_programs,
+        archived_program_ids=archived_ids,
+        program_name_map=program_name_map,
+    )
 
 
 @router.get("/api/v1/accounts/{wechat_id}/points_details")
 async def get_account_points_details(wechat_id: str, db: Session = Depends(get_db)):
+    ensure_mini_program_columns(db)
+    ensure_indexes(db)
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-    all_programs = db.query(models.MiniProgram).order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
-    return build_account_points_summary(db, account, all_programs)["points"]
+    all_programs_full = db.query(models.MiniProgram).order_by(
+        models.MiniProgram.sort_order.desc(),
+        models.MiniProgram.id.asc(),
+    ).all()
+    archived_ids = {p.program_id for p in all_programs_full if (p.is_archived or 0) == 1}
+    all_programs = [p for p in all_programs_full if p.program_id not in archived_ids]
+    program_name_map = {p.program_id: p.program_name for p in all_programs_full}
+    return build_account_points_summary(
+        db,
+        account,
+        all_programs,
+        archived_program_ids=archived_ids,
+        program_name_map=program_name_map,
+    )["points"]
 
 
 @router.put("/api/v1/accounts/sort-order")
@@ -703,16 +835,32 @@ async def delete_program_points(wechat_id: str, program_id: str, db: Session = D
 
 @router.get("/api/v1/points")
 async def get_points_overview(db: Session = Depends(get_db)):
+    ensure_mini_program_columns(db)
+    ensure_indexes(db)
     accounts = db.query(models.WechatAccount).order_by(
         models.WechatAccount.sort_order.asc(),
         models.WechatAccount.id.asc(),
     ).all()
-    ensure_mini_program_columns(db)
-    all_programs = db.query(models.MiniProgram).order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
+    all_programs_full = db.query(models.MiniProgram).order_by(
+        models.MiniProgram.sort_order.desc(),
+        models.MiniProgram.id.asc(),
+    ).all()
+    archived_ids = {p.program_id for p in all_programs_full if (p.is_archived or 0) == 1}
+    all_programs = [p for p in all_programs_full if p.program_id not in archived_ids]
+    program_name_map = {p.program_id: p.program_name for p in all_programs_full}
+
+    history_grouped = fetch_points_history_grouped(db, [a.wechat_id for a in accounts])
 
     items = []
     for account in accounts:
-        summary = build_account_points_summary(db, account, all_programs)
+        summary = build_account_points_summary(
+            db,
+            account,
+            all_programs,
+            archived_program_ids=archived_ids,
+            program_name_map=program_name_map,
+            user_points=history_grouped.get(account.wechat_id, []),
+        )
         items.append({
             "account": summary["account"],
             "active_program_count": summary["active_program_count"],

@@ -255,14 +255,13 @@ function handleCardClick(card) {
 async function loadDashboard() {
   loading.value = true
   try {
-    const [{ data }, unreportedItems] = await Promise.all([
-      api.get('/dashboard'),
-      fetchUnreportedPrograms(),
-    ])
+    const { data } = await api.get('/dashboard')
     summary.value = data || {}
     recentUpdates.value = data?.recent_program_updates || []
-    allUnreportedPrograms.value = unreportedItems
-    unreportedPrograms.value = unreportedItems.slice(0, 5)
+    // 后端在 /dashboard 直接给出 unreported_top（前 5 条），首屏不再多发一次 /programs/unreported
+    unreportedPrograms.value = data?.unreported_top || []
+    // 列表对话框打开时再单独 fetch 全部，不阻塞首屏
+    allUnreportedPrograms.value = []
   } catch (error) {
     console.error(error)
     ElMessage.error('加载仪表盘失败')
