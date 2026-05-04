@@ -227,7 +227,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Bell,
   Box,
@@ -278,6 +278,33 @@ const pageDescription = computed(() => {
 const handleMobileMenuSelect = () => {
   mobileNavVisible.value = false
 }
+
+// 让 element-plus 的图片预览（el-image preview-teleported）支持点击空白处关闭。
+// el-image-viewer 不暴露这个 prop，所以全局监听 capture 阶段的 click：
+// 命中蒙层 / 包裹层 / 画布空白时，找到对应的关闭按钮触发 click。
+function handleImageViewerOutsideClick(event) {
+  const target = event.target
+  if (!(target instanceof HTMLElement)) return
+  const cls = target.classList
+  const isBlankArea =
+    cls.contains('el-image-viewer__canvas') ||
+    cls.contains('el-image-viewer__mask') ||
+    cls.contains('el-image-viewer__wrapper')
+  if (!isBlankArea) return
+  const wrapper = target.closest('.el-image-viewer__wrapper') || document.querySelector('.el-image-viewer__wrapper')
+  const closeBtn = wrapper?.querySelector?.('.el-image-viewer__close')
+  if (closeBtn instanceof HTMLElement) {
+    closeBtn.click()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleImageViewerOutsideClick, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleImageViewerOutsideClick, true)
+})
 
 watch(
   () => route.fullPath,
