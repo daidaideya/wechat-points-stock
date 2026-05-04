@@ -66,8 +66,10 @@ class Product(Base):
     image_url = Column(String)
     points = Column(Integer, default=0)
     stock = Column(Integer, default=0)
-    is_hidden = Column(Integer, default=0)
+    is_hidden = Column(Integer, default=0)  # 用户手动隐藏
     hidden_at = Column(DateTime, nullable=True)
+    is_unlisted = Column(Integer, default=0)  # 系统自动检测到的下架（与是否手动隐藏独立）
+    unlisted_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         UniqueConstraint('program_id', 'product_id', name='uix_program_product'),

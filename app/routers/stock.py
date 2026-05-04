@@ -17,6 +17,8 @@ def ensure_product_columns(db: Session):
     expected_columns = {
         "is_hidden": "ALTER TABLE products ADD COLUMN is_hidden INTEGER DEFAULT 0",
         "hidden_at": "ALTER TABLE products ADD COLUMN hidden_at DATETIME",
+        "is_unlisted": "ALTER TABLE products ADD COLUMN is_unlisted INTEGER DEFAULT 0",
+        "unlisted_at": "ALTER TABLE products ADD COLUMN unlisted_at DATETIME",
     }
 
     connection = db.bind.connect()
@@ -25,6 +27,10 @@ def ensure_product_columns(db: Session):
         column_names = {column["name"] for column in inspector}
     finally:
         connection.close()
+
+    # 第一次添加 is_unlisted 列时，把所有原本 is_hidden=1 的商品（之前手动隐藏 + 自动下架混在一起）
+    # 一次性迁移到 is_unlisted=1，并清空 is_hidden。这样从今往后两块完全独立。
+    needs_migrate_hidden_to_unlisted = "is_unlisted" not in column_names
 
     missing_statements = [
         statement
@@ -36,17 +42,32 @@ def ensure_product_columns(db: Session):
 
     for statement in missing_statements:
         db.execute(text(statement))
+
+    if needs_migrate_hidden_to_unlisted:
+        db.execute(text(
+            "UPDATE products SET is_unlisted = 1, unlisted_at = hidden_at, "
+            "is_hidden = 0, hidden_at = NULL WHERE is_hidden = 1"
+        ))
+
     db.commit()
 
 
 
 def visible_product_filter():
-    return or_(models.Product.is_hidden == 0, models.Product.is_hidden.is_(None))
+    return and_(
+        or_(models.Product.is_hidden == 0, models.Product.is_hidden.is_(None)),
+        or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
+    )
 
 
 
 def hidden_product_filter():
     return models.Product.is_hidden == 1
+
+
+
+def unlisted_product_filter():
+    return models.Product.is_unlisted == 1
 
 
 
@@ -312,82 +333,51 @@ def get_off_shelf_products(
     q: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
+    """已下架（unlisted）商品 — 系统在处理 stock 上报时检测到老商品没出现在最新报告里，
+    自动标记为 is_unlisted=1。和「已隐藏」（is_hidden，用户手动）完全独立。"""
     ensure_product_columns(db)
 
-    tz_offset = timedelta(hours=8)
-    now_cst = datetime.utcnow() + tz_offset
-    today_cst = now_cst.date()
-
-    rows = db.query(
-        models.StockHistory.program_id,
-        models.StockHistory.product_id,
-        func.max(models.StockHistory.change_time).label("last_change_time"),
-    ).group_by(
-        models.StockHistory.program_id,
-        models.StockHistory.product_id,
+    products = db.query(models.Product).filter(unlisted_product_filter()).order_by(
+        models.Product.unlisted_at.desc(),
+        models.Product.id.desc(),
     ).all()
 
-    latest_report_dates = {}
-    previous_report_dates = {}
-    grouped_dates = {}
+    program_ids = {product.program_id for product in products if product.program_id}
+    program_map = {}
+    if program_ids:
+        program_rows = db.query(
+            models.MiniProgram.program_id,
+            models.MiniProgram.program_name,
+        ).filter(models.MiniProgram.program_id.in_(program_ids)).all()
+        program_map = {row.program_id: row.program_name for row in program_rows}
 
-    for row in rows:
-        if not row.last_change_time:
-            continue
-        report_date = (row.last_change_time + tz_offset).date()
-        grouped_dates.setdefault(row.program_id, set()).add(report_date)
-
-    for program_id, dates in grouped_dates.items():
-        sorted_dates = sorted(dates, reverse=True)
-        latest_report_dates[program_id] = sorted_dates[0] if sorted_dates else None
-        previous_report_dates[program_id] = sorted_dates[1] if len(sorted_dates) > 1 else None
-
-    latest_product_ids = {}
-    previous_product_ids = {}
-    for row in rows:
-        if not row.last_change_time:
-            continue
-        report_date = (row.last_change_time + tz_offset).date()
-        if report_date == latest_report_dates.get(row.program_id):
-            latest_product_ids.setdefault(row.program_id, set()).add(row.product_id)
-        if report_date == previous_report_dates.get(row.program_id):
-            previous_product_ids.setdefault(row.program_id, set()).add(row.product_id)
+    keyword = (q or "").strip()
+    grouped = {}
+    for product in products:
+        program_name = program_map.get(product.program_id) or product.program_id
+        if keyword:
+            haystack = f"{product.product_name or ''}\n{product.product_id or ''}\n{program_name or ''}"
+            if keyword.lower() not in haystack.lower():
+                continue
+        bucket = grouped.setdefault(product.program_id, {
+            "program_id": product.program_id,
+            "program_name": program_name,
+            "products": [],
+        })
+        bucket["products"].append({
+            "id": product.id,
+            "product_id": product.product_id,
+            "product_name": product.product_name,
+            "points": product.points,
+            "stock": product.stock,
+            "image_url": normalize_stock_image_url(product),
+            "unlisted_at": product.unlisted_at.isoformat() if product.unlisted_at else None,
+        })
 
     off_shelf_groups = []
-    for program_id, previous_ids in previous_product_ids.items():
-        latest_ids = latest_product_ids.get(program_id, set())
-        removed_ids = previous_ids - latest_ids
-        latest_date = latest_report_dates.get(program_id)
-        if not removed_ids or latest_date != today_cst:
-            continue
-
-        program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
-        product_rows = db.query(models.Product).filter(
-            models.Product.program_id == program_id,
-            models.Product.product_id.in_(removed_ids),
-        ).order_by(models.Product.points.asc(), models.Product.id.asc()).all()
-
-        products = []
-        for product in product_rows:
-            if q and q not in (product.product_name or "") and q not in (product.product_id or "") and q not in (program.program_name if program else program_id):
-                continue
-            products.append({
-                "id": product.id,
-                "product_id": product.product_id,
-                "product_name": product.product_name,
-                "points": product.points,
-                "stock": product.stock,
-                "image_url": normalize_stock_image_url(product),
-                "hidden_at": product.hidden_at.isoformat() if product.hidden_at else None,
-            })
-
-        if products:
-            off_shelf_groups.append({
-                "program_id": program_id,
-                "program_name": program.program_name if program else program_id,
-                "count": len(products),
-                "products": products,
-            })
+    for program_id, group in grouped.items():
+        group["count"] = len(group["products"])
+        off_shelf_groups.append(group)
 
     off_shelf_groups.sort(key=lambda item: (-item["count"], item["program_name"] or item["program_id"]))
     return {
@@ -428,4 +418,22 @@ def restore_product(product_id: int, db: Session = Depends(get_db)):
         "status": "success",
         "id": product.id,
         "is_hidden": False,
+    }
+
+
+@router.put("/products/{product_id}/relist")
+def relist_product(product_id: int, db: Session = Depends(get_db)):
+    """把系统判定为「已下架」的商品手动恢复为活跃状态。和 /restore（取消手动隐藏）独立。"""
+    ensure_product_columns(db)
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    product.is_unlisted = 0
+    product.unlisted_at = None
+    db.commit()
+    return {
+        "status": "success",
+        "id": product.id,
+        "is_unlisted": False,
     }

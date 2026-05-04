@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.services import cleanup_service
@@ -93,30 +94,39 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
     # 1. Get or create Program
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == report.program_id).first()
     if not program:
-        # If program doesn't exist, we might create it with default name or fail. 
+        # If program doesn't exist, we might create it with default name or fail.
         # Creating it seems safer.
         program = models.MiniProgram(program_id=report.program_id, program_name="Unknown Program")
         db.add(program)
         db.flush()
 
     report_timestamp = report.products[0].last_updated if report.products and report.products[0].last_updated else datetime.utcnow()
-    report_day = report_timestamp.date()
-    previous_day = report_day - timedelta(days=1)
+    report_day_start = datetime.combine(report_timestamp.date(), datetime.min.time())
     current_report_product_ids = set()
     updated_products = []
 
-    previous_day_rows = db.query(models.StockHistory.product_id).filter(
+    # 与「最近一次有报告的那天」对比，找出本次没出现的老商品。
+    # 如果今天已经报过一次，再次跑这次报告时不应自相对比，所以排除掉今天的 history。
+    last_reporting_time = db.query(func.max(models.StockHistory.change_time)).filter(
         models.StockHistory.program_id == report.program_id,
-        models.StockHistory.change_time >= datetime.combine(previous_day, datetime.min.time()),
-        models.StockHistory.change_time < datetime.combine(report_day, datetime.min.time()),
-    ).distinct().all()
-    previous_day_product_ids = {row.product_id for row in previous_day_rows}
+        models.StockHistory.change_time < report_day_start,
+    ).scalar()
+    last_reporting_product_ids = set()
+    if last_reporting_time:
+        last_reporting_day_start = datetime.combine(last_reporting_time.date(), datetime.min.time())
+        last_reporting_day_end = last_reporting_day_start + timedelta(days=1)
+        rows = db.query(models.StockHistory.product_id).filter(
+            models.StockHistory.program_id == report.program_id,
+            models.StockHistory.change_time >= last_reporting_day_start,
+            models.StockHistory.change_time < last_reporting_day_end,
+        ).distinct().all()
+        last_reporting_product_ids = {row.product_id for row in rows}
 
     for prod_data in report.products:
         # Determine product_id
         p_id = prod_data.product_id
         if not p_id:
-            # Use product_name as ID if not provided. 
+            # Use product_name as ID if not provided.
             p_id = prod_data.product_name
 
         current_report_product_ids.add(p_id)
@@ -142,9 +152,11 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
                 stock=prod_data.stock or 0,
                 is_hidden=0,
                 hidden_at=None,
+                is_unlisted=0,
+                unlisted_at=None,
             )
             db.add(product)
-            db.flush() 
+            db.flush()
         else:
             old_stock = product.stock
             # Update info
@@ -157,9 +169,10 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
             if prod_data.stock is not None and prod_data.stock != product.stock:
                 product.stock = prod_data.stock
 
-            if product.is_hidden:
-                product.is_hidden = 0
-                product.hidden_at = None
+            # 商品又出现在最新报告里，自动取消下架。is_hidden（手动隐藏）保持不动。
+            if product.is_unlisted:
+                product.is_unlisted = 0
+                product.unlisted_at = None
 
             db.add(product)
 
@@ -179,16 +192,17 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
             db.add(history)
             updated_products.append(p_id)
 
-    products_to_hide = previous_day_product_ids - current_report_product_ids
-    if products_to_hide:
+    # 上次有报告时存在、本次没出现 → 自动下架。注意只动 is_unlisted，不污染 is_hidden。
+    products_to_unlist = last_reporting_product_ids - current_report_product_ids
+    if products_to_unlist:
         products = db.query(models.Product).filter(
             models.Product.program_id == report.program_id,
-            models.Product.product_id.in_(products_to_hide)
+            models.Product.product_id.in_(products_to_unlist)
         ).all()
         for product in products:
-            if not product.is_hidden:
-                product.is_hidden = 1
-                product.hidden_at = report_timestamp
+            if not product.is_unlisted:
+                product.is_unlisted = 1
+                product.unlisted_at = report_timestamp
                 db.add(product)
 
     # Prune history
@@ -199,4 +213,4 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
         print(f"Error pruning stock history: {e}")
 
     db.commit()
-    return {"status": "success", "updated_products": updated_products, "hidden_products": list(products_to_hide)}
+    return {"status": "success", "updated_products": updated_products, "unlisted_products": list(products_to_unlist)}

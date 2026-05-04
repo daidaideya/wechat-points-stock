@@ -393,7 +393,16 @@
                 <div class="hidden-product-main">
                   <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
                   <div class="hidden-product-meta">{{ item.points ?? 0 }} 积分 · 库存 {{ item.stock ?? 0 }}</div>
-                  <div class="hidden-product-time">下架时间：{{ formatHiddenAt(item.hidden_at) }}</div>
+                  <div class="hidden-product-time">下架时间：{{ formatHiddenAt(item.unlisted_at || item.hidden_at) }}</div>
+                </div>
+                <div class="off-shelf-product-actions">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    plain
+                    :loading="relistingId === item.id"
+                    @click="relistProduct(item, group)"
+                  >恢复上架</el-button>
                 </div>
               </div>
             </div>
@@ -439,6 +448,7 @@ const offShelfTotal = ref(0)
 const offShelfKeywordInput = ref('')
 const hidingProductId = ref(null)
 const restoringProductId = ref(null)
+const relistingId = ref(null)
 
 let observer = null
 let stockCenterRequest = null
@@ -701,6 +711,29 @@ async function fetchOffShelfProducts() {
     ElMessage.error('加载已下架商品失败')
   } finally {
     offShelfLoading.value = false
+  }
+}
+
+async function relistProduct(product, group) {
+  if (!product?.id || relistingId.value) return
+  relistingId.value = product.id
+  try {
+    await api.put(`/stock/products/${product.id}/relist`)
+    // 从所在分组里移除该商品；如果分组空了一并清掉
+    if (group) {
+      group.products = group.products.filter((item) => item.id !== product.id)
+      group.count = group.products.length
+    }
+    offShelfPrograms.value = offShelfPrograms.value.filter((g) => (g.products || []).length > 0)
+    offShelfTotal.value = Math.max(0, offShelfTotal.value - 1)
+    // 主列表的缓存可能不再准确，标记失效
+    stockCenterCache = null
+    ElMessage.success(`「${product.product_name || product.product_id}」已恢复上架`)
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('恢复上架失败')
+  } finally {
+    relistingId.value = null
   }
 }
 
@@ -1220,6 +1253,11 @@ onBeforeUnmount(() => {
 .hidden-product-main {
   flex: 1;
   min-width: 0;
+}
+.off-shelf-product-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
 }
 .hidden-product-name,
 .off-shelf-program-name {
