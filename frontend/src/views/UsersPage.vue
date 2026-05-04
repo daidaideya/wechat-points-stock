@@ -41,7 +41,7 @@
         <el-empty v-if="!items.length" description="暂无用户数据" />
 
         <div v-else class="users-mobile-list">
-          <article v-for="item in items" :key="item.wechat_id" class="users-mobile-card">
+          <article v-for="(item, index) in items" :key="item.wechat_id" class="users-mobile-card">
             <div class="users-mobile-card-top">
               <div class="users-mobile-title-wrap">
                 <h3 class="users-mobile-title">{{ item.nickname || '未命名用户' }}</h3>
@@ -62,6 +62,8 @@
             </div>
 
             <div class="users-mobile-actions">
+              <el-button size="small" :disabled="index === 0 || sorting" :icon="ArrowUp" @click="moveUser(index, -1)">上移</el-button>
+              <el-button size="small" :disabled="index === items.length - 1 || sorting" :icon="ArrowDown" @click="moveUser(index, 1)">下移</el-button>
               <el-button size="small" @click="openEdit(item)">编辑</el-button>
               <el-button size="small" @click="viewPoints(item)">积分</el-button>
               <el-popconfirm title="确认删除该用户？" @confirm="removeUser(item)">
@@ -75,6 +77,31 @@
 
         <div v-if="items.length" class="users-desktop-table-wrap">
           <el-table :data="items" stripe class="users-table">
+            <el-table-column label="顺序" width="120" align="center">
+              <template #default="scope">
+                <div class="users-sort-cell">
+                  <span class="users-sort-index">{{ scope.$index + 1 }}</span>
+                  <el-tooltip content="上移" placement="top">
+                    <el-button
+                      size="small"
+                      circle
+                      :icon="ArrowUp"
+                      :disabled="scope.$index === 0 || sorting"
+                      @click="moveUser(scope.$index, -1)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="下移" placement="top">
+                    <el-button
+                      size="small"
+                      circle
+                      :icon="ArrowDown"
+                      :disabled="scope.$index === items.length - 1 || sorting"
+                      @click="moveUser(scope.$index, 1)"
+                    />
+                  </el-tooltip>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="nickname" label="昵称" min-width="160" />
             <el-table-column prop="wechat_id" label="微信号" min-width="200" />
             <el-table-column prop="device" label="设备" min-width="140" />
@@ -151,10 +178,12 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import api from '../api'
 
 const loading = ref(false)
 const saving = ref(false)
+const sorting = ref(false)
 const dialogVisible = ref(false)
 const pointsVisible = ref(false)
 const pointsLoading = ref(false)
@@ -263,6 +292,31 @@ async function viewPoints(row) {
   }
 }
 
+async function moveUser(index, delta) {
+  if (sorting.value) return
+  const targetIndex = index + delta
+  if (targetIndex < 0 || targetIndex >= items.value.length) return
+
+  // 乐观更新：本地先 swap，请求失败再回滚
+  const previousOrder = items.value.slice()
+  const next = items.value.slice()
+  ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
+  items.value = next
+
+  sorting.value = true
+  try {
+    await api.put('/accounts/sort-order', {
+      wechat_ids: next.map((item) => item.wechat_id),
+    })
+  } catch (error) {
+    console.error(error)
+    items.value = previousOrder
+    ElMessage.error('调整顺序失败，已回滚')
+  } finally {
+    sorting.value = false
+  }
+}
+
 onMounted(loadUsers)
 </script>
 
@@ -351,6 +405,27 @@ onMounted(loadUsers)
 
 .users-table :deep(td.el-table__cell) {
   background: rgba(255, 253, 249, 0.96);
+}
+
+.users-sort-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.users-sort-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(231, 179, 90, 0.16);
+  color: #b87718;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .users-edit-dialog :deep(.el-dialog),

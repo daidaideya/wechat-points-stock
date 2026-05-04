@@ -239,6 +239,26 @@ select {
   background: rgba(255, 255, 255, 0.9);
 }
 
+/* 真实的 <a href> 用于让浏览器右键菜单出现「在新标签页打开」。
+   click 由 .menu-item-anchor @click.prevent 阻止默认导航，事件冒泡到
+   el-menu-item 触发 router 模式的 SPA 导航。 */
+.menu-item-anchor {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-item-anchor:focus,
+.menu-item-anchor:focus-visible {
+  outline: none;
+}
+
 .menu-item-icon {
   width: 28px;
   height: 28px;
