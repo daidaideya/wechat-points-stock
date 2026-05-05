@@ -7,22 +7,31 @@
           <p class="section-description users-hero-description">统一管理微信号、昵称、设备与手机号，并快速查看积分详情。</p>
         </div>
         <div class="users-hero-actions">
-          <el-button type="primary" class="users-primary-button" @click="openEdit(null)">新增用户</el-button>
+          <el-button type="primary" :icon="Plus" class="users-primary-button" @click="openEdit(null)">新增用户</el-button>
         </div>
       </div>
 
       <div class="users-summary-grid">
         <div class="users-summary-card">
-          <span class="users-summary-label">用户数量</span>
-          <strong class="users-summary-value">{{ items.length }}</strong>
+          <div class="users-summary-icon" aria-hidden="true">👥</div>
+          <div class="users-summary-body">
+            <span class="users-summary-label">用户数量</span>
+            <strong class="users-summary-value">{{ items.length }}</strong>
+          </div>
         </div>
         <div class="users-summary-card">
-          <span class="users-summary-label">活跃小程序总计</span>
-          <strong class="users-summary-value">{{ totalActivePrograms }}</strong>
+          <div class="users-summary-icon" aria-hidden="true">🎯</div>
+          <div class="users-summary-body">
+            <span class="users-summary-label">活跃小程序总计</span>
+            <strong class="users-summary-value">{{ totalActivePrograms }}</strong>
+          </div>
         </div>
         <div class="users-summary-card">
-          <span class="users-summary-label">已留手机号</span>
-          <strong class="users-summary-value">{{ usersWithPhone }}</strong>
+          <div class="users-summary-icon" aria-hidden="true">📱</div>
+          <div class="users-summary-body">
+            <span class="users-summary-label">已留手机号</span>
+            <strong class="users-summary-value">{{ usersWithPhone }}</strong>
+          </div>
         </div>
       </div>
     </section>
@@ -43,9 +52,12 @@
         <div v-else class="users-mobile-list">
           <article v-for="(item, index) in items" :key="item.wechat_id" class="users-mobile-card">
             <div class="users-mobile-card-top">
-              <div class="users-mobile-title-wrap">
-                <h3 class="users-mobile-title">{{ item.nickname || '未命名用户' }}</h3>
-                <div class="users-mobile-subtitle">{{ item.wechat_id || '未设置微信号' }}</div>
+              <div class="users-mobile-identity">
+                <div class="users-avatar" :style="{ background: avatarColor(item) }">{{ avatarChar(item) }}</div>
+                <div class="users-mobile-title-wrap">
+                  <h3 class="users-mobile-title">{{ item.nickname || '未命名用户' }}</h3>
+                  <div class="users-mobile-subtitle">{{ item.wechat_id || '未设置微信号' }}</div>
+                </div>
               </div>
               <span class="users-mobile-count-chip">{{ item.active_program_count ?? 0 }} 个活跃小程序</span>
             </div>
@@ -62,13 +74,23 @@
             </div>
 
             <div class="users-mobile-actions">
-              <el-button size="small" :disabled="index === 0 || sorting" :icon="ArrowUp" @click="moveUser(index, -1)">上移</el-button>
-              <el-button size="small" :disabled="index === items.length - 1 || sorting" :icon="ArrowDown" @click="moveUser(index, 1)">下移</el-button>
-              <el-button size="small" @click="openEdit(item)">编辑</el-button>
-              <el-button size="small" @click="viewPoints(item)">积分</el-button>
+              <div class="users-mobile-actions-sort">
+                <el-tooltip content="上移" placement="top">
+                  <el-button size="small" circle :icon="ArrowUp" :disabled="index === 0 || sorting" @click="moveUser(index, -1)" />
+                </el-tooltip>
+                <el-tooltip content="下移" placement="top">
+                  <el-button size="small" circle :icon="ArrowDown" :disabled="index === items.length - 1 || sorting" @click="moveUser(index, 1)" />
+                </el-tooltip>
+              </div>
+              <div class="users-mobile-actions-main">
+                <el-button size="small" @click="openEdit(item)">编辑</el-button>
+                <el-button size="small" @click="viewPoints(item)">积分</el-button>
+              </div>
               <el-popconfirm title="确认删除该用户？" @confirm="removeUser(item)">
                 <template #reference>
-                  <el-button size="small" type="danger" plain>删除</el-button>
+                  <el-tooltip content="删除" placement="top">
+                    <el-button size="small" circle type="danger" plain :icon="Delete" />
+                  </el-tooltip>
                 </template>
               </el-popconfirm>
             </div>
@@ -102,18 +124,27 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="nickname" label="昵称" min-width="160" />
+            <el-table-column label="昵称" min-width="200">
+              <template #default="scope">
+                <div class="users-table-identity">
+                  <div class="users-avatar users-avatar-sm" :style="{ background: avatarColor(scope.row) }">{{ avatarChar(scope.row) }}</div>
+                  <span class="users-table-nickname">{{ scope.row.nickname || '未命名用户' }}</span>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="wechat_id" label="微信号" min-width="200" />
             <el-table-column prop="device" label="设备" min-width="140" />
             <el-table-column prop="phone" label="手机号" min-width="140" />
             <el-table-column prop="active_program_count" label="活跃小程序" width="120" />
-            <el-table-column label="操作" width="220" fixed="right">
+            <el-table-column label="操作" width="200" fixed="right">
               <template #default="scope">
                 <el-button size="small" @click="openEdit(scope.row)">编辑</el-button>
                 <el-button size="small" @click="viewPoints(scope.row)">积分</el-button>
                 <el-popconfirm title="确认删除该用户？" @confirm="removeUser(scope.row)">
                   <template #reference>
-                    <el-button size="small" type="danger">删除</el-button>
+                    <el-tooltip content="删除" placement="top">
+                      <el-button size="small" circle type="danger" :icon="Delete" />
+                    </el-tooltip>
                   </template>
                 </el-popconfirm>
               </template>
@@ -178,7 +209,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, Delete, Plus } from '@element-plus/icons-vue'
 import api from '../api'
 
 const loading = ref(false)
@@ -208,6 +239,25 @@ function formatDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function avatarChar(item) {
+  const text = String(item?.nickname || item?.wechat_id || '?').trim()
+  if (!text) return '?'
+  const first = Array.from(text)[0] || '?'
+  return first.toUpperCase()
+}
+
+function avatarColor(item) {
+  const seed = String(item?.wechat_id || item?.nickname || '').trim()
+  if (!seed) return 'linear-gradient(135deg, #e7b35a, #d89a3c)'
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0
+  }
+  const hue = Math.abs(hash) % 360
+  const hue2 = (hue + 35) % 360
+  return `linear-gradient(135deg, hsl(${hue}, 62%, 58%), hsl(${hue2}, 70%, 48%))`
 }
 
 function resetForm() {
@@ -360,10 +410,38 @@ onMounted(loadUsers)
 }
 
 .users-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   padding: 16px 18px;
   border-radius: 18px;
   background: rgba(255, 249, 240, 0.9);
   border: 1px solid rgba(232, 211, 183, 0.86);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.users-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(145, 109, 61, 0.1);
+}
+
+.users-summary-icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(231, 179, 90, 0.22), rgba(216, 154, 60, 0.16));
+  font-size: 22px;
+  line-height: 1;
+}
+
+.users-summary-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .users-summary-label {
@@ -374,7 +452,7 @@ onMounted(loadUsers)
 
 .users-summary-value {
   display: block;
-  margin-top: 8px;
+  margin-top: 6px;
   color: #3a2b1a;
   font-size: 26px;
   line-height: 1.1;
@@ -426,6 +504,47 @@ onMounted(loadUsers)
   color: #b87718;
   font-size: 12px;
   font-weight: 700;
+}
+
+.users-table-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.users-table-nickname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.users-avatar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  box-shadow: 0 6px 14px rgba(58, 43, 26, 0.18);
+  background: linear-gradient(135deg, #e7b35a, #d89a3c);
+  user-select: none;
+}
+
+.users-avatar-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(58, 43, 26, 0.14);
 }
 
 .users-edit-dialog :deep(.el-dialog),
@@ -480,6 +599,14 @@ onMounted(loadUsers)
     justify-content: space-between;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .users-mobile-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
   }
 
   .users-mobile-title-wrap {
@@ -548,7 +675,18 @@ onMounted(loadUsers)
     margin-top: 14px;
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+  }
+
+  .users-mobile-actions-sort,
+  .users-mobile-actions-main {
+    display: inline-flex;
+    gap: 8px;
+  }
+
+  .users-mobile-actions-main {
+    flex: 1;
   }
 
   .users-points-mobile-value {
@@ -581,14 +719,12 @@ onMounted(loadUsers)
     grid-template-columns: 1fr;
   }
 
-  .users-mobile-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .users-mobile-actions-main {
+    flex: 1 1 100%;
   }
 
-  .users-mobile-actions :deep(.el-button),
-  .users-mobile-actions :deep(.el-popconfirm__reference) {
-    width: 100%;
+  .users-mobile-actions-main :deep(.el-button) {
+    flex: 1;
   }
 }
 </style>
