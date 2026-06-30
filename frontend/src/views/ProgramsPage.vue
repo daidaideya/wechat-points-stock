@@ -108,7 +108,7 @@
       </div>
 
       <article
-        v-for="program in programs"
+        v-for="(program, index) in programs"
         v-else
         :key="program.program_id"
         class="showcase-card masonry-card"
@@ -123,6 +123,7 @@
           <div class="showcase-card-brand no-avatar-brand">
             <div class="showcase-card-brand-text full-width-brand-text">
               <div class="showcase-card-title-line">
+                <span class="showcase-card-index" :title="`第 ${index + 1} 个`">{{ index + 1 }}</span>
                 <h3 class="showcase-card-title">{{ program.program_name || program.program_id }}</h3>
               </div>
               <div class="showcase-card-meta-row compact-meta-row">
@@ -1144,6 +1145,28 @@ onBeforeUnmount(() => {
   line-height: 1.3;
   font-weight: 700;
   word-break: break-word;
+}
+
+/* 序号角标：横向排列在标题行最前，便于跟踪浏览进度 */
+.showcase-card-index {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  margin-top: 3px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 244, 221, 0.96), rgba(255, 237, 213, 0.9));
+  color: #8b5e34;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px rgba(231, 202, 163, 0.72);
 }
 
 .showcase-card-meta-row {
