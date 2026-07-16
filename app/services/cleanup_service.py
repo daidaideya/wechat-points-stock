@@ -11,6 +11,7 @@ def ensure_system_settings_columns(db: Session):
         "ql_base_url": "ALTER TABLE system_settings ADD COLUMN ql_base_url VARCHAR(255)",
         "ql_client_id": "ALTER TABLE system_settings ADD COLUMN ql_client_id VARCHAR(100)",
         "ql_client_secret": "ALTER TABLE system_settings ADD COLUMN ql_client_secret VARCHAR(255)",
+        "ql_auto_sync_minutes": "ALTER TABLE system_settings ADD COLUMN ql_auto_sync_minutes INTEGER DEFAULT 5",
         "ql_last_sync_at": "ALTER TABLE system_settings ADD COLUMN ql_last_sync_at DATETIME",
         "ql_last_sync_status": "ALTER TABLE system_settings ADD COLUMN ql_last_sync_status VARCHAR(255)",
         "bark_enabled": "ALTER TABLE system_settings ADD COLUMN bark_enabled INTEGER DEFAULT 0",

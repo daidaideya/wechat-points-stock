@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "analyze": "vite build --mode analyze",
+    "build": "vite build && node scripts/gzip-assets.mjs",
+    "analyze": "vite build --mode analyze && node scripts/gzip-assets.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

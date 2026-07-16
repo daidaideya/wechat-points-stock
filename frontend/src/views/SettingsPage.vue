@@ -105,7 +105,7 @@
               <div class="settings-section-header">
                 <div>
                   <h3 class="settings-section-title">青龙面板联动</h3>
-                  <p class="settings-section-desc">只读同步定时任务启用/禁用状态与 crontab 规则。</p>
+                  <p class="settings-section-desc">只读同步定时任务启用/禁用状态与 crontab 规则；配置后后台自动刷新。</p>
                 </div>
               </div>
 
@@ -113,12 +113,13 @@
                 <p class="settings-help-block">
                   使用青龙「应用设置」里的 Client ID / Client Secret。
                   匹配规则：优先按任务名称与小程序名称对齐。
+                  配置完整后会按下方「自动同步间隔」后台刷新；打开小程序列表过期时也会异步刷新。一般无需点「立即同步」。
                 </p>
 
                 <el-form-item label="青龙地址">
                   <el-input
                     v-model="qlForm.ql_base_url"
-                    placeholder="例如 http://192.168.1.10:5700"
+                    placeholder="例如 http://192.168.1.10:5700（Docker 访问宿主机用 http://host.docker.internal:5700）"
                     clearable
                   />
                 </el-form-item>
@@ -138,9 +139,21 @@
                     {{ qlSecretConfigured ? '已配置' : '未配置' }}
                   </el-tag>
                 </el-form-item>
+                <el-form-item label="自动同步间隔">
+                  <div class="settings-inline-field">
+                    <el-input-number
+                      v-model="qlForm.ql_auto_sync_minutes"
+                      :min="1"
+                      :max="1440"
+                      :step="1"
+                      controls-position="right"
+                    />
+                    <span class="settings-help-text">分钟（1–1440，默认 5）</span>
+                  </div>
+                </el-form-item>
                 <el-form-item label="最近同步">
                   <div class="settings-sync-meta">
-                    <span>{{ formatDate(qlLastSyncAt) }}</span>
+                    <span>{{ qlLastSyncAtLocal || formatDate(qlLastSyncAt) }}</span>
                     <span class="settings-help-text">{{ qlLastSyncStatus || '尚未同步' }}</span>
                   </div>
                 </el-form-item>
@@ -204,7 +217,7 @@
                 </el-form-item>
                 <el-form-item label="最近推送">
                   <div class="settings-sync-meta">
-                    <span>{{ formatDate(barkLastPushAt) }}</span>
+                    <span>{{ barkLastPushAtLocal || formatDate(barkLastPushAt) }}</span>
                     <span class="settings-help-text">{{ barkLastPushStatus || '尚未推送' }}</span>
                   </div>
                 </el-form-item>
@@ -281,9 +294,11 @@ const updatedAt = ref('')
 const accessKeyConfigured = ref(false)
 const qlSecretConfigured = ref(false)
 const qlLastSyncAt = ref('')
+const qlLastSyncAtLocal = ref('')
 const qlLastSyncStatus = ref('')
 const barkKeyConfigured = ref(false)
 const barkLastPushAt = ref('')
+const barkLastPushAtLocal = ref('')
 const barkLastPushStatus = ref('')
 
 const form = reactive({
@@ -297,6 +312,7 @@ const qlForm = reactive({
   ql_base_url: '',
   ql_client_id: '',
   ql_client_secret: '',
+  ql_auto_sync_minutes: 5,
 })
 
 const barkForm = reactive({
@@ -306,11 +322,37 @@ const barkForm = reactive({
   bark_push_time: '20:00',
 })
 
+function parseApiDate(value) {
+  if (!value) return null
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+  // Backend historically stores naive utcnow(); ISO without offset must be treated as UTC.
+  // e.g. "2026-07-16T16:33:45" → UTC → Asia/Shanghai 00:33
+  let raw = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(raw)) {
+    raw = raw.replace(' ', 'T')
+    if (!raw.endsWith('Z')) raw = `${raw}Z`
+  }
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 function formatDate(value) {
   if (!value) return '暂无'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
+  const date = parseApiDate(value)
+  if (!date) return String(value)
+  // Always show China wall time — do not depend on OS/browser/Docker TZ.
+  return date.toLocaleString('zh-CN', {
+    hour12: false,
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 function normalizeSection(value) {
@@ -338,8 +380,11 @@ async function loadQinglong() {
   qlForm.ql_base_url = data.ql_base_url || ''
   qlForm.ql_client_id = data.ql_client_id || ''
   qlForm.ql_client_secret = ''
+  const minutes = Number(data.ql_auto_sync_minutes)
+  qlForm.ql_auto_sync_minutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 5
   qlSecretConfigured.value = Boolean(data.ql_client_secret_configured)
   qlLastSyncAt.value = data.ql_last_sync_at || ''
+  qlLastSyncAtLocal.value = data.ql_last_sync_at_local || formatDate(data.ql_last_sync_at) || ''
   qlLastSyncStatus.value = data.ql_last_sync_status || ''
 }
 
@@ -351,9 +396,9 @@ async function loadBark() {
   barkForm.bark_push_time = data.bark_push_time || '20:00'
   barkKeyConfigured.value = Boolean(data.bark_device_key_configured)
   barkLastPushAt.value = data.bark_last_push_at || ''
+  barkLastPushAtLocal.value = data.bark_last_push_at_local || formatDate(data.bark_last_push_at) || ''
   barkLastPushStatus.value = data.bark_last_push_status || ''
 }
-
 async function loadAll() {
   loading.value = true
   try {
@@ -422,9 +467,15 @@ async function saveSettings() {
 async function saveQinglong() {
   qlSaving.value = true
   try {
+    const minutes = Number(qlForm.ql_auto_sync_minutes)
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
+      ElMessage.warning('自动同步间隔请填 1–1440 分钟')
+      return
+    }
     const payload = {
       ql_base_url: qlForm.ql_base_url,
       ql_client_id: qlForm.ql_client_id,
+      ql_auto_sync_minutes: Math.round(minutes),
     }
     if (qlForm.ql_client_secret.trim()) {
       payload.ql_client_secret = qlForm.ql_client_secret.trim()
@@ -797,6 +848,13 @@ onMounted(loadAll)
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.settings-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .settings-file-input {

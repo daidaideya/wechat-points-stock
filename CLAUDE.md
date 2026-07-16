@@ -33,11 +33,19 @@ npm run build      # outputs to frontend/dist (required before backend prod star
 npm run analyze    # build + writes frontend/dist/stats.html for bundle inspection
 ```
 
-Docker (full stack on :5711):
+Docker (full stack on :5711). Build SPA first — entrypoint requires `frontend/dist/index.html`:
 
 ```bash
+cd frontend && npm run build && cd ..
 docker compose up -d --build
 ```
+
+Docker notes for this project:
+
+- Default `UVICORN_WORKERS=1` (SQLite). Multi-worker works with WAL + Bark file lock but is not recommended.
+- Compose adds `host.docker.internal:host-gateway` so QingLong on the host is reachable as `http://host.docker.internal:5700`.
+- Volumes: `data`, `logs`, `static/uploads`, `frontend/dist`, plus bind-mounted `app/` and `scripts/`.
+- SQLite enables `PRAGMA journal_mode=WAL` and `busy_timeout=5000` on connect for safer concurrent readers.
 
 There is no test suite, linter, or formatter configured. Do not invent commands for them.
 
@@ -100,7 +108,13 @@ Stock and points history both call `cleanup_service.prune_*_history` after each 
 - List: `GET {base}/open/crons`
 - Match primarily by cron task name ↔ `program_name` (with command basename fallback)
 - Settings: `/api/v1/settings/qinglong` + `/sync`
-- Program list can auto-refresh if last sync is older than ~10 minutes
+- **Auto-refresh** (no manual click required once configured):
+  - Interval is user-configurable: `system_settings.ql_auto_sync_minutes` (default 5, range 1–1440) via Settings UI
+  - Startup scheduler re-reads that interval each cycle (`start_qinglong_scheduler` from `main.py`)
+  - `GET /api/v1/programs` kicks a **non-blocking** background sync if last sync is older than the configured interval
+  - Multi-worker safe via file lock under `data/.qinglong_scheduler.lock` + in-process inflight guard
+  - Manual「立即同步」 still available for instant refresh
+- Timezone: app treats display/schedules as **Asia/Shanghai**. Docker image sets `TZ` + `/etc/localtime`; API timestamps for settings use explicit `Z` (`app/timeutil.iso_for_api`) so browser local display is correct even if the container was once UTC.
 
 ### Bark unreported push
 
@@ -126,6 +140,7 @@ Stock and points history both call `cleanup_service.prune_*_history` after each 
 - `unplugin-auto-import` injects Vue and Vue Router APIs (`ref`, `computed`, `useRoute`, ...) globally. Do not add explicit `import { ref } from 'vue'`; auto-import generates `src/auto-imports.d.ts`.
 - `unplugin-vue-components` + `ElementPlusResolver` auto-registers Element Plus components and per-component CSS. Do not register Element Plus globally in `main.js` and do not import `element-plus/dist/index.css`. Icons from `@element-plus/icons-vue` still need explicit per-file imports.
 - `manualChunks` splits `element-plus`, `@element-plus/icons-vue`, `vue`, `vue-router`, `axios` into separate vendor chunks. Adding new heavy deps may warrant extending this list.
+- `npm run build` also runs `scripts/gzip-assets.mjs`, writing `*.js.gz` / `*.css.gz` next to hashed assets. `app/static_assets.py` + middleware in `main.py` serve those with `Content-Encoding: gzip` so Docker/Python does not re-gzip 800KB+ JS on every request.
 
 ### Mobile navigation
 

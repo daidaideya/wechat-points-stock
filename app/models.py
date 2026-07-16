@@ -15,6 +15,8 @@ class SystemSettings(Base):
     ql_base_url = Column(String(255), nullable=True)
     ql_client_id = Column(String(100), nullable=True)
     ql_client_secret = Column(String(255), nullable=True)
+    # Auto sync interval in minutes (user-configurable; default 5)
+    ql_auto_sync_minutes = Column(Integer, default=5)
     ql_last_sync_at = Column(DateTime, nullable=True)
     ql_last_sync_status = Column(String(255), nullable=True)
     # Bark push for daily unreported mini-programs

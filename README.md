@@ -85,7 +85,7 @@
 ### 3.2 系统设置分区
 
 - 基础设置：日志清理、访问保护
-- 青龙联动：OpenAPI 凭证、立即同步
+- 青龙联动：OpenAPI 凭证、可配置自动同步间隔（默认 5 分钟）、立即同步；打开列表过期时也会后台刷新
 - Bark 推送：开关、Device Key、推送时间、立即测试
 - 数据备份：导出 `.db` / 导入恢复
 
@@ -258,9 +258,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 项目支持通过 `Dockerfile` 和 `docker-compose.yml` 进行一体化部署。
 
-### 7.1 使用 Docker Compose
+### 7.1 使用 Docker Compose（推荐）
+
+**先构建前端**（容器启动时会检查 `frontend/dist/index.html`）：
 
 ```bash
+cd frontend && npm run build && cd ..
 docker compose up -d --build
 ```
 
@@ -273,33 +276,45 @@ docker compose up -d --build
 
 默认挂载目录如下：
 
-- `./data`
+- `./data` → SQLite `database.db`（及 WAL/SHM）
 - `./logs`
 - `./static/uploads`
-
-这些目录会保留：
-
-- 数据库文件
-- 日志文件
-- 上传文件
+- `./frontend/dist` → 已构建的 SPA（必挂，否则 entrypoint 退出）
+- `./app`、`./scripts` → 代码热挂载（改代码后需 `docker compose restart`）
 
 ### 7.3 环境变量与启动参数
 
 `docker-compose.yml` 默认读取 `.env`，并设置：
 
-- `TZ=Asia/Shanghai`
+- `TZ=Asia/Shanghai`（Bark 推送时间、本地日期判断依赖时区）
+- `UVICORN_WORKERS` 默认 **1**（SQLite 推荐单进程；多 worker 已做 WAL + Bark 进程锁，但仍不建议）
+- `extra_hosts: host.docker.internal:host-gateway`：容器内访问宿主机青龙时，设置里填 `http://host.docker.internal:5700` 一类地址
 
-启动脚本还支持以下参数：
+启动脚本还支持：
 
-- `HOST`
-- `PORT`
+- `HOST`（默认 `0.0.0.0`）
+- `PORT`（默认 `5711`）
 - `UVICORN_WORKERS`
+- `DATABASE_URL`（默认 `sqlite:///./data/database.db`，在容器内解析为 `/app/data/database.db`）
 
-### 7.4 单独构建镜像
+### 7.4 Docker 兼容性说明
+
+| 能力 | Docker 是否可用 | 备注 |
+|------|----------------|------|
+| 积分/现金上报 | ✅ | Bearer `API_TOKEN` 来自 `.env` |
+| 青龙 OpenAPI 同步 | ✅ | 青龙在宿主机时用 `host.docker.internal` |
+| Bark 定时推送 | ✅ | 默认 1 worker；多 worker 时仅一个进程持有调度锁 |
+| 数据库导出/导入 | ✅ | 操作 `data/database.db` 挂载卷 |
+| 前端 SPA | ✅ | 需宿主机先 `npm run build` 并挂载 `frontend/dist` |
+| 懒迁移 `ensure_*_columns` | ✅ | 旧库挂进容器后首次访问自动补列 |
+
+### 7.5 单独构建镜像
 
 ```bash
 docker build -t wechat-points-stock .
 ```
+
+镜像内不含 `frontend/dist` 与 `data/`（见 `.dockerignore`），运行时请挂载它们，或改用 compose。
 
 ## 8. 项目结构
 
@@ -328,6 +343,13 @@ wechat-points-stock/
 ```
 
 ## 9. 前端构建优化说明
+
+Docker / 生产加载变慢时，优先确认：
+
+1. 使用最新 `npm run build`（会生成 `dist/assets/*.gz` 预压缩包）
+2. 后端会优先下发 `.gz`（`Content-Encoding: gzip`），避免容器内 Python 每次实时压缩 800KB+ 的 Element Plus
+3. 路由鉴权只请求一次 `/access/status`，并缓存 30 秒
+4. 仪表盘 SQL 已合并多次 `COUNT`，未报列表只组装前 5 条详情
 
 本项目目前已经完成以下几类前端构建优化。
 
