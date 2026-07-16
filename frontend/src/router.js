@@ -84,33 +84,70 @@ const router = createRouter({
   },
 })
 
+// Short-lived access-status cache so client navigations don't hit the API every time.
+const ACCESS_STATUS_TTL_MS = 30_000
+let accessStatusCache = {
+  at: 0,
+  enabled: false,
+  ok: true,
+}
+
+function readAccessStatusCache() {
+  if (Date.now() - accessStatusCache.at > ACCESS_STATUS_TTL_MS) return null
+  return accessStatusCache
+}
+
+export function invalidateAccessStatusCache() {
+  accessStatusCache = { at: 0, enabled: false, ok: true }
+}
+
 router.beforeEach(async (to) => {
   if (to.meta?.public) {
     return true
   }
 
   try {
-    const { data } = await api.get('/access/status')
-    if (!data?.enabled) {
+    const cached = readAccessStatusCache()
+    if (cached) {
+      if (!cached.enabled) return true
+      if (!cached.ok || !getAccessSession()) {
+        return { name: 'access-gate' }
+      }
       return true
     }
 
+    // One request only (previously double-fetched). Backend returns enabled
+    // without 401 when no key is stored; validates when X-Access-Key is sent.
+    const { data } = await api.get('/access/status')
+    const enabled = Boolean(data?.enabled)
     const accessKey = getAccessSession()
-    if (!accessKey) {
-      return {
-        name: 'access-gate',
-      }
+
+    if (!enabled) {
+      accessStatusCache = { at: Date.now(), enabled: false, ok: true }
+      return true
     }
 
-    await api.get('/access/status')
+    if (!accessKey) {
+      accessStatusCache = { at: Date.now(), enabled: true, ok: false }
+      return { name: 'access-gate' }
+    }
+
+    // Key present: if server says not authenticated, treat as invalid.
+    if (data?.authenticated === false) {
+      clearAccessSession()
+      accessStatusCache = { at: Date.now(), enabled: true, ok: false }
+      return { name: 'access-gate' }
+    }
+
+    accessStatusCache = { at: Date.now(), enabled: true, ok: true }
     return true
   } catch (error) {
     if (error?.response?.status === 401) {
       clearAccessSession()
-      return {
-        name: 'access-gate',
-      }
+      accessStatusCache = { at: Date.now(), enabled: true, ok: false }
+      return { name: 'access-gate' }
     }
+    // Network blip: do not block navigation.
     return true
   }
 })

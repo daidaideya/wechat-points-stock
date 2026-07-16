@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+export TZ="${TZ:-Asia/Shanghai}"
+
 if [ -f "venv/bin/activate" ]; then
     . venv/bin/activate
 fi
@@ -18,6 +20,8 @@ fi
 
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-5711}"
-WORKERS="${UVICORN_WORKERS:-2}"
+# Default 1 worker: SQLite + Bark scheduler. Override with UVICORN_WORKERS if needed.
+WORKERS="${UVICORN_WORKERS:-1}"
 
+echo "[start] starting uvicorn host=$HOST port=$PORT workers=$WORKERS"
 exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers "$WORKERS" --access-log

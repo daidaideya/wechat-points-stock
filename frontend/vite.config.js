@@ -46,7 +46,25 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Modern browsers only — smaller syntax, less polyfill-ish output.
+    target: 'es2020',
+    cssCodeSplit: true,
+    // Faster CI builds; we report sizes via gzip-assets script instead.
+    reportCompressedSize: false,
     sourcemap: mode === 'analyze',
+    // Avoid preloading every vendor chunk on first paint. The browser still
+    // fetches what the entry graph needs; skipping speculative preloads reduces
+    // contention on slow Docker / reverse-proxy links.
+    modulePreload: {
+      polyfill: false,
+      resolveDependencies(filename, deps) {
+        return deps.filter((dep) => {
+          // Icons are only needed after first interactive paint of the shell.
+          if (dep.includes('element-plus-icons')) return false
+          return true
+        })
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {

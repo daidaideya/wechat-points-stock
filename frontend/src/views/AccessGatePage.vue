@@ -48,6 +48,7 @@ import { ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api, { setAccessSession } from '../api'
+import { invalidateAccessStatusCache } from '../router'
 
 const router = useRouter()
 const accessKey = ref('')
@@ -69,6 +70,7 @@ async function submitAccess() {
     })
 
     setAccessSession(accessKey.value)
+    invalidateAccessStatusCache()
     router.replace('/dashboard')
   } catch (error) {
     console.error(error)

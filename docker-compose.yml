@@ -9,6 +9,14 @@ services:
       - .env
     environment:
       TZ: Asia/Shanghai
+      # SQLite default; raise only if you know what you are doing.
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+      # Optional absolute form if relative URL ever mis-resolves:
+      # DATABASE_URL: sqlite:////app/data/database.db
+    # Let the container reach QingLong / Bark services on the host machine.
+    # Settings UI can use e.g. http://host.docker.internal:5700
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     entrypoint: ["sh", "/app/entrypoint.sh"]
     volumes:
       - ./app:/app/app
@@ -16,5 +24,6 @@ services:
       - ./logs:/app/logs
       - ./static/uploads:/app/static/uploads
       - ./scripts:/app/scripts
+      # Built SPA is required at runtime (run: cd frontend && npm run build)
       - ./frontend/dist:/app/frontend/dist
     restart: unless-stopped

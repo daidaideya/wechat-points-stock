@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import shutil
@@ -47,6 +47,8 @@ class QinglongSettingsUpdate(BaseModel):
     ql_client_id: Optional[str] = None
     # Empty string means "do not change"; explicit clear not supported via empty to avoid accidents
     ql_client_secret: Optional[str] = None
+    # Auto-refresh interval in minutes (1–1440). Default 5 when unset.
+    ql_auto_sync_minutes: Optional[int] = None
 
 
 class BarkSettingsUpdate(BaseModel):
@@ -790,15 +792,42 @@ def build_account_points_summary(
 async def get_dashboard_summary(db: Session = Depends(get_db)):
     ensure_runtime_schema(db)
     ensure_indexes(db)
+
+    # Collapse many COUNT(*) round-trips into a few multi-aggregate queries.
+    program_row = db.execute(
+        text(
+            """
+            SELECT
+              COUNT(*) AS program_count,
+              COALESCE(SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END), 0) AS favorite_count,
+              COALESCE(SUM(CASE WHEN auth_type = 'token' THEN 1 ELSE 0 END), 0) AS token_auth_count,
+              COALESCE(SUM(CASE WHEN is_archived = 1 THEN 1 ELSE 0 END), 0) AS archived_count
+            FROM mini_programs
+            """
+        )
+    ).one()
+    program_count = int(program_row[0] or 0)
+    favorite_count = int(program_row[1] or 0)
+    token_auth_count = int(program_row[2] or 0)
+    archived_count = int(program_row[3] or 0)
+
+    product_row = db.execute(
+        text(
+            """
+            SELECT
+              COUNT(*) AS total_products,
+              COALESCE(SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END), 0) AS out_of_stock,
+              COALESCE(SUM(CASE WHEN image_local_path IS NOT NULL AND image_local_path != '' THEN 1 ELSE 0 END), 0) AS cached_images
+            FROM products
+            """
+        )
+    ).one()
+    total_products_count = int(product_row[0] or 0)
+    out_of_stock_count = int(product_row[1] or 0)
+    cached_images_count = int(product_row[2] or 0)
+
     account_count = db.query(models.WechatAccount).count()
-    program_count = db.query(models.MiniProgram).count()
     points_records_count = db.query(models.PointsHistory).count()
-    total_products_count = db.query(models.Product).count()
-    out_of_stock_count = db.query(models.Product).filter(models.Product.stock == 0).count()
-    favorite_count = db.query(models.MiniProgram).filter(models.MiniProgram.is_favorite == 1).count()
-    token_auth_count = db.query(models.MiniProgram).filter(models.MiniProgram.auth_type == "token").count()
-    cached_images_count = db.query(models.Product).filter(models.Product.image_local_path.isnot(None)).count()
-    archived_count = db.query(models.MiniProgram).filter(models.MiniProgram.is_archived == 1).count()
 
     programs = db.query(models.MiniProgram).order_by(
         models.MiniProgram.sort_order.desc(),
@@ -806,34 +835,44 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     ).all()
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    from app.timeutil import local_today_str
+
+    today_str = local_today_str()
 
     archived_program_ids = {p.program_id for p in programs if (p.is_archived or 0) == 1}
     active_programs = [p for p in programs if p.program_id not in archived_program_ids]
-    active_program_ids = [p.program_id for p in active_programs]
 
     unreported_programs = []
     for program in active_programs:
         last_time_iso = last_updates.get(program.program_id)
-        if not last_time_iso or last_time_iso.split("T")[0] != today_str:
+        last_day = None
+        if last_time_iso:
+            # Accept both "YYYY-MM-DDTHH:MM:SS" and "YYYY-MM-DD HH:MM:SS"
+            last_day = str(last_time_iso)[:10]
+        if not last_day or last_day != today_str:
             unreported_programs.append((program, last_time_iso))
     unreported_count = len(unreported_programs)
 
-    has_stock_map = get_program_has_stock_map(db, active_program_ids)
-    stock_summary_map = get_program_stock_summary_map(db, active_program_ids)
-    stock_change_map = get_program_stock_change_map(db, active_program_ids)
-    max_points_map = get_program_max_user_points_map(db, active_program_ids)
-    max_cash_map = get_program_max_user_cash_map(db, active_program_ids)
+    # Only hydrate stock/points maps for the 5 cards shown on the dashboard.
+    top_unreported = unreported_programs[:5]
+    top_ids = [p.program_id for p, _ in top_unreported]
+    has_stock_map = get_program_has_stock_map(db, top_ids) if top_ids else {}
+    stock_summary_map = get_program_stock_summary_map(db, top_ids) if top_ids else {}
+    stock_change_map = get_program_stock_change_map(db, top_ids) if top_ids else {}
+    max_points_map = get_program_max_user_points_map(db, top_ids) if top_ids else {}
+    max_cash_map = get_program_max_user_cash_map(db, top_ids) if top_ids else {}
     unreported_top = []
-    for program, last_time_iso in unreported_programs[:5]:
+    for program, last_time_iso in top_unreported:
         payload = build_program_payload(
             program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
         )
         payload["last_report_time"] = last_time_iso
         unreported_top.append(payload)
 
-    start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    start_of_day_utc = start_of_day - timedelta(hours=8)
+    from app.timeutil import now_local, to_aware_utc
+
+    local_midnight = now_local().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_day_utc = local_midnight.astimezone(timezone.utc).replace(tzinfo=None)
     active_accounts_today = db.query(models.PointsHistory.wechat_id).filter(
         models.PointsHistory.report_time >= start_of_day_utc
     ).distinct().count()
@@ -880,16 +919,27 @@ async def get_access_status(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
+    """Bootstrap-friendly access check.
+
+    - Always returns 200 when protection is off, or when no key is sent
+      (so the SPA can learn `enabled` without a 401 round-trip).
+    - If a key *is* sent while protection is on, validate it (401 on mismatch).
+    """
     settings = cleanup_service.get_or_create_settings(db)
     enabled = settings.access_protection_enabled == 1
     has_access_key = bool((settings.access_key or "").strip())
+    protection_on = enabled and has_access_key
+    provided = (x_access_key or "").strip()
 
-    if enabled and has_access_key:
+    authenticated = False
+    if protection_on and provided:
         verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+        authenticated = True
 
     return {
-        "enabled": enabled and has_access_key,
+        "enabled": protection_on,
         "configured": has_access_key,
+        "authenticated": authenticated if protection_on else True,
     }
 
 
@@ -958,11 +1008,18 @@ async def get_qinglong_settings(
     settings = cleanup_service.get_or_create_settings(db)
     if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
         verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+    from app.timeutil import iso_for_api, local_display
+
     return {
         "ql_base_url": settings.ql_base_url or "",
         "ql_client_id": settings.ql_client_id or "",
         "ql_client_secret_configured": bool((settings.ql_client_secret or "").strip()),
-        "ql_last_sync_at": settings.ql_last_sync_at.isoformat() if settings.ql_last_sync_at else None,
+        "ql_auto_sync_minutes": qinglong_open_service.normalize_auto_sync_minutes(
+            getattr(settings, "ql_auto_sync_minutes", None)
+        ),
+        # UTC instant for machines; local wall string for human display.
+        "ql_last_sync_at": iso_for_api(settings.ql_last_sync_at),
+        "ql_last_sync_at_local": local_display(settings.ql_last_sync_at),
         "ql_last_sync_status": settings.ql_last_sync_status,
     }
 
@@ -985,11 +1042,22 @@ async def update_qinglong_settings(
         secret = update.ql_client_secret.strip()
         if secret:
             settings.ql_client_secret = secret
+    if update.ql_auto_sync_minutes is not None:
+        settings.ql_auto_sync_minutes = qinglong_open_service.normalize_auto_sync_minutes(
+            update.ql_auto_sync_minutes
+        )
 
     settings.updated_at = datetime.utcnow()
     db.add(settings)
     db.commit()
-    return JSONResponse(content={"status": "success"})
+    return JSONResponse(
+        content={
+            "status": "success",
+            "ql_auto_sync_minutes": qinglong_open_service.normalize_auto_sync_minutes(
+                getattr(settings, "ql_auto_sync_minutes", None)
+            ),
+        }
+    )
 
 
 @router.post("/api/v1/settings/qinglong/sync")
@@ -1014,12 +1082,15 @@ async def get_bark_settings(
     settings = cleanup_service.get_or_create_settings(db)
     if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
         verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+    from app.timeutil import iso_for_api, local_display
+
     return {
         "bark_enabled": int(getattr(settings, "bark_enabled", 0) or 0) == 1,
         "bark_server": getattr(settings, "bark_server", None) or bark_service.normalize_server(None),
         "bark_device_key_configured": bool((getattr(settings, "bark_device_key", None) or "").strip()),
         "bark_push_time": bark_service.normalize_push_time(getattr(settings, "bark_push_time", None)),
-        "bark_last_push_at": settings.bark_last_push_at.isoformat() if getattr(settings, "bark_last_push_at", None) else None,
+        "bark_last_push_at": iso_for_api(getattr(settings, "bark_last_push_at", None)),
+        "bark_last_push_at_local": local_display(getattr(settings, "bark_last_push_at", None)),
         "bark_last_push_status": getattr(settings, "bark_last_push_status", None),
     }
 
@@ -1428,8 +1499,10 @@ async def get_programs_api(
     db: Session = Depends(get_db),
 ):
     ensure_runtime_schema(db)
-    # Best-effort QingLong status refresh; never blocks listing on failure.
-    qinglong_open_service.maybe_auto_sync(db, min_interval_minutes=10)
+    # Non-blocking: stale status is refreshed by background scheduler + this kick.
+    # Do not await QingLong network I/O on the list request path.
+    # Interval comes from system_settings.ql_auto_sync_minutes (user-configurable).
+    qinglong_open_service.trigger_background_sync()
     query = db.query(models.MiniProgram)
     programs = []
     total = 0

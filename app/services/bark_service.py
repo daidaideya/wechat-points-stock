@@ -7,10 +7,11 @@ has already been sent.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TextIO
 from urllib.parse import quote
 
 import requests
@@ -24,6 +25,10 @@ _DEFAULT_SERVER = "https://api.day.app"
 _DEFAULT_PUSH_TIME = "20:00"
 _scheduler_started = False
 _scheduler_lock = threading.Lock()
+# Cross-process lock so multi-worker uvicorn (Docker default used to be 2)
+# only runs one Bark scheduler instance.
+_process_lock_fh: Optional[TextIO] = None
+_PROCESS_LOCK_PATH = os.path.join("data", ".bark_scheduler.lock")
 
 
 def normalize_push_time(value: Optional[str]) -> str:
@@ -72,7 +77,9 @@ def list_unreported_programs(db: Session) -> List[models.MiniProgram]:
         .all()
     )
     last_map = {row[0]: row[1] for row in rows}
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    from app.timeutil import is_same_local_day, local_today_str
+
+    today_str = local_today_str()
 
     unreported = []
     for program in programs:
@@ -80,10 +87,8 @@ def list_unreported_programs(db: Session) -> List[models.MiniProgram]:
         if not last_time:
             unreported.append(program)
             continue
-        # Compare by local calendar date of stored timestamp (naive UTC-ish storage
-        # is historically treated as local wall time in this project).
-        last_day = last_time.strftime("%Y-%m-%d")
-        if last_day != today_str:
+        # Compare by Asia/Shanghai calendar day (handles Docker UTC containers).
+        if not is_same_local_day(last_time):
             unreported.append(program)
     return unreported
 
@@ -183,13 +188,10 @@ def _already_pushed_today(settings: models.SystemSettings) -> bool:
     last = getattr(settings, "bark_last_push_at", None)
     if not last:
         return False
-    # Compare by local calendar day
-    local_last = last + timedelta(hours=8) if isinstance(last, datetime) else last
-    # Historical storage is naive utcnow; convert roughly to CST for day boundary.
     try:
-        local_now = datetime.utcnow() + timedelta(hours=8)
-        last_local = last + timedelta(hours=8)
-        return last_local.date() == local_now.date() and str(settings.bark_last_push_status or "").startswith("ok:")
+        from app.timeutil import is_same_local_day
+
+        return is_same_local_day(last) and str(settings.bark_last_push_status or "").startswith("ok:")
     except Exception:
         return False
 
@@ -204,9 +206,10 @@ def maybe_run_scheduled_push() -> None:
             return
 
         push_time = normalize_push_time(getattr(settings, "bark_push_time", None))
-        # Local wall clock for user-facing schedule
-        now_local = datetime.now()
-        current = now_local.strftime("%H:%M")
+        # Asia/Shanghai wall clock so Docker without TZ still matches user schedule.
+        from app.timeutil import local_hhmm
+
+        current = local_hhmm()
         if current != push_time:
             return
         if _already_pushed_today(settings):
@@ -231,10 +234,59 @@ def _scheduler_loop():
         time.sleep(max(5, min(delay, 60)))
 
 
+def _try_acquire_process_lock(path: str = _PROCESS_LOCK_PATH) -> bool:
+    """Non-blocking exclusive lock across processes (fcntl on Linux, msvcrt on Windows)."""
+    global _process_lock_fh
+    if _process_lock_fh is not None:
+        return True
+
+    lock_dir = os.path.dirname(path) or "."
+    try:
+        os.makedirs(lock_dir, exist_ok=True)
+    except OSError as exc:
+        print(f"[bark_service] cannot create lock dir {lock_dir}: {exc}")
+        return False
+
+    try:
+        fh = open(path, "a+", encoding="utf-8")
+    except OSError as exc:
+        print(f"[bark_service] cannot open lock file {path}: {exc}")
+        return False
+
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        fh.seek(0)
+        fh.truncate()
+        fh.write(str(os.getpid()))
+        fh.flush()
+        _process_lock_fh = fh
+        return True
+    except (OSError, BlockingIOError, PermissionError) as exc:
+        try:
+            fh.close()
+        except OSError:
+            pass
+        print(f"[bark_service] another process holds scheduler lock ({exc})")
+        return False
+
+
 def start_bark_scheduler() -> None:
+    """Start daily Bark checker once per container/host, not once per uvicorn worker."""
     global _scheduler_started
     with _scheduler_lock:
         if _scheduler_started:
+            return
+        if not _try_acquire_process_lock():
+            print("[bark_service] scheduler skipped (another worker already owns it)")
             return
         thread = threading.Thread(target=_scheduler_loop, name="bark-scheduler", daemon=True)
         thread.start()
