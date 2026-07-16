@@ -13,12 +13,14 @@
 这个系统主要解决几类日常管理问题：
 
 - 统一管理微信账号信息
-- 查看每个账号的积分明细
-- 管理已接入的小程序列表
-- 查看小程序详情、排行和库存状态
-- 重点标记常用或需要关注的小程序
-- 维护库存商品并记录上报结果
-- 查看日志与系统设置
+- 查看每个账号的积分 / 现金明细
+- 管理已接入的小程序列表（收藏、归档、标签、定时状态）
+- 查看小程序详情、排行和库存状态（弹窗，可兑换商品高亮）
+- 接收青龙脚本上报的积分 / 现金 / 库存
+- 同步青龙面板定时任务启用/禁用与 cron 表达式
+- Bark 定时推送今日未上报小程序
+- 数据库备份导出 / 导入恢复
+- 访问密钥保护与日志清理设置
 
 如果你只想快速跑起来，可以直接看下面的“快速开始”。
 
@@ -62,14 +64,30 @@
 
 当前前端页面由 `frontend/src/router.js` 统一管理，包含以下主要路由：
 
-- `/dashboard`：仪表盘
-- `/programs`：小程序列表
+- `/dashboard`：仪表盘（微信号卡片跳转用户管理）
+- `/programs`：小程序列表（主工作台）
 - `/favorites`：重点关注列表
-- `/programs/:programId`：小程序详情
+- `/programs/:programId`：小程序详情页（列表内也支持弹窗详情）
 - `/users`：用户管理
-- `/points`：积分总览
+- `/points`：积分总览（含现金汇总）
 - `/stock`：库存管理
-- `/settings`：系统设置
+- `/settings`：系统设置（二级分区：基础 / 青龙 / Bark / 备份）
+
+### 3.1 小程序列表重点能力
+
+- 分段筛选：状态 / 收藏 / 青龙启停 / 排序（默认、按 cron 最早时间）
+- 标签常显筛选 + 当前筛选摘要
+- 卡片展示：青龙启停图标、cron 表达式、最高积分、最高现金（无数据时隐藏）
+- 点击名称复制名称，点击 program_id 复制 ID
+- 详情 / 库存均为当前页弹窗，不强制跳转
+- 库存弹窗：可兑换商品高亮并置顶；今日库存变动默认折叠
+
+### 3.2 系统设置分区
+
+- 基础设置：日志清理、访问保护
+- 青龙联动：OpenAPI 凭证、立即同步
+- Bark 推送：开关、Device Key、推送时间、立即测试
+- 数据备份：导出 `.db` / 导入恢复
 
 ## 4. API 概览
 
@@ -81,7 +99,7 @@
 
 ### 小程序
 
-- `GET /api/v1/programs`
+- `GET /api/v1/programs`（支持 `q` / `status` / `ql_status` / `sort=default|cron`）
 - `GET /api/v1/programs/favorites`
 - `GET /api/v1/programs/unreported`
 - `GET /api/v1/programs/{program_id}`
@@ -101,10 +119,33 @@
 - `DELETE /api/v1/accounts/{wechat_id}/programs/{program_id}`
 - `GET /api/v1/points`
 
+### 青龙上报
+
+- `POST /api/v1/qinglong/report`（积分 / 现金）
+- `POST /api/v1/stock-report`（库存）
+
+积分上报 `points_data[]` 字段：
+
+```json
+{
+  "program_id": "wx...",
+  "program_name": "小程序名称",
+  "current_points": 100,
+  "current_cash": 1.25
+}
+```
+
+说明：`current_points` 与 `current_cash` 至少传一个；只传积分的老脚本完全兼容。
+
 ### 设置
 
-- `GET /api/v1/settings/logs`
-- `POST /api/v1/settings/logs`
+- `GET/POST /api/v1/settings/logs`
+- `GET/POST /api/v1/settings/qinglong`
+- `POST /api/v1/settings/qinglong/sync`
+- `GET/POST /api/v1/settings/bark`
+- `POST /api/v1/settings/bark/test`
+- `GET /api/v1/settings/database/export`
+- `POST /api/v1/settings/database/import`
 - `GET /api/v1/access/status`
 - `POST /api/v1/access/verify`
 
@@ -176,6 +217,16 @@ npm run dev
 - 前端开发服务器和后端 API 是分开运行的
 - `frontend/vite.config.js` 已代理 `/api` 和 `/static`
 - 如果只启动后端并访问 `8000`，看到的是构建后的前端，而不是 Vite 实时开发页面
+
+## 6. 近期重要能力补充
+
+- 积分上报支持小数与现金（`current_cash`）
+- 青龙 OpenAPI 同步启停状态与 cron
+- 小程序列表支持按 cron 最早时间排序
+- Bark 定时推送未上报小程序
+- 设置页分栏：基础 / 青龙 / Bark / 备份
+- 数据库一键导出导入
+- 移动端主导航改为自研侧栏，避免宽窄屏切换白框 / 按钮点不动
 
 ## 6. 生产运行
 

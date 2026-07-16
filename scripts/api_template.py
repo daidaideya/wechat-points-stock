@@ -33,15 +33,18 @@ class PointsReporter:
         上报积分数据
         :param script_name: 脚本名称/ID (如 "jd_bean_sign")
         :param wechat_id: 当前执行的微信号 (如 "wxid_xxxx")
-        :param points_data: 积分列表，格式如下:
+        :param points_data: 积分/现金列表，格式如下:
                [
                    {
                        "program_id": "小程序唯一ID",
                        "program_name": "小程序名称",
-                       "current_points": 100
+                       # 积分与现金至少传一个；都支持整数或小数
+                       "current_points": 100,       # 可选：积分（如 0 / 0.1 / 100）
+                       "current_cash": 1.25         # 可选：现金，单位元（如 0 / 0.1 / 12.34）
                    },
                    ...
                ]
+               兼容旧脚本：只传 current_points 即可。
         """
         url = f"{self.api_url.rstrip('/')}/api/v1/qinglong/report"
         
@@ -102,8 +105,14 @@ if __name__ == "__main__":
         {
             "program_id": "mp_fruit_farm",
             "program_name": "水果农场",
-            "current_points": 1024
-        }
+            "current_points": 1024,
+            "current_cash": 0.5,  # 可选：同时上报现金（元）
+        },
+        {
+            "program_id": "mp_cash_only",
+            "program_name": "纯现金小程序",
+            "current_cash": 3.2,  # 也可以只报现金
+        },
     ]
     
     # 4. 上报

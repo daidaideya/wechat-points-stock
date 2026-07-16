@@ -6,8 +6,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import images, qinglong, stock, web
+from app.services import bark_service
 
 app = FastAPI(title="WeChat Points & Stock Monitor")
+
+
+@app.on_event("startup")
+def _start_background_jobs():
+    # Daily Bark push for unreported mini-programs (settings-controlled).
+    bark_service.start_bark_scheduler()
 
 # gzip JSON / HTML / JS responses over the wire. element-plus.js (~845KB) and
 # the larger API payloads (/points, /dashboard) shrink ~3-4x for clients that

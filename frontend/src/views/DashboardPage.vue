@@ -160,7 +160,7 @@ const cards = computed(() => [
     icon: User,
     tone: 'tone-wheat',
     action: 'route',
-    route: '/points',
+    route: '/users',
     clickable: true,
   },
   {

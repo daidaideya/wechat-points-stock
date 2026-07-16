@@ -1,72 +1,123 @@
 <template>
   <div class="page-stack programs-page programs-showcase-page">
     <section class="toolbar-card programs-toolbar-card showcase-toolbar-card">
-      <div class="programs-toolbar-head showcase compact">
-        <div>
-          <h3 class="section-title compact">检索与筛选</h3>
-          <p class="section-description compact">支持名称、program_id、拼音、收藏状态与标签组合过滤。</p>
-        </div>
-        <div class="toolbar-status-chip compact warm-chip">
-          <span class="toolbar-status-value">{{ programs.length }}</span>
-          <span class="toolbar-status-label">本页展示</span>
-        </div>
-      </div>
-
-      <div class="toolbar-row programs-toolbar-row showcase compact">
-        <el-input
-          v-model="searchKeyword"
-          clearable
-          size="large"
-          class="showcase-search-input"
-          placeholder="搜索小程序名称 / program_id / 拼音"
-          @keyup.enter="applyFilters"
-          @clear="applyFilters"
-        >
-          <template #append>
-            <el-button @click="applyFilters">搜索</el-button>
-          </template>
-        </el-input>
-
-        <el-select v-model="favoriteFilter" size="large" class="toolbar-select showcase-select" @change="applyFilters">
-          <el-option label="全部" value="all" />
-          <el-option label="仅收藏" value="favorite" />
-          <el-option label="仅未收藏" value="unfavorite" />
-        </el-select>
-
-        <el-select v-model="statusFilter" size="large" class="toolbar-select showcase-select" @change="applyFilters">
-          <el-option label="活跃（默认）" value="active" />
-          <el-option label="仅归档" value="archived" />
-          <el-option label="全部状态" value="all" />
-        </el-select>
-
-        <el-button size="large" class="showcase-reset-button" plain :disabled="!hasActiveFilters" @click="resetFilters">重置</el-button>
-      </div>
-
-      <div class="tag-toolbar programs-tag-toolbar showcase compact">
-        <div class="tag-toolbar-top compact">
-          <span class="tag-toolbar-label">标签筛选</span>
-          <span class="tag-toolbar-tip">点击切换，重复点击取消</span>
-        </div>
-        <div class="tag-list content filter-tag-list showcase compact">
-          <button
-            type="button"
-            class="filter-chip"
-            :class="{ active: currentTag === '' }"
-            @click="selectTag('')"
+      <div class="filter-shell">
+        <div class="filter-search-row">
+          <el-input
+            v-model="searchKeyword"
+            clearable
+            size="large"
+            class="showcase-search-input filter-search-input"
+            placeholder="搜索名称 / program_id / 拼音"
+            @keyup.enter="applyFilters"
+            @clear="applyFilters"
           >
-            全部
-          </button>
-          <button
-            v-for="tag in availableTags"
-            :key="tag"
-            type="button"
-            class="filter-chip"
-            :class="{ active: currentTag === tag }"
-            @click="selectTag(tag)"
-          >
-            {{ tag }}
-          </button>
-          <span v-if="!availableTags.length" class="empty-text">暂无可筛选标签</span>
+            <template #prefix>
+              <el-icon class="filter-search-icon"><Search /></el-icon>
+            </template>
+            <template #append>
+              <el-button class="filter-search-btn" @click="applyFilters">搜索</el-button>
+            </template>
+          </el-input>
+
+          <div class="filter-search-side">
+            <div class="toolbar-status-chip compact warm-chip filter-count-chip">
+              <span class="toolbar-status-value">{{ programs.length }}</span>
+              <span class="toolbar-status-label">已加载</span>
+            </div>
+            <el-button
+              class="showcase-reset-button filter-reset-btn"
+              plain
+              :disabled="!hasActiveFilters"
+              @click="resetFilters"
+            >
+              重置
+            </el-button>
+          </div>
+        </div>
+
+        <div class="filter-control-row">
+          <div class="filter-group">
+            <span class="filter-group-label">状态</span>
+            <div class="segmented-group">
+              <button type="button" class="segmented-item" :class="{ active: statusFilter === 'active' }" @click="setStatusFilter('active')">活跃</button>
+              <button type="button" class="segmented-item" :class="{ active: statusFilter === 'archived' }" @click="setStatusFilter('archived')">归档</button>
+              <button type="button" class="segmented-item" :class="{ active: statusFilter === 'all' }" @click="setStatusFilter('all')">全部</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-group-label">收藏</span>
+            <div class="segmented-group">
+              <button type="button" class="segmented-item" :class="{ active: favoriteFilter === 'all' }" @click="setFavoriteFilter('all')">全部</button>
+              <button type="button" class="segmented-item" :class="{ active: favoriteFilter === 'favorite' }" @click="setFavoriteFilter('favorite')">收藏</button>
+              <button type="button" class="segmented-item" :class="{ active: favoriteFilter === 'unfavorite' }" @click="setFavoriteFilter('unfavorite')">未藏</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-group-label">青龙</span>
+            <div class="segmented-group">
+              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'all' }" @click="setQlStatusFilter('all')">全部</button>
+              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'enabled' }" @click="setQlStatusFilter('enabled')">启用</button>
+              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'disabled' }" @click="setQlStatusFilter('disabled')">禁用</button>
+              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'unknown' }" @click="setQlStatusFilter('unknown')">未关联</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-group-label">排序</span>
+            <div class="segmented-group">
+              <button type="button" class="segmented-item" :class="{ active: sortFilter === 'default' }" @click="setSortFilter('default')">默认</button>
+              <button type="button" class="segmented-item" :class="{ active: sortFilter === 'cron' }" @click="setSortFilter('cron')">定时</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-tags-panel">
+          <div class="filter-tags-header">
+            <span class="filter-group-label">标签</span>
+            <span class="filter-tags-current">{{ currentTag || '全部标签' }}</span>
+            <span v-if="availableTags.length" class="filter-tags-count">{{ availableTags.length }}</span>
+          </div>
+
+          <div class="tag-list content filter-tag-list showcase compact">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ active: currentTag === '' }"
+              @click="selectTag('')"
+            >
+              全部
+            </button>
+            <button
+              v-for="tag in availableTags"
+              :key="tag"
+              type="button"
+              class="filter-chip"
+              :class="{ active: currentTag === tag }"
+              @click="selectTag(tag)"
+            >
+              {{ tag }}
+            </button>
+            <span v-if="!availableTags.length" class="empty-text">暂无可筛选标签</span>
+          </div>
+        </div>
+
+        <div v-if="activeFilterChips.length" class="active-filter-bar">
+          <span class="active-filter-label">当前筛选</span>
+          <div class="active-filter-list">
+            <button
+              v-for="chip in activeFilterChips"
+              :key="chip.key"
+              type="button"
+              class="active-filter-chip"
+              @click="clearFilterChip(chip.key)"
+            >
+              {{ chip.label }}
+              <span class="active-filter-close">×</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -124,11 +175,58 @@
             <div class="showcase-card-brand-text full-width-brand-text">
               <div class="showcase-card-title-line">
                 <span class="showcase-card-index" :title="`第 ${index + 1} 个`">{{ index + 1 }}</span>
-                <h3 class="showcase-card-title">{{ program.program_name || program.program_id }}</h3>
+                <h3
+                  class="showcase-card-title is-copyable"
+                  :class="titleSizeClass(program.program_name || program.program_id)"
+                  :title="`${program.program_name || program.program_id}（点击复制名称）`"
+                  role="button"
+                  tabindex="0"
+                  @click.stop="copyProgramName(program)"
+                  @keydown.enter.prevent="copyProgramName(program)"
+                  @keydown.space.prevent="copyProgramName(program)"
+                >
+                  {{ program.program_name || program.program_id }}
+                </h3>
+                <el-tooltip
+                  v-if="program.ql_status === 'enabled'"
+                  :content="program.ql_cron_name ? `青龙已启用：${program.ql_cron_name}` : '青龙：已启用'"
+                  placement="top"
+                >
+                  <span class="ql-status-badge is-enabled" aria-label="青龙已启用">
+                    <el-icon><CircleCheck /></el-icon>
+                  </span>
+                </el-tooltip>
+                <el-tooltip
+                  v-else-if="program.ql_status === 'disabled'"
+                  :content="program.ql_cron_name ? `青龙已禁用：${program.ql_cron_name}` : '青龙：已禁用'"
+                  placement="top"
+                >
+                  <span class="ql-status-badge is-disabled" aria-label="青龙已禁用">
+                    <el-icon><CircleClose /></el-icon>
+                  </span>
+                </el-tooltip>
               </div>
               <div class="showcase-card-meta-row compact-meta-row">
                 <span class="showcase-card-dot stock-dot" :class="{ active: isUpdatedToday(program.last_update_time) }"></span>
-                <span class="showcase-card-id">{{ program.program_id }}</span>
+                <span
+                  class="showcase-card-id is-copyable"
+                  :title="`${program.program_id}（点击复制 program_id）`"
+                  role="button"
+                  tabindex="0"
+                  @click.stop="copyProgramId(program)"
+                  @keydown.enter.prevent="copyProgramId(program)"
+                  @keydown.space.prevent="copyProgramId(program)"
+                >{{ program.program_id }}</span>
+                <el-tooltip
+                  v-if="program.ql_schedule"
+                  :content="formatQlScheduleTooltip(program)"
+                  placement="top"
+                >
+                  <span class="ql-schedule-chip" :class="`is-${program.ql_status || 'unknown'}`">
+                    <span class="ql-schedule-label">定时</span>
+                    <code class="ql-schedule-code">{{ program.ql_schedule }}</code>
+                  </span>
+                </el-tooltip>
               </div>
               <div
                 class="showcase-card-tag-row"
@@ -143,29 +241,48 @@
                 </span>
                 <span v-else class="showcase-chip warning inline-tag-chip">标签：未设置标签</span>
               </div>
-              <div class="showcase-card-stock-row">
+              <div v-if="hasStockMetric(program) || hasPointsMetric(program) || hasCashMetric(program) || hasStockChange(program)" class="showcase-card-stock-row">
                 <button
+                  v-if="hasStockMetric(program)"
                   type="button"
                   class="stock-count-display stock-count-button"
-                  :disabled="!program.has_stock"
-                  :title="program.has_stock ? '查看库存' : '暂无库存可查看'"
-                  @click="program.has_stock ? openStockDialog(program) : goToProgramDetail(program)"
+                  :title="'查看库存'"
+                  @click="openStockDialog(program)"
                 >
                   <span class="stock-count-icon">
                     <el-icon><PriceTag /></el-icon>
                   </span>
                   <span class="stock-count-value">{{ formatProductCount(program) }}</span>
                 </button>
-                <span class="stock-row-divider" aria-hidden="true"></span>
+                <span
+                  v-if="hasStockMetric(program) && (hasPointsMetric(program) || hasCashMetric(program))"
+                  class="stock-row-divider"
+                  aria-hidden="true"
+                ></span>
                 <div
+                  v-if="hasPointsMetric(program)"
                   class="points-count-display"
-                  :class="{ 'is-empty': !Number(program.max_user_points) }"
-                  :title="Number(program.max_user_points) ? `当前账号最高积分：${program.max_user_points}` : '暂无账号积分数据'"
+                  :title="`当前账号最高积分：${program.max_user_points}`"
                 >
                   <span class="points-count-icon">
                     <el-icon><Coin /></el-icon>
                   </span>
                   <span class="points-count-value">{{ formatMaxPoints(program) }}</span>
+                </div>
+                <span
+                  v-if="hasPointsMetric(program) && hasCashMetric(program)"
+                  class="stock-row-divider"
+                  aria-hidden="true"
+                ></span>
+                <div
+                  v-if="hasCashMetric(program)"
+                  class="points-count-display cash-count-display"
+                  :title="`当前账号最高现金：¥${program.max_user_cash}`"
+                >
+                  <span class="points-count-icon cash-count-icon">
+                    <el-icon><Wallet /></el-icon>
+                  </span>
+                  <span class="points-count-value">{{ formatMaxCash(program) }}</span>
                 </div>
                 <div v-if="hasStockChange(program)" class="showcase-card-change-row inline-change-row">
                   <span v-if="program.stock_change?.added_count" class="showcase-chip success stock-change-chip">+{{ program.stock_change.added_count }}</span>
@@ -174,22 +291,37 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="showcase-card-actions floating-actions ref-action-group">
+        <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
+          {{ program.note || '暂无备注' }}
+        </p>
+
+        <div class="showcase-card-footer compact-footer">
+          <div class="showcase-footer-meta">
+            <span class="showcase-footer-icon">◔</span>
+            <span class="showcase-footer-time">{{ formatDate(program.last_update_time) }}</span>
+          </div>
+
+          <div class="showcase-card-actions footer-actions ref-action-group">
             <el-tooltip content="编辑备注" placement="top">
               <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openNoteDialog(program)">
                 <el-icon><EditPen /></el-icon>
               </button>
             </el-tooltip>
 
-            <el-tooltip :content="program.has_stock ? '查看库存' : '查看详情'" placement="top">
-              <button
-                type="button"
-                class="showcase-icon-button ref-action-button icon-plain-button"
-                @click="program.has_stock ? openStockDialog(program) : goToProgramDetail(program)"
-              >
-                <el-icon><Box /></el-icon>
-              </button>
+            <el-tooltip :content="program.has_stock ? '查看库存' : '暂无库存可查看'" placement="top">
+              <span class="action-tooltip-wrap">
+                <button
+                  type="button"
+                  class="showcase-icon-button ref-action-button icon-plain-button"
+                  :class="{ 'is-disabled-action': !program.has_stock }"
+                  :disabled="!program.has_stock"
+                  @click="program.has_stock ? openStockDialog(program) : undefined"
+                >
+                  <el-icon><Box /></el-icon>
+                </button>
+              </span>
             </el-tooltip>
 
             <el-tooltip :content="program.is_favorite ? '取消收藏' : '加入收藏'" placement="top">
@@ -211,12 +343,12 @@
             </el-tooltip>
 
             <el-tooltip content="查看详情" placement="top">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="goToProgramDetail(program)">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openDetailDialog(program)">
                 <el-icon><ArrowRight /></el-icon>
               </button>
             </el-tooltip>
 
-            <el-dropdown trigger="click" placement="bottom-end" @command="(cmd) => handleProgramCommand(cmd, program)">
+            <el-dropdown trigger="click" placement="top-end" @command="(cmd) => handleProgramCommand(cmd, program)">
               <button
                 type="button"
                 title="更多操作"
@@ -240,17 +372,6 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-          </div>
-        </div>
-
-        <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
-          {{ program.note || '暂无备注' }}
-        </p>
-
-        <div class="showcase-card-footer compact-footer">
-          <div class="showcase-footer-meta">
-            <span class="showcase-footer-icon">◔</span>
-            <span class="showcase-footer-time">{{ formatDate(program.last_update_time) }}</span>
           </div>
         </div>
       </article>
@@ -360,16 +481,118 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="detailDialogTitle"
+      width="1040px"
+      top="5vh"
+      class="showcase-dialog showcase-detail-dialog"
+    >
+      <div class="showcase-dialog-body detail-dialog-body">
+        <div class="showcase-dialog-intro">
+          <div>
+            <div class="showcase-dialog-title">小程序详情</div>
+            <div class="showcase-dialog-subtitle">当前页查看积分排行与基础信息，无需跳转离开列表。</div>
+          </div>
+          <div class="stock-dialog-badges">
+            <div class="showcase-dialog-badge stock-badge">{{ detailData?.is_favorite ? '已收藏' : '未收藏' }}</div>
+            <div class="showcase-dialog-badge stock-badge">最高积分 {{ detailData?.max_user_points ?? 0 }}</div>
+            <div class="showcase-dialog-badge stock-badge">排行 {{ detailRanking.length }}</div>
+          </div>
+        </div>
+
+        <div v-if="detailLoading" class="stock-loading dialog-panel">
+          <el-skeleton :rows="6" animated />
+        </div>
+        <template v-else>
+          <div class="stock-summary-grid">
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">program_id</div>
+              <div class="stock-summary-value mono-text detail-id-value">{{ detailData?.program_id || '—' }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">最近更新</div>
+              <div class="stock-summary-value detail-update-value">{{ formatDate(detailData?.last_update_time) }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">标签数量</div>
+              <div class="stock-summary-value">{{ (detailData?.tags || []).length || 0 }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">最高用户积分</div>
+              <div class="stock-summary-value success-text">{{ detailData?.max_user_points ?? 0 }}</div>
+            </div>
+          </div>
+
+          <div class="detail-info-grid">
+            <div class="dialog-panel detail-info-card">
+              <div class="stock-section-title">标签</div>
+              <div class="detail-tag-row">
+                <span v-for="tag in detailData?.tags || []" :key="tag" class="info-tag">{{ tag }}</span>
+                <span v-if="!(detailData?.tags || []).length" class="info-tag empty">未设置标签</span>
+              </div>
+            </div>
+            <div class="dialog-panel detail-info-card">
+              <div class="stock-section-title">备注</div>
+              <p class="detail-note-text">{{ detailData?.note || '暂无备注信息' }}</p>
+            </div>
+          </div>
+
+          <div class="dialog-panel stock-table-panel">
+            <div class="stock-section-title-row">
+              <div class="stock-section-title">积分排行榜</div>
+              <div class="stock-section-hint">展示该小程序下账号最新积分</div>
+            </div>
+            <el-table :data="detailRanking" stripe class="showcase-dialog-table">
+              <el-table-column type="index" label="#" width="60" />
+              <el-table-column prop="nickname" label="昵称" min-width="140">
+                <template #default="scope">{{ scope.row.nickname || '未命名' }}</template>
+              </el-table-column>
+              <el-table-column prop="wechat_id" label="微信号" min-width="180" />
+              <el-table-column prop="device" label="设备" min-width="120">
+                <template #default="scope">{{ scope.row.device || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="points" label="积分" width="110">
+                <template #default="scope">{{ scope.row.points ?? 0 }}</template>
+              </el-table-column>
+              <el-table-column prop="cash" label="现金" width="110">
+                <template #default="scope">
+                  {{ scope.row.cash == null || scope.row.cash === '' ? '—' : `¥${scope.row.cash}` }}
+                </template>
+              </el-table-column>
+              <el-table-column label="更新时间" min-width="180">
+                <template #default="scope">{{ formatDate(scope.row.report_time) }}</template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-if="!detailRanking.length" description="暂无积分排行数据" :image-size="80" />
+          </div>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="detailDialogVisible = false">关闭</el-button>
+        <el-button
+          v-if="detailData?.has_stock"
+          type="primary"
+          @click="openStockFromDetail"
+        >
+          查看库存
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="stockDialogVisible" :title="stockDialogTitle" width="1040px" top="5vh" class="showcase-dialog showcase-stock-dialog">
       <div class="showcase-dialog-body stock-dialog-body">
         <div class="showcase-dialog-intro">
           <div>
             <div class="showcase-dialog-title">库存详情总览</div>
-            <div class="showcase-dialog-subtitle">查看当前小程序商品库存、所需积分和最高用户积分。</div>
+            <div class="showcase-dialog-subtitle">
+              查看当前小程序商品库存、所需积分和最高用户积分；可兑换商品会优先高亮展示。
+            </div>
           </div>
           <div class="stock-dialog-badges">
             <div class="showcase-dialog-badge stock-badge">商品 {{ stockData?.product_count ?? 0 }}</div>
             <div class="showcase-dialog-badge stock-badge">最高积分 {{ stockData?.max_user_points ?? 0 }}</div>
+            <div class="showcase-dialog-badge stock-badge success-badge">可兑换 {{ redeemableProductCount }}</div>
             <div v-if="stockData?.stock_change?.added_count" class="showcase-dialog-badge stock-badge success-badge">+{{ stockData.stock_change.added_count }}</div>
             <div v-if="stockData?.stock_change?.removed_count" class="showcase-dialog-badge stock-badge warning-badge">-{{ stockData.stock_change.removed_count }}</div>
           </div>
@@ -399,8 +622,30 @@
           </div>
 
           <div v-if="stockData?.changed_products?.length" class="dialog-panel stock-change-panel">
-            <div class="stock-section-title">今日库存变动</div>
-            <div class="stock-change-list">
+            <button
+              type="button"
+              class="stock-change-toggle"
+              :aria-expanded="stockChangeExpanded ? 'true' : 'false'"
+              @click="stockChangeExpanded = !stockChangeExpanded"
+            >
+              <div class="stock-change-toggle-main">
+                <div class="stock-section-title">今日库存变动</div>
+                <div class="stock-change-toggle-meta">
+                  <el-tag size="small" type="success" effect="plain" round>
+                    +{{ stockData?.stock_change?.added_count ?? 0 }}
+                  </el-tag>
+                  <el-tag size="small" type="warning" effect="plain" round>
+                    -{{ stockData?.stock_change?.removed_count ?? 0 }}
+                  </el-tag>
+                  <span class="stock-change-toggle-tip">
+                    {{ stockChangeExpanded ? '点击收起' : '点击展开明细' }}
+                  </span>
+                </div>
+              </div>
+              <span class="stock-change-toggle-arrow" :class="{ open: stockChangeExpanded }">▾</span>
+            </button>
+
+            <div v-show="stockChangeExpanded" class="stock-change-list">
               <div v-for="item in stockData.changed_products" :key="`${item.change_type}-${item.product_id}`" class="stock-change-item">
                 <div class="stock-change-main">
                   <span class="stock-change-name">{{ item.product_name }}</span>
@@ -416,8 +661,18 @@
           </div>
 
           <div class="dialog-panel stock-table-panel">
-            <div class="stock-section-title">当前在架商品</div>
-            <el-table :data="stockData?.products || []" stripe class="showcase-dialog-table">
+            <div class="stock-section-title-row">
+              <div class="stock-section-title">当前在架商品</div>
+              <div class="stock-section-hint">
+                按最高积分 {{ stockMaxUserPoints }} 判断：可兑换优先，不可兑换靠后
+              </div>
+            </div>
+            <el-table
+              :data="sortedStockProducts"
+              stripe
+              class="showcase-dialog-table stock-product-table"
+              :row-class-name="stockRowClassName"
+            >
               <el-table-column label="图片" width="96">
                 <template #default="scope">
                   <el-image
@@ -431,11 +686,45 @@
                   <span v-else class="empty-text">无图</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="product_name" label="商品名称" min-width="320" />
+              <el-table-column prop="product_name" label="商品名称" min-width="280">
+                <template #default="scope">
+                  <div class="stock-product-name-cell">
+                    <span>{{ scope.row.product_name || '未命名商品' }}</span>
+                    <el-tag
+                      v-if="isProductRedeemable(scope.row)"
+                      size="small"
+                      type="success"
+                      effect="light"
+                      round
+                    >
+                      可兑换
+                    </el-tag>
+                    <el-tag
+                      v-else
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      round
+                    >
+                      积分不足
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
               <el-table-column prop="points" label="所需积分" width="120" />
               <el-table-column prop="stock" label="库存" width="100">
                 <template #default="scope">
                   <el-tag :type="scope.row.stock > 0 ? 'success' : 'danger'">{{ scope.row.stock }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="差额" width="120">
+                <template #default="scope">
+                  <span
+                    class="stock-points-gap"
+                    :class="isProductRedeemable(scope.row) ? 'is-ok' : 'is-short'"
+                  >
+                    {{ formatPointsGap(scope.row) }}
+                  </span>
                 </template>
               </el-table-column>
             </el-table>
@@ -448,13 +737,13 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Star } from '@element-plus/icons-vue'
+import { ArrowRight, Box, CircleCheck, CircleClose, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Search, Star, Wallet } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 
 const router = useRouter()
 const route = useRoute()
-const pageSize = 21
+const pageSize = 20
 const loadMoreSentinel = ref(null)
 const PROGRAMS_PAGE_STATE_KEY = 'programs-page-state'
 
@@ -463,6 +752,10 @@ const loadingMore = ref(false)
 const savingNote = ref(false)
 const savingTags = ref(false)
 const stockLoading = ref(false)
+const stockChangeExpanded = ref(false)
+const detailDialogVisible = ref(false)
+const detailLoading = ref(false)
+const detailData = ref(null)
 const loadError = ref(false)
 const total = ref(0)
 const page = ref(1)
@@ -473,6 +766,8 @@ const currentTag = ref('')
 const searchKeyword = ref('')
 const favoriteFilter = ref('all')
 const statusFilter = ref('active')
+const qlStatusFilter = ref('all')
+const sortFilter = ref('default')
 const updatingProgramId = ref('')
 const deletingProgramId = ref('')
 const archivingProgramId = ref('')
@@ -493,13 +788,102 @@ const stockDialogTitle = computed(() => {
   return `${stockData.value.program_name} - 库存详情`
 })
 
+const detailDialogTitle = computed(() => {
+  if (!detailData.value?.program_name && !detailData.value?.program_id) return '小程序详情'
+  return `${detailData.value.program_name || detailData.value.program_id} - 详情`
+})
+
+const detailRanking = computed(() => {
+  const ranking = Array.isArray(detailData.value?.ranking) ? [...detailData.value.ranking] : []
+  return ranking.sort((a, b) => {
+    const ap = Number(a?.points) || 0
+    const bp = Number(b?.points) || 0
+    if (bp !== ap) return bp - ap
+    const ac = Number(a?.cash) || 0
+    const bc = Number(b?.cash) || 0
+    return bc - ac
+  })
+})
+
+const stockMaxUserPoints = computed(() => Number(stockData.value?.max_user_points) || 0)
+
+function isProductRedeemable(product, maxPoints = stockMaxUserPoints.value) {
+  const needPoints = Number(product?.points) || 0
+  const stock = Number(product?.stock) || 0
+  return stock > 0 && needPoints <= maxPoints
+}
+
+const sortedStockProducts = computed(() => {
+  const products = Array.isArray(stockData.value?.products) ? [...stockData.value.products] : []
+  const maxPoints = stockMaxUserPoints.value
+
+  return products.sort((a, b) => {
+    const aPoints = Number(a?.points) || 0
+    const bPoints = Number(b?.points) || 0
+    const aStock = Number(a?.stock) || 0
+    const bStock = Number(b?.stock) || 0
+    const aRedeemable = isProductRedeemable(a, maxPoints)
+    const bRedeemable = isProductRedeemable(b, maxPoints)
+
+    // 可兑换优先
+    if (aRedeemable !== bRedeemable) return aRedeemable ? -1 : 1
+    // 有货优先于无货
+    if ((aStock > 0) !== (bStock > 0)) return aStock > 0 ? -1 : 1
+    // 可兑换：积分高的更“值钱”靠前；不可兑换：差额小的靠前
+    if (aRedeemable && bRedeemable) {
+      if (bPoints !== aPoints) return bPoints - aPoints
+    } else {
+      const aGap = Math.max(0, aPoints - maxPoints)
+      const bGap = Math.max(0, bPoints - maxPoints)
+      if (aGap !== bGap) return aGap - bGap
+      if (aPoints !== bPoints) return aPoints - bPoints
+    }
+    return String(a?.product_name || '').localeCompare(String(b?.product_name || ''), 'zh-CN')
+  })
+})
+
+const redeemableProductCount = computed(() => {
+  return sortedStockProducts.value.filter((item) => isProductRedeemable(item)).length
+})
+
 const quickTags = computed(() => {
   const knownSet = new Set(availableTags.value)
   return [...availableTags.value, ...editingTags.value.filter((tag) => !knownSet.has(tag))]
 })
 
 const hasActiveFilters = computed(() => {
-  return Boolean(searchKeyword.value.trim()) || favoriteFilter.value !== 'all' || Boolean(currentTag.value) || statusFilter.value !== 'active'
+  return Boolean(searchKeyword.value.trim())
+    || favoriteFilter.value !== 'all'
+    || Boolean(currentTag.value)
+    || statusFilter.value !== 'active'
+    || qlStatusFilter.value !== 'all'
+    || sortFilter.value !== 'default'
+})
+
+const activeFilterChips = computed(() => {
+  const chips = []
+  if (searchKeyword.value.trim()) {
+    chips.push({ key: 'search', label: `搜索：${searchKeyword.value.trim()}` })
+  }
+  if (statusFilter.value !== 'active') {
+    const map = { archived: '仅归档', all: '全部状态' }
+    chips.push({ key: 'status', label: map[statusFilter.value] || statusFilter.value })
+  }
+  if (favoriteFilter.value !== 'all') {
+    const map = { favorite: '仅收藏', unfavorite: '仅未收藏' }
+    chips.push({ key: 'favorite', label: map[favoriteFilter.value] || favoriteFilter.value })
+  }
+  if (qlStatusFilter.value !== 'all') {
+    const map = { enabled: '青龙启用', disabled: '青龙禁用', unknown: '青龙未关联' }
+    chips.push({ key: 'ql', label: map[qlStatusFilter.value] || qlStatusFilter.value })
+  }
+  if (sortFilter.value !== 'default') {
+    chips.push({ key: 'sort', label: '按定时排序' })
+  }
+  if (currentTag.value) {
+    chips.push({ key: 'tag', label: `标签：${currentTag.value}` })
+  }
+  return chips
 })
 
 function normalizeTags(input) {
@@ -534,6 +918,8 @@ function savePageState() {
     searchKeyword: searchKeyword.value,
     favoriteFilter: favoriteFilter.value,
     statusFilter: statusFilter.value,
+    qlStatusFilter: qlStatusFilter.value,
+    sortFilter: sortFilter.value,
     currentTag: currentTag.value,
     programs: programs.value,
     availableTags: availableTags.value,
@@ -563,6 +949,8 @@ async function restorePageState() {
   searchKeyword.value = state.searchKeyword || ''
   favoriteFilter.value = state.favoriteFilter || 'all'
   statusFilter.value = state.statusFilter || 'active'
+  qlStatusFilter.value = state.qlStatusFilter || 'all'
+  sortFilter.value = state.sortFilter || 'default'
   currentTag.value = state.currentTag || ''
   programs.value = Array.isArray(state.programs) ? state.programs : []
   availableTags.value = Array.isArray(state.availableTags) ? state.availableTags : []
@@ -580,8 +968,44 @@ async function restorePageState() {
 }
 
 function goToProgramDetail(program) {
-  savePageState()
-  router.push(`/programs/${program.program_id}`)
+  openDetailDialog(program)
+}
+
+async function openDetailDialog(program) {
+  if (!program?.program_id) return
+  detailDialogVisible.value = true
+  detailLoading.value = true
+  detailData.value = {
+    program_id: program.program_id,
+    program_name: program.program_name,
+    is_favorite: program.is_favorite,
+    tags: program.tags || [],
+    note: program.note || '',
+    last_update_time: program.last_update_time,
+    max_user_points: program.max_user_points,
+    has_stock: program.has_stock,
+    ranking: [],
+  }
+  try {
+    const { data } = await api.get(`/programs/${program.program_id}`)
+    detailData.value = {
+      ...detailData.value,
+      ...data,
+      has_stock: data?.has_stock ?? program.has_stock,
+    }
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('加载小程序详情失败')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+function openStockFromDetail() {
+  const program = detailData.value
+  if (!program?.program_id || !program.has_stock) return
+  detailDialogVisible.value = false
+  openStockDialog(program)
 }
 
 function formatDate(value) {
@@ -602,6 +1026,87 @@ function formatMaxPoints(program) {
   if (value >= 10000) return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}w`
   if (value >= 1000) return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`
   return `${value}`
+}
+
+function formatMaxCash(program) {
+  if (program?.max_user_cash == null || program?.max_user_cash === '') return '—'
+  const value = Number(program.max_user_cash)
+  if (Number.isNaN(value)) return '—'
+  if (value === 0) return '¥0'
+  return `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}`
+}
+
+function hasStockMetric(program) {
+  return Boolean(program?.has_stock) || Number(program?.product_count) > 0
+}
+
+function hasPointsMetric(program) {
+  const value = Number(program?.max_user_points)
+  return Number.isFinite(value) && value > 0
+}
+
+function hasCashMetric(program) {
+  if (program?.max_user_cash == null || program?.max_user_cash === '') return false
+  const value = Number(program.max_user_cash)
+  return Number.isFinite(value)
+}
+
+function formatQlScheduleTooltip(program) {
+  const schedule = program?.ql_schedule || ''
+  const name = program?.ql_cron_name
+  const statusText = program?.ql_status === 'disabled'
+    ? '已禁用'
+    : program?.ql_status === 'enabled'
+      ? '已启用'
+      : '未关联'
+  if (name) return `青龙定时（${statusText}）${name}：${schedule}`
+  return `青龙定时（${statusText}）：${schedule}`
+}
+
+/** Shrink title font by length so long names stay on one line in the grid card. */
+function titleSizeClass(name) {
+  const len = Array.from(String(name || '')).length
+  if (len >= 22) return 'is-title-xs'
+  if (len >= 16) return 'is-title-sm'
+  if (len >= 12) return 'is-title-md'
+  return ''
+}
+
+async function copyText(text, successMessage) {
+  const value = String(text || '').trim()
+  if (!value) {
+    ElMessage.warning('没有可复制的内容')
+    return
+  }
+
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = value
+      textarea.setAttribute('readonly', 'readonly')
+      textarea.style.position = 'fixed'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    ElMessage.success(successMessage || `已复制：${value}`)
+  } catch (error) {
+    console.error(error)
+    ElMessage.error('复制失败，请手动选择文本')
+  }
+}
+
+function copyProgramName(program) {
+  const name = program?.program_name || program?.program_id
+  return copyText(name, `已复制名称：${name}`)
+}
+
+function copyProgramId(program) {
+  return copyText(program?.program_id, `已复制 program_id：${program?.program_id}`)
 }
 
 function hasStockChange(program) {
@@ -628,6 +1133,9 @@ function getRequestParams(nextPage = 1) {
   if (currentTag.value) params.tag = currentTag.value
   if (statusFilter.value && statusFilter.value !== 'active') params.status = statusFilter.value
   else params.status = 'active'
+  if (qlStatusFilter.value && qlStatusFilter.value !== 'all') params.ql_status = qlStatusFilter.value
+  if (sortFilter.value && sortFilter.value !== 'default') params.sort = sortFilter.value
+  else params.sort = 'default'
   return params
 }
 
@@ -673,11 +1181,47 @@ function resetFilters() {
   favoriteFilter.value = 'all'
   currentTag.value = ''
   statusFilter.value = 'active'
+  qlStatusFilter.value = 'all'
+  sortFilter.value = 'default'
+  applyFilters()
+}
+
+function setStatusFilter(value) {
+  if (statusFilter.value === value) return
+  statusFilter.value = value
+  applyFilters()
+}
+
+function setFavoriteFilter(value) {
+  if (favoriteFilter.value === value) return
+  favoriteFilter.value = value
+  applyFilters()
+}
+
+function setQlStatusFilter(value) {
+  if (qlStatusFilter.value === value) return
+  qlStatusFilter.value = value
+  applyFilters()
+}
+
+function setSortFilter(value) {
+  if (sortFilter.value === value) return
+  sortFilter.value = value
   applyFilters()
 }
 
 function selectTag(tag) {
   currentTag.value = currentTag.value === tag ? '' : tag
+  applyFilters()
+}
+
+function clearFilterChip(key) {
+  if (key === 'search') searchKeyword.value = ''
+  if (key === 'status') statusFilter.value = 'active'
+  if (key === 'favorite') favoriteFilter.value = 'all'
+  if (key === 'ql') qlStatusFilter.value = 'all'
+  if (key === 'sort') sortFilter.value = 'default'
+  if (key === 'tag') currentTag.value = ''
   applyFilters()
 }
 
@@ -816,10 +1360,26 @@ async function toggleFavorite(program) {
   }
 }
 
+function formatPointsGap(product) {
+  const maxPoints = stockMaxUserPoints.value
+  const needPoints = Number(product?.points) || 0
+  const stock = Number(product?.stock) || 0
+  if (stock <= 0) return '无货'
+  if (needPoints <= maxPoints) return '可兑'
+  return `差 ${needPoints - maxPoints}`
+}
+
+function stockRowClassName({ row }) {
+  if (isProductRedeemable(row)) return 'stock-row-redeemable'
+  if ((Number(row?.stock) || 0) <= 0) return 'stock-row-out'
+  return 'stock-row-locked'
+}
+
 async function openStockDialog(program) {
   stockDialogVisible.value = true
   stockLoading.value = true
   stockData.value = null
+  stockChangeExpanded.value = false
   try {
     const { data } = await api.get(`/programs/${program.program_id}/stock`)
     stockData.value = data
@@ -961,13 +1521,27 @@ onBeforeUnmount(() => {
   background: rgba(255, 252, 247, 0.9);
   box-shadow: 0 10px 24px rgba(126, 98, 63, 0.04);
   backdrop-filter: blur(2px);
+  padding: 16px 18px;
 }
 
-.programs-toolbar-head.showcase,
-.programs-toolbar-row.showcase,
-.programs-tag-toolbar.showcase {
-  position: relative;
-  z-index: 1;
+.filter-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.filter-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-search-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
 .warm-chip {
@@ -975,35 +1549,147 @@ onBeforeUnmount(() => {
   color: #8b5e34;
 }
 
+.filter-count-chip {
+  min-width: 78px;
+  justify-content: center;
+}
+
 .showcase-search-input :deep(.el-input__wrapper),
-.showcase-search-input :deep(.el-input-group__append),
-.showcase-select :deep(.el-select__wrapper) {
+.showcase-search-input :deep(.el-input-group__append) {
   background: #fffaf3;
   box-shadow: 0 0 0 1px rgba(232, 210, 184, 0.78) inset;
 }
 
-.showcase-search-input :deep(.el-input__wrapper.is-focus),
-.showcase-select :deep(.el-select__wrapper.is-focused) {
+.showcase-search-input :deep(.el-input__wrapper.is-focus) {
   box-shadow: 0 0 0 1px #d6a96b inset;
 }
 
-.showcase-reset-button {
+.filter-search-icon {
+  color: #b08958;
+}
+
+.filter-search-btn {
+  color: #8b5e34 !important;
+  font-weight: 700;
+}
+
+.showcase-reset-button,
+.filter-reset-btn {
+  flex: 0 0 auto;
+  min-width: 72px;
+  height: 40px;
+  padding: 0 14px;
   border-color: rgba(219, 183, 141, 0.74);
   color: #8b5e34;
   background: #fff9f2;
+  font-size: 13px;
+}
+
+.filter-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+}
+
+.filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.filter-group-label {
+  flex: 0 0 auto;
+  color: #9b7e5c;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.segmented-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 248, 236, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(231, 208, 176, 0.82);
+}
+
+.segmented-item {
+  border: 0;
+  background: transparent;
+  color: #8a6c4c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.segmented-item:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.segmented-item.active {
+  background: linear-gradient(135deg, #f5d8a8, #efc381);
+  color: #5b3b14;
+  box-shadow: 0 8px 16px rgba(225, 172, 88, 0.18);
+}
+
+.filter-tags-panel {
+  border-radius: 16px;
+  background: rgba(255, 250, 242, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(232, 210, 184, 0.72);
+  padding: 10px 12px 12px;
+}
+
+.filter-tags-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+.filter-tags-current {
+  color: #6f5a44;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filter-tags-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(245, 216, 168, 0.7);
+  color: #8b5e34;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .filter-tag-list.showcase {
-  gap: 10px;
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .filter-chip {
   border: 0;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: #fff8ef;
   color: #8a6c4c;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   box-shadow: inset 0 0 0 1px rgba(231, 208, 176, 0.86);
@@ -1018,27 +1704,68 @@ onBeforeUnmount(() => {
 .filter-chip.active {
   background: linear-gradient(135deg, #f5d8a8, #efc381);
   color: #5b3b14;
-  box-shadow: 0 12px 24px rgba(225, 172, 88, 0.2);
+  box-shadow: 0 10px 18px rgba(225, 172, 88, 0.18);
 }
 
+.active-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.active-filter-label {
+  color: #9b7e5c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.active-filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.active-filter-chip {
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 244, 221, 0.95);
+  color: #8b5e34;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.active-filter-close {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+/* Row-first grid so infinite-scroll order stays left→right, top→bottom
+   (CSS multi-column fills top→bottom per column and breaks reading order on page 2+). */
 .showcase-grid {
-  column-count: 4;
-  column-gap: 22px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
 }
 
 .full-span {
-  column-span: all;
+  grid-column: 1 / -1;
 }
 
 .showcase-card {
   position: relative;
-  display: inline-flex;
+  display: flex;
   width: 100%;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
   flex-direction: column;
   min-height: 0;
-  margin: 0 0 22px;
+  margin: 0;
   padding: 22px;
   border-radius: 24px;
   background: #fffdf9;
@@ -1133,18 +1860,59 @@ onBeforeUnmount(() => {
 
 .showcase-card-title-line {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
 .showcase-card-title {
   margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
   color: #2f2418;
-  font-size: 20px;
-  line-height: 1.3;
+  font-size: 18px;
+  line-height: 1.25;
   font-weight: 700;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.showcase-card-title.is-title-md {
+  font-size: 16px;
+}
+
+.showcase-card-title.is-title-sm {
+  font-size: 14px;
+}
+
+.showcase-card-title.is-title-xs {
+  font-size: 12px;
+  letter-spacing: -0.02em;
+}
+
+.showcase-card-title.is-copyable,
+.showcase-card-id.is-copyable {
+  cursor: pointer;
+}
+
+.showcase-card-title.is-copyable:hover {
+  color: #a16207;
+}
+
+.showcase-card-id.is-copyable:hover {
+  color: #b7791f;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.showcase-card-title.is-copyable:focus-visible,
+.showcase-card-id.is-copyable:focus-visible {
+  outline: 2px solid rgba(214, 169, 107, 0.55);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* 序号角标：横向排列在标题行最前，便于跟踪浏览进度 */
@@ -1172,6 +1940,7 @@ onBeforeUnmount(() => {
 .showcase-card-meta-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
   color: #9b7e5c;
@@ -1183,7 +1952,14 @@ onBeforeUnmount(() => {
 }
 
 .compact-meta-row {
-  margin-right: 10px;
+  margin-right: 0;
+}
+
+.showcase-card-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .showcase-card-stock-row {
@@ -1262,6 +2038,88 @@ onBeforeUnmount(() => {
   line-height: 1;
   font-weight: 800;
   color: #a16207;
+}
+
+.ql-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.ql-status-badge.is-enabled {
+  color: #15803d;
+  background: rgba(220, 252, 231, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.35);
+}
+
+.ql-status-badge.is-disabled {
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.4);
+}
+
+.ql-schedule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  margin-left: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.95);
+  color: #475569;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
+  cursor: default;
+}
+
+.ql-schedule-chip.is-enabled {
+  background: rgba(236, 253, 245, 0.95);
+  color: #047857;
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.35);
+}
+
+.ql-schedule-chip.is-disabled {
+  background: rgba(254, 242, 242, 0.95);
+  color: #b91c1c;
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.35);
+}
+
+.ql-schedule-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
+.ql-schedule-code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  background: transparent;
+  color: inherit;
+}
+
+.cash-count-icon {
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.96), rgba(209, 250, 229, 0.9)) !important;
+  color: #047857 !important;
+  box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.72) !important;
+}
+
+.cash-count-display .points-count-value {
+  color: #047857;
 }
 
 /* 最高积分指标，紧挨商品数量按钮，配色用蓝绿调与橙色商品块区分 */
@@ -1375,8 +2233,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  flex: 0 0 auto;
 }
 
 .danger-action-button {
@@ -1584,8 +2443,60 @@ onBeforeUnmount(() => {
   line-height: 1.7;
 }
 
-.stock-dialog-body {
+.stock-dialog-body,
+.detail-dialog-body {
   gap: 14px;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-info-card {
+  min-height: 110px;
+}
+
+.detail-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.info-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 244, 221, 0.95);
+  color: #8b5e34;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.info-tag.empty {
+  background: rgba(248, 250, 252, 0.95);
+  color: #94a3b8;
+}
+
+.detail-note-text {
+  margin: 0;
+  color: #4a3623;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-id-value,
+.detail-update-value {
+  font-size: 15px !important;
+}
+
+.mono-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
 }
 
 .stock-summary-card {
@@ -1608,14 +2519,129 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+.stock-section-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stock-section-title-row .stock-section-title {
+  margin-bottom: 0;
+}
+
+.stock-section-hint {
+  color: #9b7e5c;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.stock-product-name-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-points-gap {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stock-points-gap.is-ok {
+  color: #15803d;
+}
+
+.stock-points-gap.is-short {
+  color: #b45309;
+}
+
+.stock-product-table :deep(.stock-row-redeemable > td.el-table__cell) {
+  background: rgba(220, 252, 231, 0.55) !important;
+}
+
+.stock-product-table :deep(.stock-row-locked > td.el-table__cell) {
+  background: rgba(255, 247, 237, 0.5) !important;
+}
+
+.stock-product-table :deep(.stock-row-out > td.el-table__cell) {
+  background: rgba(248, 250, 252, 0.85) !important;
+  color: #94a3b8;
+}
+
+.stock-product-table :deep(.stock-row-redeemable:hover > td.el-table__cell) {
+  background: rgba(187, 247, 208, 0.72) !important;
+}
+
+.stock-product-table :deep(.stock-row-locked:hover > td.el-table__cell) {
+  background: rgba(254, 243, 199, 0.7) !important;
+}
+
 .stock-change-panel {
   padding-top: 14px;
+}
+
+.stock-change-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stock-change-toggle-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stock-change-toggle .stock-section-title {
+  margin-bottom: 0;
+}
+
+.stock-change-toggle-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-change-toggle-tip {
+  color: #9b7e5c;
+  font-size: 12px;
+}
+
+.stock-change-toggle-arrow {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 248, 236, 0.95);
+  color: #8b5e34;
+  font-size: 14px;
+  transition: transform 0.18s ease;
+}
+
+.stock-change-toggle-arrow.open {
+  transform: rotate(180deg);
 }
 
 .stock-change-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 12px;
 }
 
 .stock-change-item {
@@ -1760,22 +2786,22 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 24px rgba(219, 162, 88, 0.22);
 }
 
-.floating-actions {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+.footer-actions {
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 248, 236, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(232, 210, 184, 0.72);
 }
 
 .ref-action-group {
-  gap: 8px;
+  gap: 6px;
 }
 
 .showcase-icon-button {
-  width: auto;
-  height: auto;
+  width: 36px;
+  height: 36px;
   border: 0;
-  border-radius: 0;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1783,40 +2809,58 @@ onBeforeUnmount(() => {
   color: #8a6c4c;
   box-shadow: none;
   cursor: pointer;
-  transition: color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+  transition: color 0.18s ease, transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
 .ref-action-button {
   padding: 0;
   background: transparent;
-  color: #8e949f;
+  color: #6f7783;
   box-shadow: none;
 }
 
 .icon-plain-button {
-  min-width: 16px;
+  min-width: 36px;
   line-height: 1;
-  opacity: 0.95;
+  opacity: 1;
 }
 
 .icon-plain-button :deep(.el-icon) {
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .ref-action-button:hover {
-  color: #5f6b7a;
-  background: transparent;
-  box-shadow: none;
+  color: #4b5563;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 14px rgba(126, 98, 63, 0.08);
   transform: translateY(-1px);
+}
+
+.action-tooltip-wrap {
+  display: inline-flex;
+}
+
+.ref-action-button:disabled,
+.ref-action-button.is-disabled-action,
+.ref-action-button:disabled:hover,
+.ref-action-button.is-disabled-action:hover {
+  color: #c4b5a0;
+  background: rgba(245, 240, 232, 0.9);
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .ref-action-button-favorite.active {
   color: #e5a22d;
+  background: rgba(255, 248, 230, 0.98);
   opacity: 1;
 }
 
 .ref-action-button-favorite.active:hover {
   color: #d99623;
+  background: rgba(255, 244, 214, 0.98);
 }
 
 .showcase-button-loading {
@@ -1864,10 +2908,10 @@ onBeforeUnmount(() => {
   color: #6f5a44;
   font-size: 14px;
   line-height: 1.8;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  white-space: pre-wrap;
+  word-break: break-word;
   overflow: hidden;
+  max-height: calc(1.8em * 6);
 }
 
 .masonry-note.empty {
@@ -1939,10 +2983,12 @@ onBeforeUnmount(() => {
   gap: 12px;
   margin-top: 16px;
   padding-top: 14px;
+  border-top: 1px solid rgba(236, 220, 196, 0.75);
 }
 
 .compact-footer {
-  align-items: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .showcase-footer-meta {
@@ -2047,7 +3093,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
   .showcase-grid {
-    column-count: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -2057,7 +3103,21 @@ onBeforeUnmount(() => {
   }
 
   .showcase-grid {
-    column-count: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .filter-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-search-side {
+    justify-content: space-between;
+  }
+
+  .filter-control-row {
+    gap: 10px;
   }
 }
 
@@ -2067,8 +3127,18 @@ onBeforeUnmount(() => {
     border-radius: 22px;
   }
 
+  .filter-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .segmented-group {
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
   .showcase-grid {
-    column-count: 1;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .showcase-card-top,
@@ -2080,6 +3150,7 @@ onBeforeUnmount(() => {
   .showcase-card-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+    width: 100%;
   }
 
   .ref-action-group {
@@ -2090,6 +3161,14 @@ onBeforeUnmount(() => {
   .compact-footer-actions {
     align-items: stretch;
     justify-content: flex-start;
+  }
+
+  .footer-actions {
+    justify-content: flex-start;
+  }
+
+  .detail-info-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

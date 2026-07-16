@@ -170,8 +170,16 @@
             <strong>{{ formatNumber(item.totalPoints) }}</strong>
           </div>
           <div class="points-account-metric">
-            <span class="points-account-metric-label">今日变化</span>
+            <span class="points-account-metric-label">账号总现金</span>
+            <strong>{{ formatCash(item.totalCash) }}</strong>
+          </div>
+          <div class="points-account-metric">
+            <span class="points-account-metric-label">今日积分变化</span>
             <strong :class="diffClass(item.totalDiff)">{{ formatSigned(item.totalDiff) }}</strong>
+          </div>
+          <div class="points-account-metric">
+            <span class="points-account-metric-label">今日现金变化</span>
+            <strong :class="diffClass(item.totalCashDiff)">{{ formatSignedCash(item.totalCashDiff) }}</strong>
           </div>
           <div class="points-account-metric">
             <span class="points-account-metric-label">活跃小程序</span>
@@ -207,8 +215,10 @@
                 <div class="points-program-time">{{ formatDate(program.report_time) }}</div>
               </div>
               <div class="points-program-side">
-                <div class="points-program-points">{{ formatNumber(program.points) }}</div>
-                <div class="points-program-diff" :class="diffClass(program.diff)">{{ formatSigned(program.diff) }}</div>
+                <div class="points-program-points">{{ formatPointsValue(program.points) }}</div>
+                <div class="points-program-cash">{{ formatCash(program.cash) }}</div>
+                <div class="points-program-diff" :class="diffClass(program.diff)">积分 {{ formatSigned(program.diff) }}</div>
+                <div class="points-program-diff" :class="diffClass(program.cash_diff)">现金 {{ formatSignedCash(program.cash_diff) }}</div>
               </div>
             </div>
           </div>
@@ -250,8 +260,16 @@
               <strong>{{ formatNumber(selectedAccount.totalPoints) }}</strong>
             </div>
             <div class="points-detail-summary-item">
-              <span>今日变化</span>
+              <span>总现金</span>
+              <strong>{{ formatCash(selectedAccount.totalCash) }}</strong>
+            </div>
+            <div class="points-detail-summary-item">
+              <span>今日积分变化</span>
               <strong :class="diffClass(selectedAccount.totalDiff)">{{ formatSigned(selectedAccount.totalDiff) }}</strong>
+            </div>
+            <div class="points-detail-summary-item">
+              <span>今日现金变化</span>
+              <strong :class="diffClass(selectedAccount.totalCashDiff)">{{ formatSignedCash(selectedAccount.totalCashDiff) }}</strong>
             </div>
             <div class="points-detail-summary-item">
               <span>活跃项目</span>
@@ -302,14 +320,16 @@
                 <div class="points-detail-program-id">{{ program.program_id }}</div>
               </div>
               <div class="points-detail-program-side">
-                <div class="points-detail-program-points">{{ formatPointsValue(program.points) }}</div>
-                <div class="points-detail-program-diff" :class="diffClass(program.diff)">{{ formatSigned(program.diff) }}</div>
+                <div class="points-detail-program-points">积分 {{ formatPointsValue(program.points) }}</div>
+                <div class="points-detail-program-points">现金 {{ formatCash(program.cash) }}</div>
+                <div class="points-detail-program-diff" :class="diffClass(program.diff)">积分 {{ formatSigned(program.diff) }}</div>
+                <div class="points-detail-program-diff" :class="diffClass(program.cash_diff)">现金 {{ formatSignedCash(program.cash_diff) }}</div>
               </div>
               <div class="points-detail-program-foot">
                 <span>更新时间：{{ formatDate(program.report_time) }}</span>
-                <el-tag v-if="program.points === '未注册'" type="info" effect="light">未注册</el-tag>
-                <el-tag v-else-if="program.diff > 0" type="success" effect="light">上涨</el-tag>
-                <el-tag v-else-if="program.diff < 0" type="danger" effect="light">下降</el-tag>
+                <el-tag v-if="program.points === '未注册' && program.cash === '未注册'" type="info" effect="light">未注册</el-tag>
+                <el-tag v-else-if="(program.diff || 0) > 0 || (program.cash_diff || 0) > 0" type="success" effect="light">上涨</el-tag>
+                <el-tag v-else-if="(program.diff || 0) < 0 || (program.cash_diff || 0) < 0" type="danger" effect="light">下降</el-tag>
                 <el-tag v-else type="info" effect="light">平稳</el-tag>
               </div>
             </article>
@@ -448,7 +468,24 @@ function formatSigned(value) {
 }
 
 function formatPointsValue(value) {
+  if (value === '未注册' || value === null || value === undefined) return value === '未注册' ? '未注册' : '—'
   return typeof value === 'number' ? formatNumber(value) : value
+}
+
+function formatCash(value) {
+  if (value === '未注册') return '未注册'
+  if (value === null || value === undefined || value === '') return '—'
+  const numberValue = Number(value)
+  if (Number.isNaN(numberValue)) return '—'
+  return `¥${numberValue.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}`
+}
+
+function formatSignedCash(value) {
+  const numberValue = Number(value || 0)
+  const body = Math.abs(numberValue).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
+  if (numberValue > 0) return `+¥${body}`
+  if (numberValue < 0) return `-¥${body}`
+  return `¥${body}`
 }
 
 function diffClass(value) {
@@ -457,12 +494,29 @@ function diffClass(value) {
   return 'is-neutral'
 }
 
+function isRegisteredEntry(entry) {
+  const hasPoints = typeof entry.points === 'number'
+  const hasCash = typeof entry.cash === 'number'
+  return hasPoints || hasCash
+}
+
+function isUnregisteredEntry(entry) {
+  const pointsEmpty = entry.points === '未注册' || entry.points === 0 || entry.points == null
+  const cashEmpty = entry.cash === '未注册' || entry.cash === 0 || entry.cash == null
+  return pointsEmpty && cashEmpty
+}
+
 function normalizeAccountItem(item) {
   const points = Array.isArray(item.points) ? item.points : []
-  const unregisteredPrograms = points.filter((entry) => entry.points === '未注册' || entry.points === 0)
-  const registeredPoints = points.filter((entry) => typeof entry.points === 'number' && entry.points > 0)
-  const totalPoints = registeredPoints.reduce((sum, entry) => sum + (entry.points || 0), 0)
+  const unregisteredPrograms = points.filter((entry) => isUnregisteredEntry(entry))
+  const registeredPoints = points.filter((entry) => isRegisteredEntry(entry) && (
+    (typeof entry.points === 'number' && entry.points > 0)
+    || (typeof entry.cash === 'number' && entry.cash > 0)
+  ))
+  const totalPoints = registeredPoints.reduce((sum, entry) => sum + (typeof entry.points === 'number' ? entry.points : 0), 0)
+  const totalCash = registeredPoints.reduce((sum, entry) => sum + (typeof entry.cash === 'number' ? entry.cash : 0), 0)
   const totalDiff = registeredPoints.reduce((sum, entry) => sum + (entry.diff || 0), 0)
+  const totalCashDiff = registeredPoints.reduce((sum, entry) => sum + (entry.cash_diff || 0), 0)
   const latestReport = registeredPoints
     .map((entry) => entry.report_time)
     .filter(Boolean)
@@ -473,13 +527,21 @@ function normalizeAccountItem(item) {
   const stale = !latestDate || latestDate.toDateString() !== now.toDateString()
 
   const topPrograms = [...registeredPoints]
-    .sort((a, b) => (b.points || 0) - (a.points || 0))
+    .sort((a, b) => {
+      const ap = typeof a.points === 'number' ? a.points : 0
+      const bp = typeof b.points === 'number' ? b.points : 0
+      const ac = typeof a.cash === 'number' ? a.cash : 0
+      const bc = typeof b.cash === 'number' ? b.cash : 0
+      return (bp - ap) || (bc - ac)
+    })
     .slice(0, 3)
 
   return {
     ...item,
     totalPoints,
+    totalCash,
     totalDiff,
+    totalCashDiff,
     latestReportTime: latestReport,
     stale,
     registeredProgramCount: registeredPoints.length,

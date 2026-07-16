@@ -85,14 +85,16 @@
               <div class="users-mobile-actions-main">
                 <el-button size="small" @click="openEdit(item)">编辑</el-button>
                 <el-button size="small" @click="viewPoints(item)">积分</el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  plain
+                  :loading="deletingWechatId === item.wechat_id"
+                  @click="removeUser(item)"
+                >
+                  删除
+                </el-button>
               </div>
-              <el-popconfirm title="确认删除该用户？" @confirm="removeUser(item)">
-                <template #reference>
-                  <el-tooltip content="删除" placement="top">
-                    <el-button size="small" circle type="danger" plain :icon="Delete" />
-                  </el-tooltip>
-                </template>
-              </el-popconfirm>
             </div>
           </article>
         </div>
@@ -136,17 +138,19 @@
             <el-table-column prop="device" label="设备" min-width="140" />
             <el-table-column prop="phone" label="手机号" min-width="140" />
             <el-table-column prop="active_program_count" label="活跃小程序" width="120" />
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="240" fixed="right">
               <template #default="scope">
                 <el-button size="small" @click="openEdit(scope.row)">编辑</el-button>
                 <el-button size="small" @click="viewPoints(scope.row)">积分</el-button>
-                <el-popconfirm title="确认删除该用户？" @confirm="removeUser(scope.row)">
-                  <template #reference>
-                    <el-tooltip content="删除" placement="top">
-                      <el-button size="small" circle type="danger" :icon="Delete" />
-                    </el-tooltip>
-                  </template>
-                </el-popconfirm>
+                <el-button
+                  size="small"
+                  type="danger"
+                  plain
+                  :loading="deletingWechatId === scope.row.wechat_id"
+                  @click="removeUser(scope.row)"
+                >
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -183,19 +187,29 @@
           <article v-for="point in pointItems" :key="`${point.program_name}-${point.report_time}`" class="users-points-mobile-card">
             <div class="users-points-mobile-top">
               <strong class="users-points-mobile-title">{{ point.program_name || '未知小程序' }}</strong>
-              <span class="users-points-mobile-value">{{ point.points ?? 0 }} 积分</span>
+              <span class="users-points-mobile-value">
+                {{ formatPointsCell(point.points) }} 积分
+                <template v-if="point.cash != null && point.cash !== '未注册'"> · ¥{{ point.cash }}</template>
+              </span>
             </div>
             <div class="users-points-mobile-meta">
-              <span>今日变化：{{ point.diff ?? 0 }}</span>
+              <span>积分变化：{{ point.diff ?? 0 }}</span>
+              <span>现金变化：{{ point.cash_diff ?? 0 }}</span>
               <span>{{ formatDate(point.report_time) }}</span>
             </div>
           </article>
         </div>
         <div class="users-points-desktop-table-wrap">
           <el-table :data="pointItems" stripe class="users-table">
-            <el-table-column prop="program_name" label="小程序" min-width="240" />
-            <el-table-column prop="points" label="积分" width="120" />
-            <el-table-column prop="diff" label="今日变化" width="120" />
+            <el-table-column prop="program_name" label="小程序" min-width="200" />
+            <el-table-column label="积分" width="110">
+              <template #default="scope">{{ formatPointsCell(scope.row.points) }}</template>
+            </el-table-column>
+            <el-table-column label="现金" width="110">
+              <template #default="scope">{{ formatCashCell(scope.row.cash) }}</template>
+            </el-table-column>
+            <el-table-column prop="diff" label="积分变化" width="100" />
+            <el-table-column prop="cash_diff" label="现金变化" width="100" />
             <el-table-column label="更新时间" min-width="180">
               <template #default="scope">{{ formatDate(scope.row.report_time) }}</template>
             </el-table-column>
@@ -208,13 +222,14 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { ArrowDown, ArrowUp, Delete, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, ArrowUp, Plus } from '@element-plus/icons-vue'
 import api from '../api'
 
 const loading = ref(false)
 const saving = ref(false)
 const sorting = ref(false)
+const deletingWechatId = ref('')
 const dialogVisible = ref(false)
 const pointsVisible = ref(false)
 const pointsLoading = ref(false)
@@ -239,6 +254,18 @@ function formatDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function formatPointsCell(value) {
+  if (value === '未注册') return '未注册'
+  if (value === null || value === undefined || value === '') return '—'
+  return value
+}
+
+function formatCashCell(value) {
+  if (value === '未注册') return '未注册'
+  if (value === null || value === undefined || value === '') return '—'
+  return `¥${value}`
 }
 
 function avatarChar(item) {
@@ -317,13 +344,38 @@ async function saveUser() {
 }
 
 async function removeUser(row) {
+  const wechatId = String(row?.wechat_id || '').trim()
+  if (!wechatId) {
+    ElMessage.warning('微信号为空，无法删除')
+    return
+  }
+
+  const displayName = row?.nickname || wechatId
   try {
-    await api.delete(`/accounts/${encodeURIComponent(row.wechat_id)}`)
+    await ElMessageBox.confirm(
+      `确认删除用户「${displayName}」吗？将同时删除该账号的积分记录。`,
+      '删除用户',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch (_) {
+    return
+  }
+
+  deletingWechatId.value = wechatId
+  try {
+    await api.delete(`/accounts/${encodeURIComponent(wechatId)}`)
     ElMessage.success('删除成功')
-    loadUsers()
+    await loadUsers()
   } catch (error) {
     console.error(error)
-    ElMessage.error('删除用户失败')
+    const detail = error?.response?.data?.detail
+    ElMessage.error(detail || '删除用户失败')
+  } finally {
+    deletingWechatId.value = ''
   }
 }
 
