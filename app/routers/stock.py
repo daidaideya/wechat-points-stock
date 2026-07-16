@@ -205,7 +205,7 @@ def get_stock_center(db: Session = Depends(get_db)):
             models.PointsHistory.report_time == latest_points_subquery.c.max_time,
         ),
     ).group_by(models.PointsHistory.program_id).all()
-    max_points_map = {row.program_id: int(row.max_user_points or 0) for row in max_points_rows}
+    max_points_map = {row.program_id: float(row.max_user_points or 0) for row in max_points_rows}
 
     program_rows = db.query(models.MiniProgram).order_by(
         desc(models.MiniProgram.sort_order),

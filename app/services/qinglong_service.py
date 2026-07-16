@@ -12,8 +12,9 @@ def is_valid_phone(phone: str) -> bool:
     return bool(re.match(r'^1[3-9]\d{9}$', phone))
 
 def process_points_report(db: Session, report: schemas.PointsReportRequest):
+    cleanup_service.ensure_points_history_columns(db)
     batch_id = str(uuid.uuid4())
-    
+
     for account_data in report.data.wechat_accounts:
         # Determine nickname based on new logic
         target_nickname = account_data.nickname
@@ -65,13 +66,21 @@ def process_points_report(db: Session, report: schemas.PointsReportRequest):
                     program.program_name = point_data.program_name
                     db.add(program)
             
-            # 3. Record Points History
-            # Optional: Check for duplicates within recent time? 
-            # For now, just insert as per doc
+            # 3. Record Points History (points and/or cash)
+            # Round to 4 decimal places to avoid float noise while supporting 0.1-style balances.
+            # Missing dimension stays NULL so "not reported" ≠ "zero".
+            points_value = None
+            if point_data.current_points is not None:
+                points_value = round(float(point_data.current_points), 4)
+            cash_value = None
+            if point_data.current_cash is not None:
+                cash_value = round(float(point_data.current_cash), 4)
+
             history = models.PointsHistory(
                 wechat_id=account.wechat_id,
                 program_id=program.program_id,
-                points=point_data.current_points,
+                points=points_value,
+                cash=cash_value,
                 report_time=report.execution_time or datetime.utcnow(),
                 batch_id=batch_id
             )

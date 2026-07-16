@@ -3,7 +3,12 @@
 
   <div v-else class="app-layout">
     <header class="mobile-topbar">
-      <button class="mobile-menu-button" type="button" @click="mobileNavVisible = true">
+      <button
+        class="mobile-menu-button"
+        type="button"
+        aria-label="打开主导航"
+        @click.stop="openMobileNav"
+      >
         <el-icon><Menu /></el-icon>
       </button>
       <div class="mobile-topbar-main">
@@ -107,15 +112,18 @@
       </div>
     </aside>
 
-    <el-drawer
-      v-model="mobileNavVisible"
-      direction="ltr"
-      size="84vw"
-      :with-header="false"
-      class="mobile-nav-drawer"
-      modal-class="mobile-nav-drawer-overlay"
+    <div
+      v-if="mobileNavVisible"
+      class="mobile-nav-shell"
+      @keydown.esc.prevent="closeMobileNav"
     >
-      <aside class="sidebar mobile-sidebar">
+      <button
+        type="button"
+        class="mobile-nav-mask"
+        aria-label="关闭主导航"
+        @click="closeMobileNav"
+      ></button>
+      <aside class="sidebar mobile-sidebar mobile-nav-panel" role="dialog" aria-modal="true">
         <div class="brand brand-enhanced mobile-brand">
           <div class="brand-mark">
             <el-icon><DataAnalysis /></el-icon>
@@ -209,7 +217,7 @@
           </div>
         </div>
       </aside>
-    </el-drawer>
+    </div>
 
     <div class="main-panel">
       <header class="top-header">
@@ -246,6 +254,7 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const mobileNavVisible = ref(false)
+const MOBILE_LAYOUT_MAX = 900
 
 const isPublicPage = computed(() => Boolean(route.meta?.public))
 
@@ -265,7 +274,7 @@ const pageDescription = computed(() => {
     '/users': '管理微信账号、设备和手机号信息。',
     '/points': '按账号查看积分详情与活跃小程序数量。',
     '/stock': '按小程序和商品维度查看库存信息。',
-    '/settings': '维护日志保留与系统清理参数。',
+    '/settings': '基础设置、青龙联动、Bark 推送与数据库备份分栏管理。',
   }
 
   if (route.path.startsWith('/programs/')) {
@@ -275,8 +284,29 @@ const pageDescription = computed(() => {
   return descriptions[route.path] || '前后端分离单页应用。'
 })
 
-const handleMobileMenuSelect = () => {
+function isMobileLayout() {
+  return window.matchMedia(`(max-width: ${MOBILE_LAYOUT_MAX}px)`).matches
+}
+
+function openMobileNav() {
+  // Guard against desktop accidental open; button is mobile-only by CSS.
+  if (!isMobileLayout()) return
+  mobileNavVisible.value = true
+}
+
+function closeMobileNav() {
   mobileNavVisible.value = false
+}
+
+const handleMobileMenuSelect = () => {
+  closeMobileNav()
+}
+
+function handleViewportLayoutChange() {
+  // Desktop layout should never keep the mobile panel open.
+  if (!isMobileLayout() && mobileNavVisible.value) {
+    closeMobileNav()
+  }
 }
 
 // 让 element-plus 的图片预览（el-image preview-teleported）支持点击空白处关闭。
@@ -298,18 +328,46 @@ function handleImageViewerOutsideClick(event) {
   }
 }
 
+let mobileMediaQuery = null
+
 onMounted(() => {
   document.addEventListener('click', handleImageViewerOutsideClick, true)
+  window.addEventListener('resize', handleViewportLayoutChange, { passive: true })
+  mobileMediaQuery = window.matchMedia(`(max-width: ${MOBILE_LAYOUT_MAX}px)`)
+  if (mobileMediaQuery.addEventListener) {
+    mobileMediaQuery.addEventListener('change', handleViewportLayoutChange)
+  } else if (mobileMediaQuery.addListener) {
+    mobileMediaQuery.addListener(handleViewportLayoutChange)
+  }
+  handleViewportLayoutChange()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleImageViewerOutsideClick, true)
+  window.removeEventListener('resize', handleViewportLayoutChange)
+  if (mobileMediaQuery) {
+    if (mobileMediaQuery.removeEventListener) {
+      mobileMediaQuery.removeEventListener('change', handleViewportLayoutChange)
+    } else if (mobileMediaQuery.removeListener) {
+      mobileMediaQuery.removeListener(handleViewportLayoutChange)
+    }
+    mobileMediaQuery = null
+  }
 })
 
 watch(
   () => route.fullPath,
   () => {
-    mobileNavVisible.value = false
+    closeMobileNav()
   },
 )
+
+watch(mobileNavVisible, (visible) => {
+  // Prevent background scroll while mobile nav is open.
+  if (visible) {
+    document.body.classList.add('mobile-nav-open')
+  } else {
+    document.body.classList.remove('mobile-nav-open')
+  }
+})
 </script>

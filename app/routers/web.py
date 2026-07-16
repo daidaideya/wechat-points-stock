@@ -1,18 +1,26 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 import json
+import os
+import shutil
+import sqlite3
+import tempfile
 from typing import List, Optional
+from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, Depends, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from pypinyin import Style, lazy_pinyin, pinyin
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from app import models
+from app.config import settings as app_settings
 from app.database import get_db
-from app.services import cleanup_service
+from app.services import bark_service, cleanup_service
+from app.services import qinglong_open_service
 
 router = APIRouter(tags=["api"])
 
@@ -32,6 +40,21 @@ class LogSettingsUpdate(BaseModel):
     max_retention_days: int
     access_protection_enabled: bool = False
     access_key: Optional[str] = None
+
+
+class QinglongSettingsUpdate(BaseModel):
+    ql_base_url: Optional[str] = None
+    ql_client_id: Optional[str] = None
+    # Empty string means "do not change"; explicit clear not supported via empty to avoid accidents
+    ql_client_secret: Optional[str] = None
+
+
+class BarkSettingsUpdate(BaseModel):
+    bark_enabled: bool = False
+    bark_server: Optional[str] = None
+    # Empty secret/key means do not change
+    bark_device_key: Optional[str] = None
+    bark_push_time: Optional[str] = None
 
 
 class AccessVerifyRequest(BaseModel):
@@ -110,6 +133,12 @@ def ensure_mini_program_columns(db: Session):
         "tags": "ALTER TABLE mini_programs ADD COLUMN tags VARCHAR",
         "is_archived": "ALTER TABLE mini_programs ADD COLUMN is_archived INTEGER DEFAULT 0",
         "archived_at": "ALTER TABLE mini_programs ADD COLUMN archived_at DATETIME",
+        "ql_cron_id": "ALTER TABLE mini_programs ADD COLUMN ql_cron_id INTEGER",
+        "ql_cron_name": "ALTER TABLE mini_programs ADD COLUMN ql_cron_name VARCHAR(200)",
+        "ql_is_disabled": "ALTER TABLE mini_programs ADD COLUMN ql_is_disabled INTEGER",
+        "ql_matched_at": "ALTER TABLE mini_programs ADD COLUMN ql_matched_at DATETIME",
+        "ql_command": "ALTER TABLE mini_programs ADD COLUMN ql_command VARCHAR(500)",
+        "ql_schedule": "ALTER TABLE mini_programs ADD COLUMN ql_schedule VARCHAR(100)",
     }
 
     connection = db.bind.connect()
@@ -134,6 +163,13 @@ def ensure_mini_program_columns(db: Session):
 
 def ensure_program_tags_column(db: Session):
     ensure_mini_program_columns(db)
+
+
+def ensure_runtime_schema(db: Session):
+    """Lazy-migrate columns used across most UI routes (safe to call often)."""
+    ensure_mini_program_columns(db)
+    cleanup_service.ensure_points_history_columns(db)
+    cleanup_service.ensure_system_settings_columns(db)
 
 
 _INDEXES_ENSURED = False
@@ -252,6 +288,8 @@ def get_program_max_user_points_map(db: Session, program_ids: List[str]):
     if not program_ids:
         return {}
 
+    cleanup_service.ensure_points_history_columns(db)
+
     latest_subq = db.query(
         models.PointsHistory.program_id.label("program_id"),
         models.PointsHistory.wechat_id.label("wechat_id"),
@@ -273,9 +311,153 @@ def get_program_max_user_points_map(db: Session, program_ids: List[str]):
             models.PointsHistory.wechat_id == latest_subq.c.wechat_id,
             models.PointsHistory.report_time == latest_subq.c.max_time,
         ),
+    ).filter(
+        models.PointsHistory.points.isnot(None),
     ).group_by(models.PointsHistory.program_id).all()
 
-    return {row.program_id: int(row.max_points or 0) for row in rows}
+    # Keep as float so fractional balances (0.1 etc.) are not truncated.
+    return {row.program_id: float(row.max_points or 0) for row in rows}
+
+
+def get_program_max_user_cash_map(db: Session, program_ids: List[str]):
+    """Highest current cash (yuan) among accounts' latest reports per program."""
+    if not program_ids:
+        return {}
+
+    cleanup_service.ensure_points_history_columns(db)
+
+    latest_subq = db.query(
+        models.PointsHistory.program_id.label("program_id"),
+        models.PointsHistory.wechat_id.label("wechat_id"),
+        func.max(models.PointsHistory.report_time).label("max_time"),
+    ).filter(
+        models.PointsHistory.program_id.in_(program_ids),
+    ).group_by(
+        models.PointsHistory.program_id,
+        models.PointsHistory.wechat_id,
+    ).subquery()
+
+    rows = db.query(
+        models.PointsHistory.program_id,
+        func.max(models.PointsHistory.cash).label("max_cash"),
+    ).join(
+        latest_subq,
+        and_(
+            models.PointsHistory.program_id == latest_subq.c.program_id,
+            models.PointsHistory.wechat_id == latest_subq.c.wechat_id,
+            models.PointsHistory.report_time == latest_subq.c.max_time,
+        ),
+    ).filter(
+        models.PointsHistory.cash.isnot(None),
+    ).group_by(models.PointsHistory.program_id).all()
+
+    return {row.program_id: float(row.max_cash or 0) for row in rows}
+
+
+def resolve_ql_status(program) -> str:
+    """enabled | disabled | unknown based on cached QingLong mirror fields."""
+    value = getattr(program, "ql_is_disabled", None)
+    if value is None:
+        return "unknown"
+    try:
+        return "disabled" if int(value) == 1 else "enabled"
+    except (TypeError, ValueError):
+        return "unknown"
+
+
+def parse_cron_earliest_minute(schedule: Optional[str]) -> Optional[int]:
+    """Return the earliest daily fire minute-of-day (0-1439) for a cron expression.
+
+    Supports common QingLong styles like:
+      - "6 8,15 * * *"
+      - "0 8 * * *"
+      - "*/10 9-11 * * *"
+    Returns None when schedule is empty/unparseable.
+    """
+    if not schedule:
+        return None
+    text_value = str(schedule).strip()
+    if not text_value:
+        return None
+
+    # Some panels store extra suffixes; keep first 5 fields.
+    parts = text_value.split()
+    if len(parts) < 2:
+        return None
+    minute_field, hour_field = parts[0], parts[1]
+
+    def expand_field(field: str, minimum: int, maximum: int) -> List[int]:
+        values = set()
+        for chunk in str(field).split(","):
+            token = chunk.strip()
+            if not token:
+                continue
+            step = 1
+            base = token
+            if "/" in token:
+                base, step_text = token.split("/", 1)
+                try:
+                    step = max(1, int(step_text))
+                except ValueError:
+                    return []
+            if base in ("*", ""):
+                start, end = minimum, maximum
+            elif "-" in base:
+                left, right = base.split("-", 1)
+                try:
+                    start, end = int(left), int(right)
+                except ValueError:
+                    return []
+            else:
+                try:
+                    values.add(int(base))
+                    continue
+                except ValueError:
+                    return []
+            if start > end:
+                start, end = end, start
+            start = max(minimum, start)
+            end = min(maximum, end)
+            values.update(range(start, end + 1, step))
+        return sorted(v for v in values if minimum <= v <= maximum)
+
+    minutes = expand_field(minute_field, 0, 59)
+    hours = expand_field(hour_field, 0, 23)
+    if not minutes or not hours:
+        return None
+
+    earliest = None
+    for hour in hours:
+        for minute in minutes:
+            value = hour * 60 + minute
+            if earliest is None or value < earliest:
+                earliest = value
+    return earliest
+
+
+def sort_programs_list(programs: List[models.MiniProgram], sort_by: str) -> List[models.MiniProgram]:
+    """Sort program list in memory. Default keeps historical sort_order behavior."""
+    normalized = (sort_by or "default").strip().lower()
+    if normalized == "cron":
+        def cron_key(program: models.MiniProgram):
+            earliest = parse_cron_earliest_minute(getattr(program, "ql_schedule", None))
+            # No schedule goes last; then by earliest minute, then name/id.
+            return (
+                1 if earliest is None else 0,
+                earliest if earliest is not None else 10**9,
+                (program.program_name or "").lower(),
+                program.program_id or "",
+            )
+        return sorted(programs, key=cron_key)
+
+    # default
+    return sorted(
+        programs,
+        key=lambda program: (
+            -(program.sort_order or 0),
+            program.id or 0,
+        ),
+    )
 
 
 def get_program_stock_summary_map(db: Session, program_ids: List[str]):
@@ -381,9 +563,18 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
     return change_map
 
 
-def build_program_payload(program, last_updates, has_stock_map, stock_summary_map=None, stock_change_map=None, max_points_map=None):
+def build_program_payload(
+    program,
+    last_updates,
+    has_stock_map,
+    stock_summary_map=None,
+    stock_change_map=None,
+    max_points_map=None,
+    max_cash_map=None,
+):
     stock_summary = (stock_summary_map or {}).get(program.program_id, {})
     stock_change = (stock_change_map or {}).get(program.program_id, {})
+    max_cash = (max_cash_map or {}).get(program.program_id)
     return {
         "id": program.id,
         "program_id": program.program_id,
@@ -394,7 +585,11 @@ def build_program_payload(program, last_updates, has_stock_map, stock_summary_ma
         "last_update_time": last_updates.get(program.program_id),
         "has_stock": has_stock_map.get(program.program_id, False),
         "product_count": int(stock_summary.get("product_count", 0)),
-        "max_user_points": int((max_points_map or {}).get(program.program_id, 0) or 0),
+        "max_user_points": float((max_points_map or {}).get(program.program_id, 0) or 0),
+        "max_user_cash": float(max_cash) if max_cash is not None else None,
+        "ql_status": resolve_ql_status(program),
+        "ql_cron_name": getattr(program, "ql_cron_name", None),
+        "ql_schedule": getattr(program, "ql_schedule", None),
         "stock_change": {
             "added_count": int(stock_change.get("added_count", 0)),
             "removed_count": int(stock_change.get("removed_count", 0)),
@@ -462,6 +657,7 @@ def build_account_points_summary(
     program_name_map: Optional[dict] = None,
     user_points=None,
 ):
+    cleanup_service.ensure_points_history_columns(db)
     archived_program_ids = archived_program_ids or set()
     if program_name_map is None:
         program_name_map = {p.program_id: p.program_name for p in all_programs}
@@ -482,8 +678,8 @@ def build_account_points_summary(
     now_cst = datetime.utcnow() + tz_offset
     today_cst_date = now_cst.date()
 
-    def calculate_diff(program_id, current_points):
-        if current_points == "未注册":
+    def calculate_field_diff(program_id, current_value, field_name: str):
+        if current_value in ("未注册", None):
             return 0
 
         records = history_map.get(program_id, [])
@@ -495,16 +691,50 @@ def build_account_points_summary(
         if latest_cst.date() != today_cst_date:
             return 0
 
-        prev_points = 0
+        prev_value = None
         for record in records[1:]:
             record_cst = (record.report_time or datetime.utcnow()) + tz_offset
             if record_cst.date() < today_cst_date:
-                prev_points = record.points
+                prev_value = getattr(record, field_name, None)
                 break
-        return current_points - prev_points
+        if prev_value is None:
+            # First report today for this dimension: treat previous as 0 when current is numeric
+            prev_value = 0
+        try:
+            return float(current_value) - float(prev_value)
+        except (TypeError, ValueError):
+            return 0
 
     def resolve_name(program_id):
         return program_name_map.get(program_id) or program_id
+
+    def is_active_balance(points_value, cash_value) -> bool:
+        points_active = isinstance(points_value, (int, float)) and points_value != 0
+        cash_active = isinstance(cash_value, (int, float)) and cash_value != 0
+        return points_active or cash_active
+
+    def make_item(program_id, program_name, current=None):
+        if current is None:
+            return {
+                "program_id": program_id,
+                "program_name": program_name,
+                "points": "未注册",
+                "cash": "未注册",
+                "diff": 0,
+                "cash_diff": 0,
+                "report_time": None,
+            }
+        points_value = current.points
+        cash_value = getattr(current, "cash", None)
+        return {
+            "program_id": program_id,
+            "program_name": program_name,
+            "points": points_value if points_value is not None else None,
+            "cash": cash_value if cash_value is not None else None,
+            "diff": calculate_field_diff(program_id, points_value, "points") if points_value is not None else 0,
+            "cash_diff": calculate_field_diff(program_id, cash_value, "cash") if cash_value is not None else 0,
+            "report_time": current.report_time.isoformat() if current.report_time else None,
+        }
 
     points_items = []
     processed_program_ids = set()
@@ -514,46 +744,33 @@ def build_account_points_summary(
         processed_program_ids.add(program.program_id)
         if program.program_id in latest_map:
             current = latest_map[program.program_id]
-            if current.points != 0:
+            item = make_item(current.program_id, resolve_name(current.program_id), current)
+            if is_active_balance(item["points"], item["cash"]):
                 active_program_count += 1
-            points_items.append({
-                "program_id": current.program_id,
-                "program_name": resolve_name(current.program_id),
-                "points": current.points,
-                "diff": calculate_diff(current.program_id, current.points),
-                "report_time": current.report_time.isoformat() if current.report_time else None,
-            })
+            points_items.append(item)
         else:
-            points_items.append({
-                "program_id": program.program_id,
-                "program_name": program.program_name or program.program_id,
-                "points": "未注册",
-                "diff": 0,
-                "report_time": None,
-            })
+            points_items.append(make_item(program.program_id, program.program_name or program.program_id))
 
     for program_id, current in latest_map.items():
         if program_id in processed_program_ids:
             continue
         if program_id in archived_program_ids:
             continue
-        if current.points != 0:
+        item = make_item(current.program_id, resolve_name(current.program_id), current)
+        if is_active_balance(item["points"], item["cash"]):
             active_program_count += 1
-        points_items.append({
-            "program_id": current.program_id,
-            "program_name": resolve_name(current.program_id),
-            "points": current.points,
-            "diff": calculate_diff(current.program_id, current.points),
-            "report_time": current.report_time.isoformat() if current.report_time else None,
-        })
+        points_items.append(item)
 
     def sort_key(item):
         points_value = item["points"]
-        if points_value == "未注册":
-            return (0, 0)
-        if points_value == 0:
-            return (1, 0)
-        return (2, -points_value)
+        cash_value = item["cash"]
+        if points_value == "未注册" and cash_value == "未注册":
+            return (0, 0, 0)
+        numeric_points = points_value if isinstance(points_value, (int, float)) else 0
+        numeric_cash = cash_value if isinstance(cash_value, (int, float)) else 0
+        if numeric_points == 0 and numeric_cash == 0:
+            return (1, 0, 0)
+        return (2, -numeric_points, -numeric_cash)
 
     points_items.sort(key=sort_key)
     return {
@@ -571,7 +788,7 @@ def build_account_points_summary(
 
 @router.get("/api/v1/dashboard")
 async def get_dashboard_summary(db: Session = Depends(get_db)):
-    ensure_mini_program_columns(db)
+    ensure_runtime_schema(db)
     ensure_indexes(db)
     account_count = db.query(models.WechatAccount).count()
     program_count = db.query(models.MiniProgram).count()
@@ -606,9 +823,12 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
     stock_summary_map = get_program_stock_summary_map(db, active_program_ids)
     stock_change_map = get_program_stock_change_map(db, active_program_ids)
     max_points_map = get_program_max_user_points_map(db, active_program_ids)
+    max_cash_map = get_program_max_user_cash_map(db, active_program_ids)
     unreported_top = []
     for program, last_time_iso in unreported_programs[:5]:
-        payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map)
+        payload = build_program_payload(
+            program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
+        )
         payload["last_report_time"] = last_time_iso
         unreported_top.append(payload)
 
@@ -730,9 +950,299 @@ async def update_log_settings(
     return JSONResponse(content={"status": "success"})
 
 
+@router.get("/api/v1/settings/qinglong")
+async def get_qinglong_settings(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+    return {
+        "ql_base_url": settings.ql_base_url or "",
+        "ql_client_id": settings.ql_client_id or "",
+        "ql_client_secret_configured": bool((settings.ql_client_secret or "").strip()),
+        "ql_last_sync_at": settings.ql_last_sync_at.isoformat() if settings.ql_last_sync_at else None,
+        "ql_last_sync_status": settings.ql_last_sync_status,
+    }
+
+
+@router.post("/api/v1/settings/qinglong")
+async def update_qinglong_settings(
+    update: QinglongSettingsUpdate,
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    if update.ql_base_url is not None:
+        settings.ql_base_url = update.ql_base_url.strip().rstrip("/") or None
+    if update.ql_client_id is not None:
+        settings.ql_client_id = update.ql_client_id.strip() or None
+    if update.ql_client_secret is not None:
+        secret = update.ql_client_secret.strip()
+        if secret:
+            settings.ql_client_secret = secret
+
+    settings.updated_at = datetime.utcnow()
+    db.add(settings)
+    db.commit()
+    return JSONResponse(content={"status": "success"})
+
+
+@router.post("/api/v1/settings/qinglong/sync")
+async def sync_qinglong_settings(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+    ensure_mini_program_columns(db)
+    result = qinglong_open_service.sync_cron_status(db)
+    status_code = 200 if result.get("status") in ("success", "skipped") else 502
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@router.get("/api/v1/settings/bark")
+async def get_bark_settings(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+    return {
+        "bark_enabled": int(getattr(settings, "bark_enabled", 0) or 0) == 1,
+        "bark_server": getattr(settings, "bark_server", None) or bark_service.normalize_server(None),
+        "bark_device_key_configured": bool((getattr(settings, "bark_device_key", None) or "").strip()),
+        "bark_push_time": bark_service.normalize_push_time(getattr(settings, "bark_push_time", None)),
+        "bark_last_push_at": settings.bark_last_push_at.isoformat() if getattr(settings, "bark_last_push_at", None) else None,
+        "bark_last_push_status": getattr(settings, "bark_last_push_status", None),
+    }
+
+
+@router.post("/api/v1/settings/bark")
+async def update_bark_settings(
+    update: BarkSettingsUpdate,
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    settings.bark_enabled = 1 if update.bark_enabled else 0
+    if update.bark_server is not None:
+        settings.bark_server = bark_service.normalize_server(update.bark_server)
+    if update.bark_device_key is not None:
+        key = update.bark_device_key.strip()
+        if key:
+            settings.bark_device_key = key
+    if update.bark_push_time is not None:
+        settings.bark_push_time = bark_service.normalize_push_time(update.bark_push_time)
+
+    settings.updated_at = datetime.utcnow()
+    db.add(settings)
+    db.commit()
+    return JSONResponse(content={"status": "success"})
+
+
+@router.post("/api/v1/settings/bark/test")
+async def test_bark_push(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+    result = bark_service.push_unreported_now(db, force=True)
+    status_code = 200 if result.get("status") in ("success", "skipped") else 502
+    return JSONResponse(content=result, status_code=status_code)
+
+
+def _resolve_sqlite_db_path() -> str:
+    """Resolve filesystem path for the configured SQLite DATABASE_URL."""
+    raw = (app_settings.DATABASE_URL or "").strip()
+    if not raw.startswith("sqlite"):
+        raise HTTPException(status_code=400, detail="当前仅支持 SQLite 数据库的备份/恢复")
+
+    # sqlite:///./data/database.db  |  sqlite:////absolute/path.db  |  sqlite:///C:/path.db
+    if raw.startswith("sqlite:////"):
+        # absolute unix path: sqlite:////var/data.db -> /var/data.db
+        path = raw[len("sqlite:///"):]
+    elif raw.startswith("sqlite:///"):
+        path = raw[len("sqlite:///"):]
+        # Windows drive letter: /C:/... from some URL forms
+        if len(path) >= 3 and path[0] == "/" and path[2] == ":":
+            path = path[1:]
+    elif raw.startswith("sqlite://"):
+        parsed = urlparse(raw)
+        path = unquote(parsed.path or "")
+        if parsed.netloc and not path:
+            path = parsed.netloc
+    else:
+        path = raw
+
+    path = os.path.expanduser(path)
+    if not os.path.isabs(path):
+        path = os.path.abspath(path)
+    return path
+
+
+def _assert_sqlite_file(path: str):
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail=f"数据库文件不存在: {path}")
+    # Cheap header check
+    with open(path, "rb") as fh:
+        header = fh.read(16)
+    if not header.startswith(b"SQLite format 3"):
+        raise HTTPException(status_code=400, detail="文件不是有效的 SQLite 数据库")
+
+
+@router.get("/api/v1/settings/database/export")
+async def export_database(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Download a consistent snapshot of the SQLite database (backup)."""
+    settings_row = cleanup_service.get_or_create_settings(db)
+    if settings_row.access_protection_enabled == 1 and (settings_row.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    db_path = _resolve_sqlite_db_path()
+    _assert_sqlite_file(db_path)
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"database-backup-{stamp}.db"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    tmp_path = tmp.name
+    tmp.close()
+
+    try:
+        # Online backup API keeps a consistent snapshot even if writers are active.
+        src = sqlite3.connect(db_path)
+        try:
+            dst = sqlite3.connect(tmp_path)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except Exception as exc:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail=f"导出数据库失败: {exc}") from exc
+
+    def _cleanup_export_tmp(path: str):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    return FileResponse(
+        path=tmp_path,
+        filename=filename,
+        media_type="application/x-sqlite3",
+        background=BackgroundTask(_cleanup_export_tmp, tmp_path),
+    )
+
+
+@router.post("/api/v1/settings/database/import")
+async def import_database(
+    file: UploadFile = File(...),
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Restore database from an uploaded .db backup. Replaces current SQLite file."""
+    settings_row = cleanup_service.get_or_create_settings(db)
+    if settings_row.access_protection_enabled == 1 and (settings_row.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    db_path = _resolve_sqlite_db_path()
+    os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+
+    # Write upload to temp, validate, then atomically replace.
+    tmp_upload = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    tmp_upload_path = tmp_upload.name
+    try:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            tmp_upload.write(chunk)
+        tmp_upload.close()
+
+        _assert_sqlite_file(tmp_upload_path)
+
+        # Quick integrity check
+        conn = sqlite3.connect(tmp_upload_path)
+        try:
+            row = conn.execute("PRAGMA integrity_check").fetchone()
+            if not row or str(row[0]).lower() != "ok":
+                raise HTTPException(status_code=400, detail=f"数据库完整性检查失败: {row}")
+            # Must look like this app's schema (at least one core table)
+            tables = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            required = {"wechat_accounts", "mini_programs", "points_history"}
+            missing = required - tables
+            if missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不是本系统的数据库备份，缺少表: {', '.join(sorted(missing))}",
+                )
+        finally:
+            conn.close()
+
+        # Close current session connections so Windows can replace the file.
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+        db.close()
+
+        # Dispose engine pool so file handle is released.
+        try:
+            from app.database import engine
+            engine.dispose()
+        except Exception:
+            pass
+
+        # Keep a local rollback copy next to the live DB.
+        if os.path.isfile(db_path):
+            rollback_path = db_path + ".pre_restore"
+            shutil.copy2(db_path, rollback_path)
+
+        shutil.copy2(tmp_upload_path, db_path)
+
+        return {
+            "status": "success",
+            "message": "数据库已恢复。建议刷新页面；若异常可使用同目录 .pre_restore 回滚。",
+            "path": db_path,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"导入数据库失败: {exc}") from exc
+    finally:
+        try:
+            os.unlink(tmp_upload_path)
+        except OSError:
+            pass
+
+
 @router.get("/api/v1/accounts")
 async def get_accounts(db: Session = Depends(get_db)):
-    ensure_mini_program_columns(db)
+    ensure_runtime_schema(db)
     ensure_indexes(db)
     accounts = db.query(models.WechatAccount).order_by(
         models.WechatAccount.sort_order.asc(),
@@ -871,7 +1381,7 @@ async def delete_program_points(wechat_id: str, program_id: str, db: Session = D
 
 @router.get("/api/v1/points")
 async def get_points_overview(db: Session = Depends(get_db)):
-    ensure_mini_program_columns(db)
+    ensure_runtime_schema(db)
     ensure_indexes(db)
     accounts = db.query(models.WechatAccount).order_by(
         models.WechatAccount.sort_order.asc(),
@@ -913,9 +1423,13 @@ async def get_programs_api(
     is_favorite: Optional[bool] = None,
     tag: Optional[str] = None,
     status: Optional[str] = "active",
+    ql_status: Optional[str] = None,
+    sort: Optional[str] = "default",
     db: Session = Depends(get_db),
 ):
-    ensure_mini_program_columns(db)
+    ensure_runtime_schema(db)
+    # Best-effort QingLong status refresh; never blocks listing on failure.
+    qinglong_open_service.maybe_auto_sync(db, min_interval_minutes=10)
     query = db.query(models.MiniProgram)
     programs = []
     total = 0
@@ -927,6 +1441,16 @@ async def get_programs_api(
         query = query.filter(or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)))
     elif normalized_status == "archived":
         query = query.filter(models.MiniProgram.is_archived == 1)
+
+    normalized_ql_status = (ql_status or "all").strip().lower()
+    if normalized_ql_status not in {"all", "enabled", "disabled", "unknown"}:
+        normalized_ql_status = "all"
+    if normalized_ql_status == "enabled":
+        query = query.filter(models.MiniProgram.ql_is_disabled == 0)
+    elif normalized_ql_status == "disabled":
+        query = query.filter(models.MiniProgram.ql_is_disabled == 1)
+    elif normalized_ql_status == "unknown":
+        query = query.filter(models.MiniProgram.ql_is_disabled.is_(None))
 
     if is_favorite is not None:
         if is_favorite:
@@ -943,36 +1467,32 @@ async def get_programs_api(
             )
         )
 
+    normalized_sort = (sort or "default").strip().lower()
+    if normalized_sort not in {"default", "cron"}:
+        normalized_sort = "default"
+
+    # Always materialize then sort in Python so cron earliest-time sorting works
+    # consistently with search/pinyin filtering and pagination.
     if q:
-        total_count = query.count()
-        if total_count < 2000:
-            all_programs = query.order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc()).all()
-            filtered_programs = []
-            q_lower = q.lower()
-            for program in all_programs:
-                if (program.program_name and q in program.program_name) or (q in program.program_id.lower()):
+        all_programs = query.all()
+        filtered_programs = []
+        q_lower = q.lower()
+        for program in all_programs:
+            if (program.program_name and q in program.program_name) or (q in program.program_id.lower()):
+                filtered_programs.append(program)
+                continue
+            if program.program_name:
+                full_pinyin, first_letters = get_program_pinyin_data(program.program_name)
+                if q_lower in full_pinyin or q_lower in first_letters:
                     filtered_programs.append(program)
-                    continue
-                if program.program_name:
-                    full_pinyin, first_letters = get_program_pinyin_data(program.program_name)
-                    if q_lower in full_pinyin or q_lower in first_letters:
-                        filtered_programs.append(program)
-            total = len(filtered_programs)
-            start = (page - 1) * size
-            end = start + size
-            programs = filtered_programs[start:end]
-        else:
-            query = query.filter(or_(
-                models.MiniProgram.program_name.contains(q),
-                models.MiniProgram.program_id.contains(q),
-            ))
-            query = query.order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc())
-            total = query.count()
-            programs = query.offset((page - 1) * size).limit(size).all()
+        ordered = sort_programs_list(filtered_programs, normalized_sort)
     else:
-        query = query.order_by(models.MiniProgram.sort_order.desc(), models.MiniProgram.id.asc())
-        total = query.count()
-        programs = query.offset((page - 1) * size).limit(size).all()
+        ordered = sort_programs_list(query.all(), normalized_sort)
+
+    total = len(ordered)
+    start = max(0, (page - 1) * size)
+    end = start + size
+    programs = ordered[start:end]
 
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
@@ -980,7 +1500,13 @@ async def get_programs_api(
     stock_summary_map = get_program_stock_summary_map(db, program_ids)
     stock_change_map = get_program_stock_change_map(db, program_ids)
     max_points_map = get_program_max_user_points_map(db, program_ids)
-    items = [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map) for program in programs]
+    max_cash_map = get_program_max_user_cash_map(db, program_ids)
+    items = [
+        build_program_payload(
+            program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
+        )
+        for program in programs
+    ]
 
     return {
         "items": items,
@@ -991,6 +1517,8 @@ async def get_programs_api(
         "available_tags": get_all_distinct_tags(db),
         "current_tag": normalized_tag or None,
         "status": normalized_status,
+        "ql_status": normalized_ql_status,
+        "sort": normalized_sort,
     }
 
 
@@ -1010,8 +1538,14 @@ async def get_favorite_programs(db: Session = Depends(get_db)):
     stock_summary_map = get_program_stock_summary_map(db, program_ids)
     stock_change_map = get_program_stock_change_map(db, program_ids)
     max_points_map = get_program_max_user_points_map(db, program_ids)
+    max_cash_map = get_program_max_user_cash_map(db, program_ids)
     return {
-        "items": [build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map) for program in programs]
+        "items": [
+            build_program_payload(
+                program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
+            )
+            for program in programs
+        ]
     }
 
 
@@ -1027,13 +1561,16 @@ async def get_unreported_programs(db: Session = Depends(get_db)):
     stock_summary_map = get_program_stock_summary_map(db, program_ids)
     stock_change_map = get_program_stock_change_map(db, program_ids)
     max_points_map = get_program_max_user_points_map(db, program_ids)
+    max_cash_map = get_program_max_user_cash_map(db, program_ids)
     today_str = datetime.now().strftime("%Y-%m-%d")
 
     items = []
     for program in programs:
         last_time_iso = last_updates.get(program.program_id)
         if not last_time_iso or last_time_iso.split("T")[0] != today_str:
-            payload = build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map)
+            payload = build_program_payload(
+                program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
+            )
             payload["last_report_time"] = last_time_iso
             items.append(payload)
     return {"items": items}
@@ -1042,6 +1579,7 @@ async def get_unreported_programs(db: Session = Depends(get_db)):
 @router.get("/api/v1/programs/{program_id}")
 async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
+    cleanup_service.ensure_points_history_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -1061,18 +1599,22 @@ async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Se
             "nickname": account.nickname,
             "device": account.device,
             "phone": account.phone,
-            "points": item.points if item else 0,
+            "points": item.points if item and item.points is not None else 0,
+            "cash": item.cash if item and getattr(item, "cash", None) is not None else None,
             "report_time": item.report_time.isoformat() if item and item.report_time else None,
         })
-    ranking.sort(key=lambda x: x["points"], reverse=reverse_sort)
+    ranking.sort(key=lambda x: (x["points"] if x["points"] is not None else 0), reverse=reverse_sort)
 
     last_updates = get_program_last_updates(db, [program_id])
     has_stock_map = get_program_has_stock_map(db, [program_id])
     stock_summary_map = get_program_stock_summary_map(db, [program_id])
     stock_change_map = get_program_stock_change_map(db, [program_id])
     max_points_map = get_program_max_user_points_map(db, [program_id])
+    max_cash_map = get_program_max_user_cash_map(db, [program_id])
     return {
-        **build_program_payload(program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map),
+        **build_program_payload(
+            program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
+        ),
         "ranking": ranking,
     }
 

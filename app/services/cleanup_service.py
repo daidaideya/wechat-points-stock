@@ -8,6 +8,17 @@ def ensure_system_settings_columns(db: Session):
     expected_columns = {
         "access_protection_enabled": "ALTER TABLE system_settings ADD COLUMN access_protection_enabled INTEGER DEFAULT 0",
         "access_key": "ALTER TABLE system_settings ADD COLUMN access_key VARCHAR(255)",
+        "ql_base_url": "ALTER TABLE system_settings ADD COLUMN ql_base_url VARCHAR(255)",
+        "ql_client_id": "ALTER TABLE system_settings ADD COLUMN ql_client_id VARCHAR(100)",
+        "ql_client_secret": "ALTER TABLE system_settings ADD COLUMN ql_client_secret VARCHAR(255)",
+        "ql_last_sync_at": "ALTER TABLE system_settings ADD COLUMN ql_last_sync_at DATETIME",
+        "ql_last_sync_status": "ALTER TABLE system_settings ADD COLUMN ql_last_sync_status VARCHAR(255)",
+        "bark_enabled": "ALTER TABLE system_settings ADD COLUMN bark_enabled INTEGER DEFAULT 0",
+        "bark_server": "ALTER TABLE system_settings ADD COLUMN bark_server VARCHAR(255)",
+        "bark_device_key": "ALTER TABLE system_settings ADD COLUMN bark_device_key VARCHAR(255)",
+        "bark_push_time": "ALTER TABLE system_settings ADD COLUMN bark_push_time VARCHAR(16)",
+        "bark_last_push_at": "ALTER TABLE system_settings ADD COLUMN bark_last_push_at DATETIME",
+        "bark_last_push_status": "ALTER TABLE system_settings ADD COLUMN bark_last_push_status VARCHAR(255)",
     }
 
     connection = db.bind.connect()
@@ -23,6 +34,32 @@ def ensure_system_settings_columns(db: Session):
         if column_name not in column_names
     ]
 
+    if not missing_statements:
+        return
+
+    for statement in missing_statements:
+        db.execute(text(statement))
+    db.commit()
+
+
+def ensure_points_history_columns(db: Session):
+    """Add cash column for dual points/cash reports (lazy migrate)."""
+    expected_columns = {
+        "cash": "ALTER TABLE points_history ADD COLUMN cash FLOAT",
+    }
+
+    connection = db.bind.connect()
+    try:
+        inspector = db.bind.dialect.get_columns(connection, "points_history")
+        column_names = {column["name"] for column in inspector}
+    finally:
+        connection.close()
+
+    missing_statements = [
+        statement
+        for column_name, statement in expected_columns.items()
+        if column_name not in column_names
+    ]
     if not missing_statements:
         return
 
@@ -53,7 +90,7 @@ def prune_points_history(db: Session, max_entries: int, max_days: int):
         db.query(models.PointsHistory).filter(models.PointsHistory.report_time < threshold).delete()
     if max_entries is not None and max_entries > 0:
         # Check current count first to avoid expensive query if not needed
-        # But count() is also a query. 
+        # But count() is also a query.
         # The subquery approach is: get IDs beyond limit.
         # If total < max_entries, offset returns empty.
         ids_to_delete = [

@@ -61,7 +61,7 @@ There is no test suite, linter, or formatter configured. Do not invent commands 
 These do different things and should not be confused:
 
 1. **Bearer token** (`API_TOKEN` from `.env`, checked by `app/dependencies.py:verify_token`). Protects QingLong ingest and image upload routers only: `/api/v1/qinglong/*`, `/api/v1/stock-report`, `/api/v1/upload/image`. Used by external scripts (see `scripts/api_template.py`).
-2. **Access key** (header `X-Access-Key`, stored in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. Enforced manually inside `app/routers/web.py` via `verify_access_or_raise`, only on a few routes (`/api/v1/access/status`, `/api/v1/settings/logs`). Frontend reads/writes it through `frontend/src/api.js` (localStorage key `site_access_key`) and `router.js` redirects to `/access-gate` when needed.
+2. **Access key** (header `X-Access-Key`, stored in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. Enforced manually inside `app/routers/web.py` via `verify_access_or_raise` on settings/access routes (logs, qinglong, bark, database backup). Frontend reads/writes it through `frontend/src/api.js` (localStorage key `site_access_key`) and `router.js` redirects to `/access-gate` when needed.
 
 The bulk of `web.py` endpoints are unauthenticated. Adding access-key protection to a new endpoint is opt-in: call `verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)` explicitly.
 
@@ -70,19 +70,54 @@ The bulk of `web.py` endpoints are unauthenticated. Adding access-key protection
 There is no migration framework. Two patterns are used together:
 
 - `Base.metadata.create_all()` in `scripts/init_db.py` for fresh installs.
-- Lazy `ensure_*_columns(db)` helpers run at the start of routes to `ALTER TABLE ADD COLUMN` when columns are missing. See `app/routers/web.py:ensure_mini_program_columns`, `app/routers/stock.py:ensure_product_columns`, `app/services/cleanup_service.py:ensure_system_settings_columns`. New nullable columns should follow this pattern so existing `data/database.db` files keep working without manual steps.
+- Lazy `ensure_*_columns(db)` helpers run at the start of routes to `ALTER TABLE ADD COLUMN` when columns are missing. See `app/routers/web.py:ensure_mini_program_columns`, `app/routers/stock.py:ensure_product_columns`, `app/services/cleanup_service.py:ensure_system_settings_columns` / `ensure_points_history_columns`. New nullable columns should follow this pattern so existing `data/database.db` files keep working without manual steps.
 - One-off scripts in `scripts/` (e.g. `migrate_add_phone_index.py`, `migrate_note.py` at repo root) for non-column changes like indexes.
 
 When adding a column to an existing model, also add it to the matching `ensure_*_columns` map.
 
-### QingLong points ingest: phone number detour
+### QingLong points ingest: points + optional cash
 
-`app/services/qinglong_service.py:process_points_report` has nontrivial behavior keyed on `wechat_id` shape:
+`POST /api/v1/qinglong/report` body item (`ProgramPointsData`):
+
+- `current_points` optional float
+- `current_cash` optional float (yuan)
+- **at least one of the two is required**
+- Old scripts that only send `current_points` remain compatible
+- Missing dimension is stored as SQL `NULL` (not 0)
+
+`app/services/qinglong_service.py:process_points_report` still has phone-number nickname logic:
 
 - If `wechat_id` matches `^1[3-9]\d{9}$` (Chinese mobile): the nickname in the request body is ignored. If a `WechatAccount` exists with that `phone`, its existing nickname is reused; otherwise nickname is forced to empty string.
 - Otherwise: caller-supplied `nickname` is honored.
 
 Stock and points history both call `cleanup_service.prune_*_history` after each ingest, governed by `system_settings.max_log_entries` / `max_retention_days`.
+
+### QingLong OpenAPI sync (read-only)
+
+`app/services/qinglong_open_service.py` syncs cron enable/disable + schedule into `mini_programs.ql_*` fields:
+
+- Auth: `GET {base}/open/auth/token?client_id=&client_secret=`
+- List: `GET {base}/open/crons`
+- Match primarily by cron task name ↔ `program_name` (with command basename fallback)
+- Settings: `/api/v1/settings/qinglong` + `/sync`
+- Program list can auto-refresh if last sync is older than ~10 minutes
+
+### Bark unreported push
+
+`app/services/bark_service.py` starts a daemon scheduler from `app/main.py` startup:
+
+- Settings: `/api/v1/settings/bark` + `/test`
+- When enabled, at local `bark_push_time` (default `20:00`) pushes today's unreported active programs to Bark
+- Manual test always allowed even if auto-push is disabled
+
+### Program list query notes
+
+`GET /api/v1/programs` supports:
+
+- `q` pinyin/name search (pypinyin under 2000 programs, else `LIKE`)
+- `status` active/archived/all
+- `ql_status` all/enabled/disabled/unknown
+- `sort` default | cron (earliest daily cron minute from `ql_schedule`)
 
 ### Frontend build configuration
 
@@ -92,21 +127,25 @@ Stock and points history both call `cleanup_service.prune_*_history` after each 
 - `unplugin-vue-components` + `ElementPlusResolver` auto-registers Element Plus components and per-component CSS. Do not register Element Plus globally in `main.js` and do not import `element-plus/dist/index.css`. Icons from `@element-plus/icons-vue` still need explicit per-file imports.
 - `manualChunks` splits `element-plus`, `@element-plus/icons-vue`, `vue`, `vue-router`, `axios` into separate vendor chunks. Adding new heavy deps may warrant extending this list.
 
-### Program search uses pinyin
+### Mobile navigation
 
-`GET /api/v1/programs?q=...` in `web.py` runs Chinese pinyin matching (full pinyin and first-letter initials via `pypinyin`) for datasets under 2000 programs; above that it falls back to plain `LIKE`. Keep this in mind before changing the search code path.
+Do **not** use Element Plus `el-drawer` for the main mobile nav. `App.vue` uses an in-layout custom shell (`.mobile-nav-shell`) so desktop↔mobile resize does not leave click-blocking overlays.
 
 ## Key files for navigation
 
-- `app/main.py`: app wiring, static mounts, SPA fallback.
-- `app/routers/web.py`: most UI-facing endpoints (dashboard, accounts, programs, points, settings, access).
+- `app/main.py`: app wiring, static mounts, SPA fallback, Bark scheduler startup.
+- `app/routers/web.py`: most UI-facing endpoints (dashboard, accounts, programs, points, settings, access, bark, db backup).
 - `app/routers/stock.py`: stock management and product CRUD.
 - `app/routers/qinglong.py` + `app/services/qinglong_service.py`: external ingest from QingLong scripts.
-- `app/services/cleanup_service.py`: settings accessor and history pruning.
-- `app/models.py`: SQLAlchemy models. Note `is_favorite`, `is_hidden`, `access_protection_enabled` are `Integer` (0/1), not boolean.
+- `app/services/qinglong_open_service.py`: QingLong OpenAPI cron status sync.
+- `app/services/bark_service.py`: Bark scheduled/manual unreported push.
+- `app/services/cleanup_service.py`: settings accessor, lazy column ensure, history pruning.
+- `app/models.py`: SQLAlchemy models. Note `is_favorite`, `is_hidden`, `access_protection_enabled`, `bark_enabled`, `ql_is_disabled` are `Integer` (0/1), not boolean. `PointsHistory.points/cash` are nullable floats.
 - `frontend/src/router.js`: route table, also drives the access-gate redirect.
 - `frontend/src/api.js`: axios instance with `/api/v1` baseURL and `X-Access-Key` injection.
-- `scripts/api_template.py`: reference client for QingLong scripts that report points.
+- `frontend/src/views/ProgramsPage.vue`: main program cards UI (filters, stock/detail dialogs, cron sort).
+- `frontend/src/views/SettingsPage.vue`: sectioned settings (general / qinglong / bark / database).
+- `scripts/api_template.py`: reference client for QingLong scripts that report points/cash.
 
 ## Persisted state
 
