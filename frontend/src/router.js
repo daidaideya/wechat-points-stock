@@ -32,7 +32,13 @@ const routes = [
     path: '/programs',
     name: 'programs',
     component: ProgramsPage,
-    meta: { title: '小程序列表' },
+    meta: { title: '小程序列表', listKind: 'mini' },
+  },
+  {
+    path: '/apps',
+    name: 'apps',
+    component: ProgramsPage,
+    meta: { title: 'APP列表', listKind: 'app' },
   },
   {
     path: '/favorites',
@@ -46,6 +52,13 @@ const routes = [
     component: ProgramDetailPage,
     props: true,
     meta: { title: '小程序详情' },
+  },
+  {
+    path: '/apps/:programId',
+    name: 'app-detail',
+    component: ProgramDetailPage,
+    props: true,
+    meta: { title: 'APP详情', listKind: 'app' },
   },
   {
     path: '/users',

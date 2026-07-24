@@ -28,6 +28,15 @@ _TOKEN_CACHE: Dict[str, Tuple[str, float]] = {}
 DEFAULT_AUTO_SYNC_MINUTES = 5
 MIN_AUTO_SYNC_MINUTES = 1
 MAX_AUTO_SYNC_MINUTES = 1440  # 24h
+# auto: scheduler only (list never waits)
+# blocking: list waits when stale
+# manual: only explicit「立即同步」
+SYNC_MODE_AUTO = "auto"
+SYNC_MODE_BLOCKING = "blocking"
+SYNC_MODE_MANUAL = "manual"
+DEFAULT_SYNC_MODE = SYNC_MODE_AUTO
+VALID_SYNC_MODES = {SYNC_MODE_AUTO, SYNC_MODE_BLOCKING, SYNC_MODE_MANUAL}
+
 _scheduler_started = False
 _scheduler_lock = threading.Lock()
 _process_lock_fh: Optional[TextIO] = None
@@ -49,6 +58,20 @@ def normalize_auto_sync_minutes(value: Optional[int]) -> int:
     return minutes
 
 
+def normalize_sync_mode(value: Optional[str]) -> str:
+    text = (value or "").strip().lower()
+    if text in VALID_SYNC_MODES:
+        return text
+    # Legacy / typos
+    if text in {"background", "async", "nonblocking", "non-blocking"}:
+        return SYNC_MODE_AUTO
+    if text in {"block", "sync", "wait", "list"}:
+        return SYNC_MODE_BLOCKING
+    if text in {"off", "disabled", "none", "manual_only"}:
+        return SYNC_MODE_MANUAL
+    return DEFAULT_SYNC_MODE
+
+
 def get_configured_auto_sync_minutes(db: Optional[Session] = None) -> int:
     """Read user setting; open a short-lived session if none provided."""
     owns_session = db is None
@@ -59,6 +82,20 @@ def get_configured_auto_sync_minutes(db: Optional[Session] = None) -> int:
         return normalize_auto_sync_minutes(getattr(settings, "ql_auto_sync_minutes", None))
     except Exception:
         return DEFAULT_AUTO_SYNC_MINUTES
+    finally:
+        if owns_session and db is not None:
+            db.close()
+
+
+def get_configured_sync_mode(db: Optional[Session] = None) -> str:
+    owns_session = db is None
+    if owns_session:
+        db = SessionLocal()
+    try:
+        settings = cleanup_service.get_or_create_settings(db)
+        return normalize_sync_mode(getattr(settings, "ql_sync_mode", None))
+    except Exception:
+        return DEFAULT_SYNC_MODE
     finally:
         if owns_session and db is not None:
             db.close()
@@ -353,10 +390,20 @@ def sync_cron_status(db: Session) -> Dict[str, Any]:
             _sync_inflight = False
 
 
-def maybe_auto_sync(db: Session, min_interval_minutes: Optional[int] = None) -> None:
+def maybe_auto_sync(
+    db: Session,
+    min_interval_minutes: Optional[int] = None,
+    *,
+    respect_mode: bool = True,
+) -> None:
     """Best-effort refresh if last sync is older than interval; never raises."""
     try:
         settings = cleanup_service.get_or_create_settings(db)
+        if respect_mode:
+            mode = normalize_sync_mode(getattr(settings, "ql_sync_mode", None))
+            # Scheduler / list kick only run in auto mode.
+            if mode != SYNC_MODE_AUTO:
+                return
         if not (settings.ql_base_url and settings.ql_client_id and settings.ql_client_secret):
             return
         interval = (
@@ -372,19 +419,54 @@ def maybe_auto_sync(db: Session, min_interval_minutes: Optional[int] = None) -> 
         print(f"[qinglong_open_service] auto sync failed: {exc}")
 
 
+def maybe_blocking_sync_for_list(db: Session) -> Optional[Dict[str, Any]]:
+    """If mode is blocking and data is stale, sync on the request path.
+
+    Returns a small status dict when a sync ran; None when skipped.
+    """
+    settings = cleanup_service.get_or_create_settings(db)
+    mode = normalize_sync_mode(getattr(settings, "ql_sync_mode", None))
+    if mode != SYNC_MODE_BLOCKING:
+        return None
+    if not (settings.ql_base_url and settings.ql_client_id and settings.ql_client_secret):
+        return None
+    interval = normalize_auto_sync_minutes(getattr(settings, "ql_auto_sync_minutes", None))
+    last = settings.ql_last_sync_at
+    if last and (datetime.utcnow() - last) < timedelta(minutes=interval):
+        return None
+    return sync_cron_status(db)
+
+
 def trigger_background_sync(min_interval_minutes: Optional[int] = None) -> None:
-    """Fire-and-forget sync so API list handlers stay non-blocking."""
+    """Fire-and-forget sync for auto mode only. Never used on blocking list path."""
 
     def _run():
         db = SessionLocal()
         try:
-            maybe_auto_sync(db, min_interval_minutes=min_interval_minutes)
+            # Only when mode is auto; never steal the list request.
+            maybe_auto_sync(db, min_interval_minutes=min_interval_minutes, respect_mode=True)
         except Exception as exc:
             print(f"[qinglong_open_service] background sync failed: {exc}")
         finally:
             db.close()
 
     threading.Thread(target=_run, name="qinglong-sync-bg", daemon=True).start()
+
+
+def handle_programs_list_sync(db: Session) -> None:
+    """Called from GET /programs. Behavior depends on ql_sync_mode.
+
+    - auto: do nothing on list path (scheduler owns refresh) — never block list
+    - blocking: if stale, await sync_cron_status before returning
+    - manual: do nothing
+    """
+    try:
+        mode = get_configured_sync_mode(db)
+        if mode == SYNC_MODE_BLOCKING:
+            maybe_blocking_sync_for_list(db)
+        # auto / manual: intentionally no list-path kick (avoids SQLite lock contention)
+    except Exception as exc:
+        print(f"[qinglong_open_service] list sync hook failed: {exc}")
 
 
 def _try_acquire_process_lock(path: str = _PROCESS_LOCK_PATH) -> bool:
@@ -439,13 +521,16 @@ def _scheduler_loop() -> None:
         interval = DEFAULT_AUTO_SYNC_MINUTES
         db = SessionLocal()
         try:
+            mode = get_configured_sync_mode(db)
             interval = get_configured_auto_sync_minutes(db)
-            maybe_auto_sync(db, min_interval_minutes=interval)
+            if mode == SYNC_MODE_AUTO:
+                maybe_auto_sync(db, min_interval_minutes=interval, respect_mode=True)
+            # blocking / manual: scheduler idle (blocking uses list path; manual uses button)
         except Exception as exc:
             print(f"[qinglong_open_service] scheduler loop error: {exc}")
         finally:
             db.close()
-        # Re-read interval each cycle so Settings changes apply without restart.
+        # Re-read interval/mode each cycle so Settings changes apply without restart.
         time.sleep(max(60, interval * 60))
 
 

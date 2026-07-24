@@ -52,6 +52,15 @@
             </a>
           </router-link>
         </el-menu-item>
+        <el-menu-item index="/apps">
+          <router-link to="/apps" custom v-slot="{ href }">
+            <a :href="href" class="menu-item-anchor" @click.prevent>
+              <span class="menu-item-icon"><el-icon><Iphone /></el-icon></span>
+              <span class="menu-item-text">APP列表</span>
+              <span class="menu-item-badge">应用</span>
+            </a>
+          </router-link>
+        </el-menu-item>
         <el-menu-item index="/users">
           <router-link to="/users" custom v-slot="{ href }">
             <a :href="href" class="menu-item-anchor" @click.prevent>
@@ -158,6 +167,15 @@
               </a>
             </router-link>
           </el-menu-item>
+          <el-menu-item index="/apps">
+            <router-link to="/apps" custom v-slot="{ href }">
+              <a :href="href" class="menu-item-anchor" @click.prevent>
+                <span class="menu-item-icon"><el-icon><Iphone /></el-icon></span>
+                <span class="menu-item-text">APP列表</span>
+                <span class="menu-item-badge">应用</span>
+              </a>
+            </router-link>
+          </el-menu-item>
           <el-menu-item index="/users">
             <router-link to="/users" custom v-slot="{ href }">
               <a :href="href" class="menu-item-anchor" @click.prevent>
@@ -245,6 +263,7 @@ import {
   Grid,
   Histogram,
   House,
+  Iphone,
   Menu,
   Monitor,
   Setting,
@@ -262,6 +281,9 @@ const activeMenu = computed(() => {
   if (route.path.startsWith('/programs/')) {
     return '/programs'
   }
+  if (route.path.startsWith('/apps/')) {
+    return '/apps'
+  }
   return route.path
 })
 
@@ -271,6 +293,7 @@ const pageDescription = computed(() => {
   const descriptions = {
     '/dashboard': '统一查看用户、小程序、库存和更新情况。',
     '/programs': '更清晰地浏览小程序、筛选标签、管理备注与库存状态。',
+    '/apps': '与小程序列表相同的卡片布局，仅展示 auth_type 为 app 的应用。',
     '/users': '管理微信账号、设备和手机号信息。',
     '/points': '按账号查看积分详情与活跃小程序数量。',
     '/stock': '按小程序和商品维度查看库存信息。',
@@ -279,6 +302,9 @@ const pageDescription = computed(() => {
 
   if (route.path.startsWith('/programs/')) {
     return '查看单个小程序的排行榜与库存详情。'
+  }
+  if (route.path.startsWith('/apps/')) {
+    return '查看单个 APP 的排行榜与库存详情。'
   }
 
   return descriptions[route.path] || '前后端分离单页应用。'

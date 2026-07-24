@@ -4,66 +4,151 @@ from app import models, schemas
 from app.services import cleanup_service
 from app.routers.stock import ensure_product_columns
 from datetime import datetime, timedelta
+from typing import Optional
 import uuid
 import re
 
 def is_valid_phone(phone: str) -> bool:
     """Check if the string is a valid Chinese mobile phone number."""
-    return bool(re.match(r'^1[3-9]\d{9}$', phone))
+    return bool(re.match(r"^1[3-9]\d{9}$", str(phone or "").strip()))
+
+
+def _normalize_phone(value: Optional[str]) -> Optional[str]:
+    text = "".join(ch for ch in str(value or "") if ch.isdigit())
+    if is_valid_phone(text):
+        return text
+    return None
+
+
+def next_account_sort_order(db: Session) -> int:
+    """Append new accounts to the end of the user list (sort_order ASC)."""
+    current_max = db.query(func.max(models.WechatAccount.sort_order)).scalar()
+    if current_max is None:
+        return 0
+    try:
+        return int(current_max) + 1
+    except (TypeError, ValueError):
+        return 0
+
+
+def resolve_report_account(db: Session, account_data: schemas.WechatAccountData) -> models.WechatAccount:
+    """Resolve WechatAccount for a report row.
+
+    APP scripts usually only know a phone number. Rules:
+    1. Prefer explicit `phone` field, else detect phone-shaped `wechat_id`.
+    2. Prefer an existing account already bound by `phone`.
+    3. Else match by `wechat_id`.
+    4. Create new account if needed.
+    5. Always keep phone numbers in the `phone` column — never leave them only in wechat_id.
+    """
+    explicit_phone = _normalize_phone(getattr(account_data, "phone", None))
+    id_as_phone = _normalize_phone(account_data.wechat_id)
+    phone = explicit_phone or id_as_phone
+    is_phone_identity = bool(id_as_phone) and not explicit_phone
+
+    account = None
+    if phone:
+        account = (
+            db.query(models.WechatAccount)
+            .filter(models.WechatAccount.phone == phone)
+            .order_by(models.WechatAccount.id.asc())
+            .first()
+        )
+    if not account:
+        account = (
+            db.query(models.WechatAccount)
+            .filter(models.WechatAccount.wechat_id == account_data.wechat_id)
+            .first()
+        )
+    # Legacy rows: wechat_id was filled with the phone number.
+    if not account and phone:
+        account = (
+            db.query(models.WechatAccount)
+            .filter(models.WechatAccount.wechat_id == phone)
+            .first()
+        )
+
+    if account:
+        changed = False
+        if phone and (account.phone or "").strip() != phone:
+            account.phone = phone
+            changed = True
+
+        if phone and is_phone_identity:
+            # Phone-only report: do not invent a nickname; keep bound WeChat nickname if any.
+            if account.wechat_id == phone and not (account.nickname or "").strip():
+                # leave nickname empty — UI shows phone primarily
+                pass
+            # Prefer not overwriting a real WeChat nickname with empty.
+        elif account_data.nickname and account.nickname != account_data.nickname:
+            account.nickname = account_data.nickname
+            changed = True
+
+        if changed:
+            db.add(account)
+            db.flush()
+        return account
+
+    # Create — always append to list end (do not steal front with default sort_order=0).
+    sort_order = next_account_sort_order(db)
+    if phone:
+        # Stable internal id for phone-primary APP users: keep wechat_id == phone for
+        # points_history FK continuity with older scripts, but ALWAYS store phone column.
+        account = models.WechatAccount(
+            wechat_id=phone if is_phone_identity else account_data.wechat_id,
+            nickname=(account_data.nickname if account_data.nickname is not None else "") or "",
+            phone=phone,
+            sort_order=sort_order,
+        )
+    else:
+        account = models.WechatAccount(
+            wechat_id=account_data.wechat_id,
+            nickname=account_data.nickname,
+            phone=None,
+            sort_order=sort_order,
+        )
+    db.add(account)
+    db.flush()
+    return account
+
 
 def process_points_report(db: Session, report: schemas.PointsReportRequest):
     cleanup_service.ensure_points_history_columns(db)
     batch_id = str(uuid.uuid4())
 
     for account_data in report.data.wechat_accounts:
-        # Determine nickname based on new logic
-        target_nickname = account_data.nickname
-        is_phone = is_valid_phone(account_data.wechat_id)
-
-        if is_phone:
-            # Check if phone number is bound to a WeChat account
-            bound_account = db.query(models.WechatAccount).filter(models.WechatAccount.phone == account_data.wechat_id).first()
-            if bound_account:
-                # If bound, use the WeChat nickname
-                target_nickname = bound_account.nickname
-            else:
-                # If not bound, set user identifier to empty string
-                target_nickname = ""
-
-        # 1. Get or create WechatAccount
-        account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == account_data.wechat_id).first()
-        if not account:
-            account = models.WechatAccount(
-                wechat_id=account_data.wechat_id,
-                nickname=target_nickname
-            )
-            db.add(account)
-            db.flush() # Get ID
-        else:
-            if is_phone:
-                # For phone numbers, always apply the resolved nickname (bound nickname or empty)
-                if account.nickname != target_nickname:
-                    account.nickname = target_nickname
-                    db.add(account)
-            else:
-                # Original logic for WeChat users
-                if account_data.nickname and account.nickname != account_data.nickname:
-                    account.nickname = account_data.nickname
-                    db.add(account)
+        # 1. Resolve account (phone-primary for APP scripts)
+        account = resolve_report_account(db, account_data)
 
         for point_data in account_data.points_data:
             # 2. Get or create MiniProgram
             program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == point_data.program_id).first()
+            # Normalize optional auth_type from QingLong scripts (code/token/app).
+            raw_auth = getattr(point_data, "auth_type", None)
+            auth_type = None
+            if raw_auth is not None:
+                auth_type = str(raw_auth).strip().lower() or None
+                if auth_type not in {"code", "token", "app"}:
+                    auth_type = None
+
             if not program:
                 program = models.MiniProgram(
                     program_id=point_data.program_id,
-                    program_name=point_data.program_name
+                    program_name=point_data.program_name,
+                    auth_type=auth_type or "code",
                 )
                 db.add(program)
                 db.flush()
             else:
+                changed = False
                 if point_data.program_name and program.program_name != point_data.program_name:
                     program.program_name = point_data.program_name
+                    changed = True
+                # Only set auth_type when the script explicitly sends it (APP list needs app).
+                if auth_type and getattr(program, "auth_type", None) != auth_type:
+                    program.auth_type = auth_type
+                    changed = True
+                if changed:
                     db.add(program)
             
             # 3. Record Points History (points and/or cash)
@@ -149,6 +234,10 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
         old_stock = 0
         is_new = False
 
+        # Normalize mixed redeem cost: points + optional cash (yuan).
+        product_points = int(prod_data.points or 0)
+        product_cash = float(prod_data.cash or 0)
+
         if not product:
             is_new = True
             product = models.Product(
@@ -157,7 +246,8 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
                 product_name=prod_data.product_name,
                 image_local_path=None,
                 image_url=prod_data.image_url,
-                points=prod_data.points or 0,
+                points=product_points,
+                cash=product_cash,
                 stock=prod_data.stock or 0,
                 is_hidden=0,
                 hidden_at=None,
@@ -172,8 +262,9 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
             product.product_name = prod_data.product_name
             if prod_data.image_url:
                 product.image_url = prod_data.image_url
-            if prod_data.points is not None:
-                product.points = prod_data.points
+            # Always refresh price so 积分加钱购 / 纯积分切换能同步过来。
+            product.points = product_points
+            product.cash = product_cash
 
             if prod_data.stock is not None and prod_data.stock != product.stock:
                 product.stock = prod_data.stock

@@ -34,6 +34,8 @@ class ProgramPointsData(BaseModel):
     current_points: Optional[float] = None
     # Optional cash balance in yuan (e.g. 0.1 / 12.34). Old scripts omit this.
     current_cash: Optional[float] = None
+    # Optional channel type: code | token | app. Used by APP 列表 (auth_type=app).
+    auth_type: Optional[str] = None
     last_updated: Optional[datetime] = None
 
     @field_validator("current_points", mode="before")
@@ -53,8 +55,11 @@ class ProgramPointsData(BaseModel):
         return self
 
 class WechatAccountData(BaseModel):
+    # Historical field name: for APP scripts this is often a phone number.
+    # Prefer also sending `phone` explicitly; backend will store phone in phone column.
     wechat_id: str
     nickname: Optional[str] = None
+    phone: Optional[str] = None
     points_data: List[ProgramPointsData]
 
 class PointsReportData(BaseModel):
@@ -72,8 +77,40 @@ class ProductData(BaseModel):
     product_name: str
     image_url: Optional[str] = None
     stock: Optional[int] = 0
+    # Required points for redeem. Pure-points products only send this (legacy compatible).
     points: Optional[int] = 0
+    # Optional cash cost in yuan for 积分加钱购 (e.g. 100 points + 9.9 yuan).
+    # Omit or 0 for pure-points products. Old scripts that only send points stay compatible.
+    cash: Optional[float] = 0
     last_updated: Optional[datetime] = None
+
+    @field_validator("cash", mode="before")
+    @classmethod
+    def coerce_product_cash(cls, value: Union[int, float, str, None]):
+        # None / empty → 0 so pure-points reports stay simple.
+        if value is None or value == "":
+            return 0.0
+        coerced = coerce_numeric_balance(value, "cash")
+        return 0.0 if coerced is None else float(coerced)
+
+    @field_validator("points", mode="before")
+    @classmethod
+    def coerce_product_points(cls, value: Union[int, float, str, None]):
+        if value is None or value == "":
+            return 0
+        if isinstance(value, bool):
+            raise ValueError("points must be a number")
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return 0
+            try:
+                return int(float(text))
+            except ValueError as exc:
+                raise ValueError(f"points is not a valid number: {value!r}") from exc
+        raise ValueError(f"points must be a number, got {type(value).__name__}")
 
 class StockReportRequest(BaseModel):
     program_id: str

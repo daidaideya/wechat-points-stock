@@ -8,6 +8,8 @@ class ProductBase(BaseModel):
     product_name: str
     image_url: Optional[str] = None
     points: int = 0
+    # Cash cost in yuan for 积分加钱购; 0/None = pure points product.
+    cash: Optional[float] = 0
     stock: Optional[int] = 0
 
 class ProductCreateUpdate(ProductBase):

@@ -19,6 +19,8 @@ def ensure_product_columns(db: Session):
         "hidden_at": "ALTER TABLE products ADD COLUMN hidden_at DATETIME",
         "is_unlisted": "ALTER TABLE products ADD COLUMN is_unlisted INTEGER DEFAULT 0",
         "unlisted_at": "ALTER TABLE products ADD COLUMN unlisted_at DATETIME",
+        # 积分加钱购：商品所需现金（元）。NULL/0 = 纯积分商品。
+        "cash": "ALTER TABLE products ADD COLUMN cash REAL DEFAULT 0",
     }
 
     connection = db.bind.connect()
@@ -107,6 +109,7 @@ def create_or_update_product(
         product.product_name = product_in.product_name
         product.image_url = product_in.image_url
         product.points = product_in.points
+        product.cash = float(product_in.cash or 0)
         if product_in.stock is not None and product.stock != product_in.stock:
             history = models.StockHistory(
                 program_id=product.program_id,
@@ -124,6 +127,7 @@ def create_or_update_product(
             product_name=product_in.product_name,
             image_url=product_in.image_url,
             points=product_in.points,
+            cash=float(product_in.cash or 0),
             stock=product_in.stock if product_in.stock is not None else 0,
             is_hidden=0,
             hidden_at=None,
@@ -185,6 +189,7 @@ def get_programs_stock_summary(db: Session = Depends(get_db)):
 @router.get("/center")
 def get_stock_center(db: Session = Depends(get_db)):
     ensure_product_columns(db)
+    cleanup_service.ensure_points_history_columns(db)
     latest_points_subquery = db.query(
         models.PointsHistory.program_id.label("program_id"),
         models.PointsHistory.wechat_id.label("wechat_id"),
@@ -207,6 +212,23 @@ def get_stock_center(db: Session = Depends(get_db)):
     ).group_by(models.PointsHistory.program_id).all()
     max_points_map = {row.program_id: float(row.max_user_points or 0) for row in max_points_rows}
 
+    max_cash_rows = db.query(
+        models.PointsHistory.program_id,
+        func.max(models.PointsHistory.cash).label("max_user_cash"),
+    ).join(
+        latest_points_subquery,
+        and_(
+            models.PointsHistory.program_id == latest_points_subquery.c.program_id,
+            models.PointsHistory.wechat_id == latest_points_subquery.c.wechat_id,
+            models.PointsHistory.report_time == latest_points_subquery.c.max_time,
+        ),
+    ).group_by(models.PointsHistory.program_id).all()
+    max_cash_map = {
+        row.program_id: float(row.max_user_cash)
+        for row in max_cash_rows
+        if row.max_user_cash is not None
+    }
+
     program_rows = db.query(models.MiniProgram).order_by(
         desc(models.MiniProgram.sort_order),
         models.MiniProgram.id.asc(),
@@ -216,6 +238,7 @@ def get_stock_center(db: Session = Depends(get_db)):
             "program_id": row.program_id,
             "program_name": row.program_name or row.program_id,
             "max_user_points": max_points_map.get(row.program_id, 0),
+            "max_user_cash": max_cash_map.get(row.program_id),
             "tags": get_program_tags(row),
         }
         for row in program_rows
@@ -232,6 +255,7 @@ def get_stock_center(db: Session = Depends(get_db)):
             "program_id": product.program_id,
             "program_name": product.program_id,
             "max_user_points": max_points_map.get(product.program_id, 0),
+            "max_user_cash": max_cash_map.get(product.program_id),
             "tags": [],
         })
         items.append({
@@ -242,9 +266,11 @@ def get_stock_center(db: Session = Depends(get_db)):
             "product_name": product.product_name,
             "image_local_path": product.image_local_path,
             "image_url": normalize_stock_image_url(product),
-            "points": product.points,
+            "points": product.points or 0,
+            "cash": float(product.cash or 0),
             "stock": product.stock,
             "max_user_points": program_info["max_user_points"],
+            "max_user_cash": program_info.get("max_user_cash"),
             "tags": program_info["tags"],
         })
 
@@ -368,7 +394,8 @@ def get_off_shelf_products(
             "id": product.id,
             "product_id": product.product_id,
             "product_name": product.product_name,
-            "points": product.points,
+            "points": product.points or 0,
+            "cash": float(product.cash or 0),
             "stock": product.stock,
             "image_url": normalize_stock_image_url(product),
             "unlisted_at": product.unlisted_at.isoformat() if product.unlisted_at else None,

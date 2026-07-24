@@ -122,7 +122,7 @@
 ### 青龙上报
 
 - `POST /api/v1/qinglong/report`（积分 / 现金）
-- `POST /api/v1/stock-report`（库存）
+- `POST /api/v1/stock-report`（库存，支持积分加钱购）
 
 积分上报 `points_data[]` 字段：
 
@@ -136,6 +136,33 @@
 ```
 
 说明：`current_points` 与 `current_cash` 至少传一个；只传积分的老脚本完全兼容。
+
+库存上报 `products[]` 字段：
+
+```json
+{
+  "program_id": "wx...",
+  "products": [
+    {
+      "product_id": "prod_001",
+      "product_name": "纯积分商品",
+      "stock": 50,
+      "points": 100
+    },
+    {
+      "product_id": "prod_002",
+      "product_name": "积分加钱购",
+      "stock": 10,
+      "points": 500,
+      "cash": 9.9
+    }
+  ]
+}
+```
+
+说明：`cash` 为可选现金价（元）；省略或 `0` 表示纯积分商品，老脚本只传 `points` 完全兼容。
+
+**写库存上报脚本请直接看完整文档：** [docs/库存上报.md](docs/库存上报.md)
 
 ### 设置
 

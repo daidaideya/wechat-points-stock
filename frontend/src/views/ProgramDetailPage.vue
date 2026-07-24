@@ -92,17 +92,28 @@
           <div>
             <div class="detail-section-overline">库存数据</div>
             <h3 class="detail-section-title">库存详情</h3>
-            <p class="detail-section-description">当前最高用户积分与商品库存状态一览。</p>
+            <p class="detail-section-description">当前最高用户资产与商品兑换价格（积分 / 积分+钱）一览。</p>
           </div>
           <div class="stock-highlight-card">
             <span class="stock-highlight-label">当前最高用户积分</span>
             <strong class="stock-highlight-value">{{ stock?.max_user_points ?? 0 }}</strong>
           </div>
+          <div
+            v-if="stock?.max_user_cash != null && stock?.max_user_cash !== ''"
+            class="stock-highlight-card"
+          >
+            <span class="stock-highlight-label">当前最高用户现金</span>
+            <strong class="stock-highlight-value">¥{{ formatCashNumber(stock.max_user_cash) }}</strong>
+          </div>
         </div>
 
         <el-table :data="stock?.products || []" stripe class="showcase-table">
           <el-table-column prop="product_name" label="商品名称" min-width="260" />
-          <el-table-column prop="points" label="所需积分" width="120" />
+          <el-table-column label="兑换价格" min-width="160">
+            <template #default="scope">
+              {{ formatProductPrice(scope.row) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="stock" label="库存" width="100">
             <template #default="scope">
               <el-tag :type="scope.row.stock > 0 ? 'success' : 'danger'">{{ scope.row.stock }}</el-tag>
@@ -132,6 +143,20 @@ function formatDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function formatCashNumber(value) {
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '0'
+  return amount.toFixed(2).replace(/\.?0+$/, '')
+}
+
+function formatProductPrice(product) {
+  const points = Number(product?.points) || 0
+  const cash = Number(product?.cash) || 0
+  if (cash > 0 && points > 0) return `${points} 积分 + ¥${formatCashNumber(cash)}`
+  if (cash > 0) return `¥${formatCashNumber(cash)}`
+  return `${points} 积分`
 }
 
 function goBackToPrograms() {
@@ -399,6 +424,8 @@ onMounted(loadDetail)
 
 .stock-head {
   align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .stock-highlight-card {
