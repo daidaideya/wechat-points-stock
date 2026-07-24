@@ -17,6 +17,11 @@ class SystemSettings(Base):
     ql_client_secret = Column(String(255), nullable=True)
     # Auto sync interval in minutes (user-configurable; default 5)
     ql_auto_sync_minutes = Column(Integer, default=5)
+    # Sync mode: auto | blocking | manual
+    # - auto: background scheduler only; program list never waits
+    # - blocking: open program list waits for a fresh sync when stale
+    # - manual: only「立即同步」; no scheduler / no list kick
+    ql_sync_mode = Column(String(20), default="auto")
     ql_last_sync_at = Column(DateTime, nullable=True)
     ql_last_sync_status = Column(String(255), nullable=True)
     # Bark push for daily unreported mini-programs
@@ -90,7 +95,11 @@ class Product(Base):
     product_name = Column(String(200))
     image_local_path = Column(String)
     image_url = Column(String)
+    # Required points cost (full-points redeem). 0 means no points required.
     points = Column(Integer, default=0)
+    # Optional cash cost in yuan for "积分+钱" mixed redeem (e.g. 100 points + ¥9.9).
+    # NULL/0 = pure points product. Old installs get column via ensure_product_columns.
+    cash = Column(Float, nullable=True, default=0)
     stock = Column(Integer, default=0)
     is_hidden = Column(Integer, default=0)  # 用户手动隐藏
     hidden_at = Column(DateTime, nullable=True)

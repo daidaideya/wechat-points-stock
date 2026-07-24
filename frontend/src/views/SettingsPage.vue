@@ -105,7 +105,7 @@
               <div class="settings-section-header">
                 <div>
                   <h3 class="settings-section-title">青龙面板联动</h3>
-                  <p class="settings-section-desc">只读同步定时任务启用/禁用状态与 crontab 规则；配置后后台自动刷新。</p>
+                  <p class="settings-section-desc">只读同步定时任务启用/禁用与 crontab；可自选自动或阻塞同步。</p>
                 </div>
               </div>
 
@@ -113,7 +113,7 @@
                 <p class="settings-help-block">
                   使用青龙「应用设置」里的 Client ID / Client Secret。
                   匹配规则：优先按任务名称与小程序名称对齐。
-                  配置完整后会按下方「自动同步间隔」后台刷新；打开小程序列表过期时也会异步刷新。一般无需点「立即同步」。
+                  推荐「自动同步」：后台定时刷新，打开小程序列表不会等待青龙接口。
                 </p>
 
                 <el-form-item label="青龙地址">
@@ -139,7 +139,30 @@
                     {{ qlSecretConfigured ? '已配置' : '未配置' }}
                   </el-tag>
                 </el-form-item>
-                <el-form-item label="自动同步间隔">
+                <el-form-item label="同步方式">
+                  <div class="settings-sync-mode">
+                    <el-radio-group v-model="qlForm.ql_sync_mode">
+                      <el-radio-button value="auto">自动同步</el-radio-button>
+                      <el-radio-button value="blocking">阻塞同步</el-radio-button>
+                      <el-radio-button value="manual">仅手动</el-radio-button>
+                    </el-radio-group>
+                    <p class="settings-help-text settings-sync-mode-hint">
+                      <template v-if="qlForm.ql_sync_mode === 'auto'">
+                        后台按间隔刷新，打开小程序列表不阻塞（推荐）。
+                      </template>
+                      <template v-else-if="qlForm.ql_sync_mode === 'blocking'">
+                        打开小程序列表且数据过期时，会等待青龙同步完成再返回（可能数秒）。
+                      </template>
+                      <template v-else>
+                        不自动刷新，只在点击「立即同步」时拉取。
+                      </template>
+                    </p>
+                  </div>
+                </el-form-item>
+                <el-form-item
+                  v-if="qlForm.ql_sync_mode !== 'manual'"
+                  label="同步间隔"
+                >
                   <div class="settings-inline-field">
                     <el-input-number
                       v-model="qlForm.ql_auto_sync_minutes"
@@ -313,6 +336,7 @@ const qlForm = reactive({
   ql_client_id: '',
   ql_client_secret: '',
   ql_auto_sync_minutes: 5,
+  ql_sync_mode: 'auto',
 })
 
 const barkForm = reactive({
@@ -375,6 +399,12 @@ async function loadSettings() {
   updatedAt.value = data.updated_at || ''
 }
 
+function normalizeQlSyncMode(value) {
+  const mode = String(value || '').trim().toLowerCase()
+  if (mode === 'blocking' || mode === 'manual' || mode === 'auto') return mode
+  return 'auto'
+}
+
 async function loadQinglong() {
   const { data } = await api.get('/settings/qinglong')
   qlForm.ql_base_url = data.ql_base_url || ''
@@ -382,6 +412,7 @@ async function loadQinglong() {
   qlForm.ql_client_secret = ''
   const minutes = Number(data.ql_auto_sync_minutes)
   qlForm.ql_auto_sync_minutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 5
+  qlForm.ql_sync_mode = normalizeQlSyncMode(data.ql_sync_mode)
   qlSecretConfigured.value = Boolean(data.ql_client_secret_configured)
   qlLastSyncAt.value = data.ql_last_sync_at || ''
   qlLastSyncAtLocal.value = data.ql_last_sync_at_local || formatDate(data.ql_last_sync_at) || ''
@@ -467,15 +498,17 @@ async function saveSettings() {
 async function saveQinglong() {
   qlSaving.value = true
   try {
+    const mode = normalizeQlSyncMode(qlForm.ql_sync_mode)
     const minutes = Number(qlForm.ql_auto_sync_minutes)
-    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
-      ElMessage.warning('自动同步间隔请填 1–1440 分钟')
+    if (mode !== 'manual' && (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440)) {
+      ElMessage.warning('同步间隔请填 1–1440 分钟')
       return
     }
     const payload = {
       ql_base_url: qlForm.ql_base_url,
       ql_client_id: qlForm.ql_client_id,
-      ql_auto_sync_minutes: Math.round(minutes),
+      ql_sync_mode: mode,
+      ql_auto_sync_minutes: Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : 5,
     }
     if (qlForm.ql_client_secret.trim()) {
       payload.ql_client_secret = qlForm.ql_client_secret.trim()
@@ -855,6 +888,18 @@ onMounted(loadAll)
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.settings-sync-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.settings-sync-mode-hint {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .settings-file-input {

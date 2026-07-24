@@ -49,6 +49,8 @@ class QinglongSettingsUpdate(BaseModel):
     ql_client_secret: Optional[str] = None
     # Auto-refresh interval in minutes (1–1440). Default 5 when unset.
     ql_auto_sync_minutes: Optional[int] = None
+    # auto | blocking | manual
+    ql_sync_mode: Optional[str] = None
 
 
 class BarkSettingsUpdate(BaseModel):
@@ -740,18 +742,48 @@ def build_account_points_summary(
 
     points_items = []
     processed_program_ids = set()
-    active_program_count = 0
+    active_program_count = 0  # 小程序（非 app）
+    active_app_count = 0
+
+    # program_id -> auth_type for kind split (mini vs app)
+    auth_type_map = {}
+    for program in all_programs:
+        auth_type_map[program.program_id] = (getattr(program, "auth_type", None) or "code")
+
+    def is_app_kind(program_id: str) -> bool:
+        return str(auth_type_map.get(program_id) or "").strip().lower() == "app"
+
+    def bump_active(program_id: str, item: dict):
+        nonlocal active_program_count, active_app_count
+        if not is_active_balance(item["points"], item["cash"]):
+            return
+        if is_app_kind(program_id):
+            active_app_count += 1
+        else:
+            active_program_count += 1
 
     for program in all_programs:
         processed_program_ids.add(program.program_id)
         if program.program_id in latest_map:
             current = latest_map[program.program_id]
             item = make_item(current.program_id, resolve_name(current.program_id), current)
-            if is_active_balance(item["points"], item["cash"]):
-                active_program_count += 1
+            bump_active(program.program_id, item)
             points_items.append(item)
         else:
             points_items.append(make_item(program.program_id, program.program_name or program.program_id))
+
+    # History rows for programs not in all_programs list (e.g. archived filtered out of list but still in history)
+    missing_ids = [
+        pid for pid in latest_map.keys()
+        if pid not in processed_program_ids and pid not in archived_program_ids
+    ]
+    if missing_ids:
+        for row in (
+            db.query(models.MiniProgram.program_id, models.MiniProgram.auth_type)
+            .filter(models.MiniProgram.program_id.in_(missing_ids))
+            .all()
+        ):
+            auth_type_map[row[0]] = (row[1] or "code")
 
     for program_id, current in latest_map.items():
         if program_id in processed_program_ids:
@@ -759,8 +791,7 @@ def build_account_points_summary(
         if program_id in archived_program_ids:
             continue
         item = make_item(current.program_id, resolve_name(current.program_id), current)
-        if is_active_balance(item["points"], item["cash"]):
-            active_program_count += 1
+        bump_active(program_id, item)
         points_items.append(item)
 
     def sort_key(item):
@@ -784,6 +815,7 @@ def build_account_points_summary(
             "sort_order": account.sort_order,
         },
         "active_program_count": active_program_count,
+        "active_app_count": active_app_count,
         "points": points_items,
     }
 
@@ -1017,6 +1049,9 @@ async def get_qinglong_settings(
         "ql_auto_sync_minutes": qinglong_open_service.normalize_auto_sync_minutes(
             getattr(settings, "ql_auto_sync_minutes", None)
         ),
+        "ql_sync_mode": qinglong_open_service.normalize_sync_mode(
+            getattr(settings, "ql_sync_mode", None)
+        ),
         # UTC instant for machines; local wall string for human display.
         "ql_last_sync_at": iso_for_api(settings.ql_last_sync_at),
         "ql_last_sync_at_local": local_display(settings.ql_last_sync_at),
@@ -1046,6 +1081,8 @@ async def update_qinglong_settings(
         settings.ql_auto_sync_minutes = qinglong_open_service.normalize_auto_sync_minutes(
             update.ql_auto_sync_minutes
         )
+    if update.ql_sync_mode is not None:
+        settings.ql_sync_mode = qinglong_open_service.normalize_sync_mode(update.ql_sync_mode)
 
     settings.updated_at = datetime.utcnow()
     db.add(settings)
@@ -1055,6 +1092,9 @@ async def update_qinglong_settings(
             "status": "success",
             "ql_auto_sync_minutes": qinglong_open_service.normalize_auto_sync_minutes(
                 getattr(settings, "ql_auto_sync_minutes", None)
+            ),
+            "ql_sync_mode": qinglong_open_service.normalize_sync_mode(
+                getattr(settings, "ql_sync_mode", None)
             ),
         }
     )
@@ -1342,6 +1382,7 @@ async def get_accounts(db: Session = Depends(get_db)):
         items.append({
             **summary["account"],
             "active_program_count": summary["active_program_count"],
+            "active_app_count": summary.get("active_app_count", 0),
         })
     return {"items": items}
 
@@ -1408,11 +1449,15 @@ async def update_sort_order(update: SortOrderUpdate, db: Session = Depends(get_d
 async def update_account(wechat_id: str, update: AccountUpdate, db: Session = Depends(get_db)):
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
+        # Manual「新增用户」also appends to the end of the list.
+        from app.services.qinglong_service import next_account_sort_order
+
         account = models.WechatAccount(
             wechat_id=wechat_id,
             nickname=update.nickname,
             device=update.device,
             phone=update.phone,
+            sort_order=next_account_sort_order(db),
         )
         db.add(account)
     else:
@@ -1481,6 +1526,7 @@ async def get_points_overview(db: Session = Depends(get_db)):
         items.append({
             "account": summary["account"],
             "active_program_count": summary["active_program_count"],
+            "active_app_count": summary.get("active_app_count", 0),
             "points": summary["points"],
         })
     return {"items": items}
@@ -1496,16 +1542,34 @@ async def get_programs_api(
     status: Optional[str] = "active",
     ql_status: Optional[str] = None,
     sort: Optional[str] = "default",
+    kind: Optional[str] = "mini",
     db: Session = Depends(get_db),
 ):
     ensure_runtime_schema(db)
-    # Non-blocking: stale status is refreshed by background scheduler + this kick.
-    # Do not await QingLong network I/O on the list request path.
-    # Interval comes from system_settings.ql_auto_sync_minutes (user-configurable).
-    qinglong_open_service.trigger_background_sync()
+    # QingLong refresh policy is user-selectable (settings → 青龙联动):
+    # auto: scheduler only (this path does nothing — list never waits)
+    # blocking: if stale, await OpenAPI sync here (can take several seconds)
+    # manual: only「立即同步」
+    qinglong_open_service.handle_programs_list_sync(db)
     query = db.query(models.MiniProgram)
     programs = []
     total = 0
+
+    # kind=mini (default): 小程序列表 — 排除 APP
+    # kind=app: APP 列表 — 仅 auth_type=app
+    # kind=all: 不过滤
+    normalized_kind = (kind or "mini").strip().lower()
+    if normalized_kind not in {"mini", "app", "all"}:
+        normalized_kind = "mini"
+    if normalized_kind == "app":
+        query = query.filter(models.MiniProgram.auth_type == "app")
+    elif normalized_kind == "mini":
+        query = query.filter(
+            or_(
+                models.MiniProgram.auth_type.is_(None),
+                models.MiniProgram.auth_type != "app",
+            )
+        )
 
     normalized_status = (status or "active").strip().lower()
     if normalized_status not in {"active", "archived", "all"}:
@@ -1581,17 +1645,41 @@ async def get_programs_api(
         for program in programs
     ]
 
+    # Tags scoped to the same kind so APP / 小程序 filters don't mix.
+    if normalized_kind == "app":
+        tag_rows = (
+            db.query(models.MiniProgram.tags)
+            .filter(
+                models.MiniProgram.auth_type == "app",
+                models.MiniProgram.tags.isnot(None),
+                models.MiniProgram.tags != "",
+                or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)),
+            )
+            .all()
+        )
+        tag_counts = {}
+        for row in tag_rows:
+            for t in normalize_program_tags(row[0]):
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+        available_tags = [
+            t
+            for t, _ in sorted(tag_counts.items(), key=lambda item: (-item[1], item[0].lower()))
+        ]
+    else:
+        available_tags = get_all_distinct_tags(db)
+
     return {
         "items": items,
         "total": total,
         "page": page,
         "size": size,
         "has_more": (page * size) < total,
-        "available_tags": get_all_distinct_tags(db),
+        "available_tags": available_tags,
         "current_tag": normalized_tag or None,
         "status": normalized_status,
         "ql_status": normalized_ql_status,
         "sort": normalized_sort,
+        "kind": normalized_kind,
     }
 
 
@@ -1695,6 +1783,9 @@ async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Se
 @router.get("/api/v1/programs/{program_id}/stock")
 async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
+    # Lazy import avoids circular import with routers.stock (which imports helpers from web).
+    from app.routers.stock import ensure_product_columns
+    ensure_product_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     products = db.query(models.Product).filter(models.Product.program_id == program_id).all()
 
@@ -1766,7 +1857,8 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
             "id": product.id,
             "product_id": product.product_id,
             "product_name": product.product_name,
-            "points": product.points,
+            "points": product.points or 0,
+            "cash": float(getattr(product, "cash", None) or 0),
             "stock": product.stock,
             "image_url": normalize_image_url(product),
             "is_hidden": product.is_hidden == 1,
@@ -1792,7 +1884,8 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
                     "id": product.id,
                     "product_id": product.product_id,
                     "product_name": product.product_name,
-                    "points": product.points,
+                    "points": product.points or 0,
+                    "cash": float(getattr(product, "cash", None) or 0),
                     "stock": product.stock,
                     "image_url": normalize_image_url(product),
                     "is_hidden": product.is_hidden == 1,
@@ -1800,17 +1893,33 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
                     "change_type": "removed",
                 }
 
-    items.sort(key=lambda x: (x["stock"] <= 0, x["points"]))
+    items.sort(key=lambda x: (x["stock"] <= 0, x["points"] or 0, float(x.get("cash") or 0)))
     change_items = list(changed_lookup.values())
-    change_items.sort(key=lambda x: (0 if x["change_type"] == "added" else 1, x["points"], x["product_name"] or ""))
+    change_items.sort(key=lambda x: (
+        0 if x["change_type"] == "added" else 1,
+        x["points"] or 0,
+        float(x.get("cash") or 0),
+        x["product_name"] or "",
+    ))
 
     added_count = len(added_product_ids) if should_show_changes else 0
     removed_count = len(removed_product_ids) if should_show_changes else 0
+
+    # Also expose highest current cash among accounts (for mixed-redeem UI).
+    cleanup_service.ensure_points_history_columns(db)
+    max_cash_val = db.query(func.max(models.PointsHistory.cash)).join(
+        subquery,
+        and_(
+            models.PointsHistory.wechat_id == subquery.c.wechat_id,
+            models.PointsHistory.report_time == subquery.c.max_time,
+        ),
+    ).scalar()
 
     return {
         "program_id": program_id,
         "program_name": program.program_name if program else program_id,
         "max_user_points": max_points_val if max_points_val is not None else 0,
+        "max_user_cash": float(max_cash_val) if max_cash_val is not None else None,
         "product_count": len(items),
         "stock_change": {
             "added_count": added_count,

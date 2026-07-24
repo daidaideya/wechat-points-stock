@@ -73,6 +73,83 @@
               </div>
             </div>
 
+            <div class="stock-filter-toolbar stock-price-filter-toolbar">
+              <div class="stock-filter-label-wrap">
+                <div class="stock-filter-badge stock-filter-badge-price">价格筛选</div>
+                <div class="stock-filter-title-group">
+                  <span class="stock-filter-label">按兑换价格类型筛选</span>
+                  <span class="stock-filter-tip">纯积分 / 积分加钱购，可限定加钱金额上限</span>
+                </div>
+              </div>
+              <div class="stock-price-filter-body">
+                <div class="stock-price-mode-list">
+                  <button
+                    type="button"
+                    class="stock-tag-chip stock-tag-chip-all"
+                    :class="{ active: priceMode === 'all' }"
+                    @click="selectPriceMode('all')"
+                  >
+                    <span class="stock-tag-chip-dot"></span>
+                    <span>全部商品 {{ summary.totalProducts }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="stock-tag-chip"
+                    :class="{ active: priceMode === 'points_only' }"
+                    @click="selectPriceMode('points_only')"
+                  >
+                    <span class="stock-tag-chip-dot"></span>
+                    <span>纯积分 {{ summary.pointsOnlyProducts }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="stock-tag-chip"
+                    :class="{ active: priceMode === 'points_plus_cash' }"
+                    @click="selectPriceMode('points_plus_cash')"
+                  >
+                    <span class="stock-tag-chip-dot"></span>
+                    <span>积分加钱购 {{ summary.mixedProducts }}</span>
+                  </button>
+                </div>
+                <div v-if="priceMode === 'points_plus_cash'" class="stock-cash-cap-panel">
+                  <span class="stock-cash-cap-label">现金上限</span>
+                  <div class="stock-cash-cap-presets">
+                    <button
+                      v-for="preset in CASH_CAP_PRESETS"
+                      :key="preset"
+                      type="button"
+                      class="stock-cash-cap-chip"
+                      :class="{ active: isCashCapPresetActive(preset) }"
+                      @click="applyCashCapPreset(preset)"
+                    >
+                      ≤ ¥{{ formatCashNumber(preset) }}
+                    </button>
+                    <button
+                      type="button"
+                      class="stock-cash-cap-chip"
+                      :class="{ active: cashCapInput === '' && cashCapValue === null }"
+                      @click="clearCashCap"
+                    >
+                      不限
+                    </button>
+                  </div>
+                  <div class="stock-cash-cap-custom">
+                    <span class="stock-cash-cap-prefix">自定义 ≤ ¥</span>
+                    <el-input
+                      v-model="cashCapInput"
+                      clearable
+                      size="small"
+                      class="stock-cash-cap-input"
+                      placeholder="如 1 / 9.9"
+                      @keyup.enter="applyCashCap"
+                      @clear="clearCashCap"
+                    />
+                    <el-button size="small" type="primary" plain @click="applyCashCap">应用</el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="stock-table-summary">
               <button
                 type="button"
@@ -114,6 +191,9 @@
                 <el-tag round effect="plain" type="info">已加载 {{ visibleProducts.length }} 条</el-tag>
                 <el-tag v-if="searchKeyword" round effect="plain" type="warning">关键词：{{ searchKeyword }}</el-tag>
                 <el-tag v-if="currentTag" round effect="plain" type="success">标签：{{ currentTag }}</el-tag>
+                <el-tag v-if="priceMode !== 'all'" round effect="plain" type="warning">
+                  {{ priceModeLabel }}
+                </el-tag>
                 <el-tag v-if="loadedFromCache" round effect="plain" type="success">缓存命中</el-tag>
               </div>
               <div class="stock-meta-right">
@@ -134,7 +214,7 @@
         <div v-else-if="!filteredProducts.length" class="program-state-card compact stock-state-card">
           <el-empty description="没有符合条件的商品">
             <template #description>
-              <p>可尝试重新输入关键词，或点击上方统计标签切换筛选条件。</p>
+              <p>可尝试调整关键词、价格类型（纯积分 / 积分加钱购）、标签或库存状态筛选。</p>
             </template>
             <div class="empty-state-actions">
               <el-button type="primary" plain @click="resetFilters">清空搜索与筛选</el-button>
@@ -187,8 +267,8 @@
 
               <div class="stock-gallery-core-row three-col-core-row">
                 <div class="stock-gallery-core-item">
-                  <span class="stock-core-label">积分</span>
-                  <span class="stock-core-value accent">{{ item.points ?? 0 }}</span>
+                  <span class="stock-core-label">价格</span>
+                  <span class="stock-core-value accent stock-price-value">{{ formatProductPrice(item) }}</span>
                 </div>
                 <div class="stock-gallery-core-item">
                   <span class="stock-core-label">库存</span>
@@ -250,12 +330,16 @@
               <strong>{{ detailProduct.stock ?? 0 }}</strong>
             </div>
             <div class="stock-detail-item">
-              <span class="stock-detail-label">所需积分</span>
-              <strong>{{ detailProduct.points ?? 0 }}</strong>
+              <span class="stock-detail-label">兑换价格</span>
+              <strong>{{ formatProductPrice(detailProduct) }}</strong>
             </div>
             <div class="stock-detail-item">
               <span class="stock-detail-label">最高积分</span>
               <strong>{{ detailProduct.maxUserPoints ?? 0 }}</strong>
+            </div>
+            <div class="stock-detail-item">
+              <span class="stock-detail-label">最高现金</span>
+              <strong>{{ formatCashAmount(detailProduct.maxUserCash) }}</strong>
             </div>
             <div class="stock-detail-item">
               <span class="stock-detail-label">兑换判断</span>
@@ -320,7 +404,7 @@
             <div v-else class="hidden-product-thumb hidden-product-thumb-empty">无图</div>
             <div class="hidden-product-main">
               <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
-              <div class="hidden-product-meta">{{ item.program_name || item.program_id }} · {{ item.points ?? 0 }} 积分 · 库存 {{ item.stock ?? 0 }}</div>
+              <div class="hidden-product-meta">{{ item.program_name || item.program_id }} · {{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}</div>
               <div class="hidden-product-time">隐藏时间：{{ formatHiddenAt(item.hidden_at) }}</div>
             </div>
             <el-button
@@ -392,7 +476,7 @@
                 <div v-else class="hidden-product-thumb hidden-product-thumb-empty">无图</div>
                 <div class="hidden-product-main">
                   <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
-                  <div class="hidden-product-meta">{{ item.points ?? 0 }} 积分 · 库存 {{ item.stock ?? 0 }}</div>
+                  <div class="hidden-product-meta">{{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}</div>
                   <div class="hidden-product-time">下架时间：{{ formatHiddenAt(item.unlisted_at || item.hidden_at) }}</div>
                 </div>
                 <div class="off-shelf-product-actions">
@@ -430,6 +514,11 @@ const keywordInput = ref('')
 const searchKeyword = ref('')
 const activeStatus = ref('all')
 const currentTag = ref('')
+// 价格类型：all | points_only | points_plus_cash
+const priceMode = ref('all')
+// 积分加钱购时的现金上限（元）；null = 不限
+const cashCapValue = ref(null)
+const cashCapInput = ref('')
 const availableTags = ref([])
 const allProducts = shallowRef([])
 const visibleCount = ref(PAGE_SIZE)
@@ -450,14 +539,43 @@ const hidingProductId = ref(null)
 const restoringProductId = ref(null)
 const relistingId = ref(null)
 
+const CASH_CAP_PRESETS = [1, 5, 10, 20]
+
 let observer = null
 let stockCenterRequest = null
 let stockCenterCache = null
+
+function formatCashNumber(value) {
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '0'
+  return amount.toFixed(2).replace(/\.?0+$/, '')
+}
+
+function isPointsOnlyProduct(item) {
+  return Number(item?.cash || 0) <= 0
+}
+
+function isMixedProduct(item) {
+  return Number(item?.cash || 0) > 0
+}
+
+function matchesPriceFilter(item) {
+  if (priceMode.value === 'all') return true
+  if (priceMode.value === 'points_only') return isPointsOnlyProduct(item)
+  if (priceMode.value === 'points_plus_cash') {
+    if (!isMixedProduct(item)) return false
+    if (cashCapValue.value == null) return true
+    return Number(item.cash || 0) <= cashCapValue.value
+  }
+  return true
+}
 
 const summary = computed(() => {
   let inStockProducts = 0
   let outOfStockProducts = 0
   let redeemableProducts = 0
+  let pointsOnlyProducts = 0
+  let mixedProducts = 0
 
   for (const item of allProducts.value) {
     if (item.inStock) {
@@ -468,6 +586,11 @@ const summary = computed(() => {
     if (item.redeemable) {
       redeemableProducts += 1
     }
+    if (isPointsOnlyProduct(item)) {
+      pointsOnlyProducts += 1
+    } else {
+      mixedProducts += 1
+    }
   }
 
   return {
@@ -475,7 +598,18 @@ const summary = computed(() => {
     inStockProducts,
     outOfStockProducts,
     redeemableProducts,
+    pointsOnlyProducts,
+    mixedProducts,
   }
+})
+
+const priceModeLabel = computed(() => {
+  if (priceMode.value === 'points_only') return '纯积分'
+  if (priceMode.value === 'points_plus_cash') {
+    if (cashCapValue.value == null) return '积分加钱购 · 不限金额'
+    return `积分加钱购 · ≤ ¥${formatCashNumber(cashCapValue.value)}`
+  }
+  return '全部商品'
 })
 
 const filteredProducts = computed(() => {
@@ -496,8 +630,9 @@ const filteredProducts = computed(() => {
       (activeStatus.value === 'redeemable' && item.redeemable)
 
     const matchTag = !currentTag.value || (Array.isArray(item.tags) && item.tags.includes(currentTag.value))
+    const matchPrice = matchesPriceFilter(item)
 
-    return matchKeyword && matchStatus && matchTag
+    return matchKeyword && matchStatus && matchTag && matchPrice
   })
 })
 
@@ -512,18 +647,42 @@ function buildStatus(stock) {
   return { inStock: false, statusKey: 'out_of_stock', statusLabel: '无库存', statusTagType: 'danger' }
 }
 
+function formatCashAmount(value) {
+  if (value == null || value === '') return '—'
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '—'
+  return `¥${formatCashNumber(amount)}`
+}
+
+function formatProductPrice(product) {
+  const points = Number(product?.points || 0)
+  const cash = Number(product?.cash || 0)
+  if (cash > 0 && points > 0) return `${points} 积分 + ${formatCashAmount(cash)}`
+  if (cash > 0) return formatCashAmount(cash)
+  return `${points} 积分`
+}
+
 function normalizeProduct(item) {
   const status = buildStatus(item.stock)
   const maxUserPoints = Number(item.max_user_points ?? item.maxUserPoints ?? 0)
+  const rawMaxCash = item.max_user_cash ?? item.maxUserCash
+  const maxUserCash = rawMaxCash == null || rawMaxCash === '' ? null : Number(rawMaxCash)
   const points = Number(item.points || 0)
-  const redeemable = status.inStock && maxUserPoints >= points
+  const cash = Number(item.cash || 0)
+  // 积分加钱购：积分与现金都要够（无现金上报时按 0 处理）。
+  const pointsOk = maxUserPoints >= points
+  const cashOk = cash <= 0 || (maxUserCash != null && !Number.isNaN(maxUserCash) && maxUserCash >= cash)
+  const redeemable = status.inStock && pointsOk && cashOk
 
   return {
     ...item,
     ...status,
+    points,
+    cash,
     hasImage: Boolean(item.image_url || item.image_local_path),
     program_name: item.program_name || item.program_id,
     maxUserPoints,
+    maxUserCash: Number.isNaN(maxUserCash) ? null : maxUserCash,
     redeemable,
   }
 }
@@ -627,11 +786,66 @@ function selectTag(tag) {
   resetVisibleCount()
 }
 
+function selectPriceMode(mode) {
+  if (priceMode.value === mode && mode !== 'all') {
+    // 再次点击已选项 → 回到全部
+    priceMode.value = 'all'
+  } else {
+    priceMode.value = mode
+  }
+  if (priceMode.value !== 'points_plus_cash') {
+    cashCapValue.value = null
+    cashCapInput.value = ''
+  }
+  resetVisibleCount()
+}
+
+function parseCashCapInput(raw) {
+  const text = String(raw ?? '').trim()
+  if (!text) return null
+  const amount = Number(text)
+  if (Number.isNaN(amount) || amount < 0) return undefined
+  return amount
+}
+
+function applyCashCap() {
+  const parsed = parseCashCapInput(cashCapInput.value)
+  if (parsed === undefined) {
+    ElMessage.warning('请输入有效的现金上限（≥ 0）')
+    return
+  }
+  cashCapValue.value = parsed
+  cashCapInput.value = parsed == null ? '' : formatCashNumber(parsed)
+  resetVisibleCount()
+}
+
+function applyCashCapPreset(amount) {
+  cashCapValue.value = amount
+  cashCapInput.value = formatCashNumber(amount)
+  if (priceMode.value !== 'points_plus_cash') {
+    priceMode.value = 'points_plus_cash'
+  }
+  resetVisibleCount()
+}
+
+function clearCashCap() {
+  cashCapValue.value = null
+  cashCapInput.value = ''
+  resetVisibleCount()
+}
+
+function isCashCapPresetActive(amount) {
+  return cashCapValue.value != null && Number(cashCapValue.value) === Number(amount)
+}
+
 function resetFilters() {
   keywordInput.value = ''
   searchKeyword.value = ''
   activeStatus.value = 'all'
   currentTag.value = ''
+  priceMode.value = 'all'
+  cashCapValue.value = null
+  cashCapInput.value = ''
   resetVisibleCount()
 }
 
@@ -952,6 +1166,87 @@ onBeforeUnmount(() => {
 .stock-tag-chip-all {
   background: rgba(255, 250, 244, 0.92);
 }
+.stock-filter-badge-price {
+  background: linear-gradient(135deg, #8ec5ff, #5b9cf5);
+}
+.stock-price-filter-toolbar {
+  align-items: flex-start;
+}
+.stock-price-filter-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.stock-price-mode-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.stock-cash-cap-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 251, 245, 0.92));
+  box-shadow: inset 0 0 0 1px rgba(186, 214, 248, 0.9);
+}
+.stock-cash-cap-label {
+  color: #3b6ea8;
+  font-size: 13px;
+  font-weight: 700;
+}
+.stock-cash-cap-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stock-cash-cap-chip {
+  border: 1px solid rgba(163, 201, 245, 0.95);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f5f98;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.stock-cash-cap-chip:hover {
+  border-color: rgba(91, 156, 245, 0.95);
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+.stock-cash-cap-chip.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #74b0f8, #4f8fe8);
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(79, 143, 232, 0.22);
+}
+.stock-cash-cap-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stock-cash-cap-prefix {
+  color: #6b8eb8;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stock-cash-cap-input {
+  width: 110px;
+}
+.stock-cash-cap-input :deep(.el-input__wrapper) {
+  border-radius: 999px;
+}
 .stock-tag-empty {
   color: #ab8d6a;
   font-size: 13px;
@@ -1135,6 +1430,11 @@ onBeforeUnmount(() => {
 .stock-core-value.accent {
   color: #a16207;
 }
+.stock-price-value {
+  font-size: 15px;
+  line-height: 1.25;
+  word-break: break-word;
+}
 .stock-gallery-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -1305,6 +1605,12 @@ onBeforeUnmount(() => {
     flex-direction: column;
     align-items: flex-start;
   }
+  .stock-price-filter-body,
+  .stock-price-mode-list,
+  .stock-cash-cap-panel {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
   .stock-tag-list {
     justify-content: flex-start;
   }
@@ -1339,6 +1645,14 @@ onBeforeUnmount(() => {
   .stock-tag-chip {
     padding: 9px 12px;
     font-size: 12px;
+  }
+
+  .stock-cash-cap-panel {
+    padding: 12px;
+  }
+
+  .stock-cash-cap-input {
+    width: 96px;
   }
 
   .stock-gallery-list {

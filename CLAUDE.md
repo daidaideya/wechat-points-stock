@@ -100,6 +100,18 @@ When adding a column to an existing model, also add it to the matching `ensure_*
 
 Stock and points history both call `cleanup_service.prune_*_history` after each ingest, governed by `system_settings.max_log_entries` / `max_retention_days`.
 
+### Stock report: points + optional cash (积分加钱购)
+
+完整脚本对接文档：`docs/库存上报.md`（写上报代码优先看这个）。
+
+`POST /api/v1/stock-report` body item (`ProductData`):
+
+- `points` optional int (default 0) — required points cost
+- `cash` optional float yuan (default 0) — extra cash for mixed redeem
+- Old scripts that only send `points` remain compatible
+- UI redeemability checks both `max_user_points >= points` and (if cash > 0) `max_user_cash >= cash`
+- Column added lazily via `ensure_product_columns` (`products.cash REAL DEFAULT 0`)
+
 ### QingLong OpenAPI sync (read-only)
 
 `app/services/qinglong_open_service.py` syncs cron enable/disable + schedule into `mini_programs.ql_*` fields:
@@ -155,7 +167,7 @@ Do **not** use Element Plus `el-drawer` for the main mobile nav. `App.vue` uses 
 - `app/services/qinglong_open_service.py`: QingLong OpenAPI cron status sync.
 - `app/services/bark_service.py`: Bark scheduled/manual unreported push.
 - `app/services/cleanup_service.py`: settings accessor, lazy column ensure, history pruning.
-- `app/models.py`: SQLAlchemy models. Note `is_favorite`, `is_hidden`, `access_protection_enabled`, `bark_enabled`, `ql_is_disabled` are `Integer` (0/1), not boolean. `PointsHistory.points/cash` are nullable floats.
+- `app/models.py`: SQLAlchemy models. Note `is_favorite`, `is_hidden`, `access_protection_enabled`, `bark_enabled`, `ql_is_disabled` are `Integer` (0/1), not boolean. `PointsHistory.points/cash` are nullable floats. `Product.points` is required points cost; `Product.cash` is optional yuan cost for 积分加钱购 (0/NULL = pure points).
 - `frontend/src/router.js`: route table, also drives the access-gate redirect.
 - `frontend/src/api.js`: axios instance with `/api/v1` baseURL and `X-Access-Key` injection.
 - `frontend/src/views/ProgramsPage.vue`: main program cards UI (filters, stock/detail dialogs, cron sort).

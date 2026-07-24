@@ -148,7 +148,7 @@
       </div>
 
       <div v-else-if="!programs.length" class="program-state-card compact full-span">
-        <el-empty description="没有符合条件的小程序">
+        <el-empty :description="isAppList ? '没有符合条件的 APP' : '没有符合条件的小程序'">
           <template #description>
             <p>可尝试清空关键词、标签或收藏筛选后重新查看。</p>
           </template>
@@ -303,20 +303,44 @@
             <span class="showcase-footer-time">{{ formatDate(program.last_update_time) }}</span>
           </div>
 
+          <!-- Mobile primary actions: labeled buttons (icons alone are hard to tap / no hover tooltips) -->
+          <div class="mobile-primary-actions">
+            <button
+              type="button"
+              class="mobile-text-action stock-action"
+              :class="{ 'is-disabled-action': !program.has_stock }"
+              :disabled="!program.has_stock"
+              @click="program.has_stock ? openStockDialog(program) : undefined"
+            >
+              <el-icon><Box /></el-icon>
+              <span>库存</span>
+            </button>
+            <button
+              type="button"
+              class="mobile-text-action detail-action"
+              @click="openDetailDialog(program)"
+            >
+              <el-icon><ArrowRight /></el-icon>
+              <span>详情</span>
+            </button>
+          </div>
+
           <div class="showcase-card-actions footer-actions ref-action-group">
-            <el-tooltip content="编辑备注" placement="top">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openNoteDialog(program)">
+            <el-tooltip content="编辑备注" placement="top" :disabled="isTouchLayout">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" title="编辑备注" @click="openNoteDialog(program)">
                 <el-icon><EditPen /></el-icon>
               </button>
             </el-tooltip>
 
-            <el-tooltip :content="program.has_stock ? '查看库存' : '暂无库存可查看'" placement="top">
-              <span class="action-tooltip-wrap">
+            <!-- Desktop-only icon for stock; mobile uses labeled button above -->
+            <el-tooltip :content="program.has_stock ? '查看库存' : '暂无库存可查看'" placement="top" :disabled="isTouchLayout">
+              <span class="action-tooltip-wrap desktop-only-action">
                 <button
                   type="button"
                   class="showcase-icon-button ref-action-button icon-plain-button"
                   :class="{ 'is-disabled-action': !program.has_stock }"
                   :disabled="!program.has_stock"
+                  :title="program.has_stock ? '查看库存' : '暂无库存可查看'"
                   @click="program.has_stock ? openStockDialog(program) : undefined"
                 >
                   <el-icon><Box /></el-icon>
@@ -324,11 +348,12 @@
               </span>
             </el-tooltip>
 
-            <el-tooltip :content="program.is_favorite ? '取消收藏' : '加入收藏'" placement="top">
+            <el-tooltip :content="program.is_favorite ? '取消收藏' : '加入收藏'" placement="top" :disabled="isTouchLayout">
               <button
                 type="button"
                 class="showcase-icon-button ref-action-button favorite-toggle ref-action-button-favorite icon-plain-button"
                 :class="{ active: program.is_favorite }"
+                :title="program.is_favorite ? '取消收藏' : '加入收藏'"
                 @click="toggleFavorite(program)"
               >
                 <el-icon v-if="updatingProgramId !== program.program_id"><Star /></el-icon>
@@ -336,14 +361,20 @@
               </button>
             </el-tooltip>
 
-            <el-tooltip :content="(program.tags || []).length ? '编辑标签' : '添加标签'" placement="top">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openTagsDialog(program)">
+            <el-tooltip :content="(program.tags || []).length ? '编辑标签' : '添加标签'" placement="top" :disabled="isTouchLayout">
+              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" title="编辑标签" @click="openTagsDialog(program)">
                 <el-icon><CollectionTag /></el-icon>
               </button>
             </el-tooltip>
 
-            <el-tooltip content="查看详情" placement="top">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" @click="openDetailDialog(program)">
+            <!-- Desktop-only icon for detail; mobile uses labeled button above -->
+            <el-tooltip content="查看详情" placement="top" :disabled="isTouchLayout">
+              <button
+                type="button"
+                class="showcase-icon-button ref-action-button icon-plain-button desktop-only-action"
+                title="查看详情"
+                @click="openDetailDialog(program)"
+              >
                 <el-icon><ArrowRight /></el-icon>
               </button>
             </el-tooltip>
@@ -385,7 +416,12 @@
       <span v-else class="infinite-status-text">继续下滑可自动加载更多</span>
     </div>
 
-    <el-dialog v-model="noteDialogVisible" title="编辑备注" width="560px" class="showcase-dialog">
+    <el-dialog
+      v-model="noteDialogVisible"
+      title="编辑备注"
+      :width="viewportWidth <= 640 ? '94%' : '560px'"
+      class="showcase-dialog"
+    >
       <div class="showcase-dialog-body">
         <div class="showcase-dialog-intro">
           <div>
@@ -415,7 +451,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="tagsDialogVisible" title="编辑标签" width="620px" class="showcase-dialog showcase-tags-dialog">
+    <el-dialog
+      v-model="tagsDialogVisible"
+      title="编辑标签"
+      :width="viewportWidth <= 640 ? '94%' : '620px'"
+      class="showcase-dialog showcase-tags-dialog"
+    >
       <div class="tags-dialog-body">
         <div class="tags-dialog-intro">
           <div>
@@ -484,14 +525,16 @@
     <el-dialog
       v-model="detailDialogVisible"
       :title="detailDialogTitle"
-      width="1040px"
-      top="5vh"
+      :width="dialogWidth"
+      :top="dialogTop"
+      :fullscreen="isCompactDialog"
       class="showcase-dialog showcase-detail-dialog"
+      destroy-on-close
     >
       <div class="showcase-dialog-body detail-dialog-body">
         <div class="showcase-dialog-intro">
           <div>
-            <div class="showcase-dialog-title">小程序详情</div>
+            <div class="showcase-dialog-title">{{ isAppList ? 'APP 详情' : '小程序详情' }}</div>
             <div class="showcase-dialog-subtitle">当前页查看积分排行与基础信息，无需跳转离开列表。</div>
           </div>
           <div class="stock-dialog-badges">
@@ -545,22 +588,31 @@
             </div>
             <el-table :data="detailRanking" stripe class="showcase-dialog-table">
               <el-table-column type="index" label="#" width="60" />
-              <el-table-column prop="nickname" label="昵称" min-width="140">
+              <el-table-column prop="nickname" label="昵称" min-width="120">
                 <template #default="scope">{{ scope.row.nickname || '未命名' }}</template>
               </el-table-column>
-              <el-table-column prop="wechat_id" label="微信号" min-width="180" />
-              <el-table-column prop="device" label="设备" min-width="120">
+              <!-- APP 排行优先展示手机号；小程序仍显示微信号 -->
+              <el-table-column v-if="isAppList" label="手机号" min-width="150">
+                <template #default="scope">{{ rankingPhone(scope.row) || '—' }}</template>
+              </el-table-column>
+              <el-table-column v-else label="微信号" min-width="160">
+                <template #default="scope">{{ rankingWechatId(scope.row) || '—' }}</template>
+              </el-table-column>
+              <el-table-column v-if="isAppList" label="微信号" min-width="140">
+                <template #default="scope">{{ rankingWechatId(scope.row) || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="device" label="设备" min-width="100">
                 <template #default="scope">{{ scope.row.device || '—' }}</template>
               </el-table-column>
-              <el-table-column prop="points" label="积分" width="110">
+              <el-table-column prop="points" label="积分" width="100">
                 <template #default="scope">{{ scope.row.points ?? 0 }}</template>
               </el-table-column>
-              <el-table-column prop="cash" label="现金" width="110">
+              <el-table-column prop="cash" label="现金" width="100">
                 <template #default="scope">
                   {{ scope.row.cash == null || scope.row.cash === '' ? '—' : `¥${scope.row.cash}` }}
                 </template>
               </el-table-column>
-              <el-table-column label="更新时间" min-width="180">
+              <el-table-column label="更新时间" min-width="160">
                 <template #default="scope">{{ formatDate(scope.row.report_time) }}</template>
               </el-table-column>
             </el-table>
@@ -580,18 +632,32 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="stockDialogVisible" :title="stockDialogTitle" width="1040px" top="5vh" class="showcase-dialog showcase-stock-dialog">
+    <el-dialog
+      v-model="stockDialogVisible"
+      :title="stockDialogTitle"
+      :width="dialogWidth"
+      :top="dialogTop"
+      :fullscreen="isCompactDialog"
+      class="showcase-dialog showcase-stock-dialog"
+      destroy-on-close
+    >
       <div class="showcase-dialog-body stock-dialog-body">
         <div class="showcase-dialog-intro">
           <div>
             <div class="showcase-dialog-title">库存详情总览</div>
             <div class="showcase-dialog-subtitle">
-              查看当前小程序商品库存、所需积分和最高用户积分；可兑换商品会优先高亮展示。
+              查看当前小程序商品库存、兑换价格（积分 / 积分+钱）和最高用户资产；可兑换商品会优先高亮展示。
             </div>
           </div>
           <div class="stock-dialog-badges">
             <div class="showcase-dialog-badge stock-badge">商品 {{ stockData?.product_count ?? 0 }}</div>
             <div class="showcase-dialog-badge stock-badge">最高积分 {{ stockData?.max_user_points ?? 0 }}</div>
+            <div
+              v-if="stockData?.max_user_cash != null && stockData?.max_user_cash !== ''"
+              class="showcase-dialog-badge stock-badge"
+            >
+              最高现金 ¥{{ formatCashNumber(stockData.max_user_cash) }}
+            </div>
             <div class="showcase-dialog-badge stock-badge success-badge">可兑换 {{ redeemableProductCount }}</div>
             <div v-if="stockData?.stock_change?.added_count" class="showcase-dialog-badge stock-badge success-badge">+{{ stockData.stock_change.added_count }}</div>
             <div v-if="stockData?.stock_change?.removed_count" class="showcase-dialog-badge stock-badge warning-badge">-{{ stockData.stock_change.removed_count }}</div>
@@ -610,6 +676,12 @@
             <div class="stock-summary-card dialog-panel">
               <div class="stock-summary-label">当前最高用户积分</div>
               <div class="stock-summary-value">{{ stockData?.max_user_points ?? 0 }}</div>
+            </div>
+            <div class="stock-summary-card dialog-panel">
+              <div class="stock-summary-label">当前最高用户现金</div>
+              <div class="stock-summary-value">
+                {{ stockData?.max_user_cash == null || stockData?.max_user_cash === '' ? '—' : `¥${formatCashNumber(stockData.max_user_cash)}` }}
+              </div>
             </div>
             <div class="stock-summary-card dialog-panel">
               <div class="stock-summary-label">较昨日新增商品</div>
@@ -649,7 +721,7 @@
               <div v-for="item in stockData.changed_products" :key="`${item.change_type}-${item.product_id}`" class="stock-change-item">
                 <div class="stock-change-main">
                   <span class="stock-change-name">{{ item.product_name }}</span>
-                  <span class="stock-change-meta">{{ item.points || 0 }} 积分</span>
+                  <span class="stock-change-meta">{{ formatProductPrice(item) }}</span>
                 </div>
                 <div class="stock-change-side">
                   <el-tag :type="item.change_type === 'added' ? 'success' : 'warning'">
@@ -664,7 +736,7 @@
             <div class="stock-section-title-row">
               <div class="stock-section-title">当前在架商品</div>
               <div class="stock-section-hint">
-                按最高积分 {{ stockMaxUserPoints }} 判断：可兑换优先，不可兑换靠后
+                按最高积分 {{ stockMaxUserPoints }}{{ stockMaxUserCash != null ? ` / 现金 ¥${formatCashNumber(stockMaxUserCash)}` : '' }} 判断：可兑换优先，不可兑换靠后
               </div>
             </div>
             <el-table
@@ -706,18 +778,22 @@
                       effect="plain"
                       round
                     >
-                      积分不足
+                      {{ getRedeemBlockedLabel(scope.row) }}
                     </el-tag>
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column prop="points" label="所需积分" width="120" />
+              <el-table-column label="兑换价格" min-width="150">
+                <template #default="scope">
+                  {{ formatProductPrice(scope.row) }}
+                </template>
+              </el-table-column>
               <el-table-column prop="stock" label="库存" width="100">
                 <template #default="scope">
                   <el-tag :type="scope.row.stock > 0 ? 'success' : 'danger'">{{ scope.row.stock }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="差额" width="120">
+              <el-table-column label="差额" width="140">
                 <template #default="scope">
                   <span
                     class="stock-points-gap"
@@ -745,7 +821,31 @@ const router = useRouter()
 const route = useRoute()
 const pageSize = 20
 const loadMoreSentinel = ref(null)
-const PROGRAMS_PAGE_STATE_KEY = 'programs-page-state'
+
+// Reuse this page for both 小程序列表 (kind=mini) and APP列表 (kind=app).
+const listKind = computed(() => (route.meta?.listKind === 'app' ? 'app' : 'mini'))
+const isAppList = computed(() => listKind.value === 'app')
+const entityLabel = computed(() => (isAppList.value ? 'APP' : '小程序'))
+const PROGRAMS_PAGE_STATE_KEY = computed(() =>
+  isAppList.value ? 'apps-page-state' : 'programs-page-state',
+)
+
+function isPhoneLike(value) {
+  return /^1[3-9]\d{9}$/.test(String(value || '').trim())
+}
+
+function rankingPhone(row) {
+  const phone = String(row?.phone || '').trim()
+  if (phone) return phone
+  const wid = String(row?.wechat_id || '').trim()
+  return isPhoneLike(wid) ? wid : ''
+}
+
+function rankingWechatId(row) {
+  const wid = String(row?.wechat_id || '').trim()
+  if (!wid || isPhoneLike(wid)) return ''
+  return wid
+}
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -783,13 +883,30 @@ const stockData = ref(null)
 let observer = null
 let restoringState = false
 
+const TOUCH_LAYOUT_MAX = 768
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
+const isTouchLayout = computed(() => viewportWidth.value <= TOUCH_LAYOUT_MAX)
+const isCompactDialog = computed(() => viewportWidth.value <= 640)
+const dialogWidth = computed(() => {
+  if (viewportWidth.value <= 640) return '100%'
+  if (viewportWidth.value <= 900) return '94%'
+  return '1040px'
+})
+const dialogTop = computed(() => (viewportWidth.value <= 900 ? '2vh' : '5vh'))
+
+function handleViewportResize() {
+  viewportWidth.value = window.innerWidth
+}
+
 const stockDialogTitle = computed(() => {
   if (!stockData.value?.program_name) return '库存详情'
   return `${stockData.value.program_name} - 库存详情`
 })
 
 const detailDialogTitle = computed(() => {
-  if (!detailData.value?.program_name && !detailData.value?.program_id) return '小程序详情'
+  if (!detailData.value?.program_name && !detailData.value?.program_id) {
+    return isAppList.value ? 'APP 详情' : '小程序详情'
+  }
   return `${detailData.value.program_name || detailData.value.program_id} - 详情`
 })
 
@@ -806,37 +923,85 @@ const detailRanking = computed(() => {
 })
 
 const stockMaxUserPoints = computed(() => Number(stockData.value?.max_user_points) || 0)
+const stockMaxUserCash = computed(() => {
+  const value = stockData.value?.max_user_cash
+  if (value == null || value === '') return null
+  const num = Number(value)
+  return Number.isNaN(num) ? null : num
+})
 
-function isProductRedeemable(product, maxPoints = stockMaxUserPoints.value) {
+function formatCashNumber(value) {
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '0'
+  return amount.toFixed(2).replace(/\.?0+$/, '')
+}
+
+function formatProductPrice(product) {
+  const points = Number(product?.points) || 0
+  const cash = Number(product?.cash) || 0
+  if (cash > 0 && points > 0) return `${points} 积分 + ¥${formatCashNumber(cash)}`
+  if (cash > 0) return `¥${formatCashNumber(cash)}`
+  return `${points} 积分`
+}
+
+function isProductRedeemable(product, maxPoints = stockMaxUserPoints.value, maxCash = stockMaxUserCash.value) {
   const needPoints = Number(product?.points) || 0
+  const needCash = Number(product?.cash) || 0
   const stock = Number(product?.stock) || 0
-  return stock > 0 && needPoints <= maxPoints
+  if (stock <= 0) return false
+  if (needPoints > maxPoints) return false
+  // 积分加钱购：现金维度也要够；没有上报过现金时，需要钱的商品视为不可兑。
+  if (needCash > 0) {
+    if (maxCash == null) return false
+    if (needCash > maxCash) return false
+  }
+  return true
+}
+
+function getRedeemBlockedLabel(product, maxPoints = stockMaxUserPoints.value, maxCash = stockMaxUserCash.value) {
+  const stock = Number(product?.stock) || 0
+  if (stock <= 0) return '无货'
+  const needPoints = Number(product?.points) || 0
+  const needCash = Number(product?.cash) || 0
+  const pointsShort = needPoints > maxPoints
+  const cashShort = needCash > 0 && (maxCash == null || needCash > maxCash)
+  if (pointsShort && cashShort) return '积分/现金不足'
+  if (cashShort) return '现金不足'
+  if (pointsShort) return '积分不足'
+  return '不可兑换'
 }
 
 const sortedStockProducts = computed(() => {
   const products = Array.isArray(stockData.value?.products) ? [...stockData.value.products] : []
   const maxPoints = stockMaxUserPoints.value
+  const maxCash = stockMaxUserCash.value
 
   return products.sort((a, b) => {
     const aPoints = Number(a?.points) || 0
     const bPoints = Number(b?.points) || 0
+    const aCash = Number(a?.cash) || 0
+    const bCash = Number(b?.cash) || 0
     const aStock = Number(a?.stock) || 0
     const bStock = Number(b?.stock) || 0
-    const aRedeemable = isProductRedeemable(a, maxPoints)
-    const bRedeemable = isProductRedeemable(b, maxPoints)
+    const aRedeemable = isProductRedeemable(a, maxPoints, maxCash)
+    const bRedeemable = isProductRedeemable(b, maxPoints, maxCash)
 
     // 可兑换优先
     if (aRedeemable !== bRedeemable) return aRedeemable ? -1 : 1
     // 有货优先于无货
     if ((aStock > 0) !== (bStock > 0)) return aStock > 0 ? -1 : 1
-    // 可兑换：积分高的更“值钱”靠前；不可兑换：差额小的靠前
+    // 可兑换：积分高的更“值钱”靠前；同积分时现金高的靠前
     if (aRedeemable && bRedeemable) {
       if (bPoints !== aPoints) return bPoints - aPoints
+      if (bCash !== aCash) return bCash - aCash
     } else {
       const aGap = Math.max(0, aPoints - maxPoints)
       const bGap = Math.max(0, bPoints - maxPoints)
       if (aGap !== bGap) return aGap - bGap
       if (aPoints !== bPoints) return aPoints - bPoints
+      const aCashGap = maxCash == null ? aCash : Math.max(0, aCash - maxCash)
+      const bCashGap = maxCash == null ? bCash : Math.max(0, bCash - maxCash)
+      if (aCashGap !== bCashGap) return aCashGap - bCashGap
     }
     return String(a?.product_name || '').localeCompare(String(b?.product_name || ''), 'zh-CN')
   })
@@ -928,12 +1093,12 @@ function savePageState() {
     hasMore: hasMore.value,
     scrollY: window.scrollY || window.pageYOffset || 0,
   }
-  sessionStorage.setItem(PROGRAMS_PAGE_STATE_KEY, JSON.stringify(state))
+  sessionStorage.setItem(PROGRAMS_PAGE_STATE_KEY.value, JSON.stringify(state))
 }
 
 function readPageState() {
   try {
-    const raw = sessionStorage.getItem(PROGRAMS_PAGE_STATE_KEY)
+    const raw = sessionStorage.getItem(PROGRAMS_PAGE_STATE_KEY.value)
     if (!raw) return null
     return JSON.parse(raw)
   } catch {
@@ -995,7 +1160,7 @@ async function openDetailDialog(program) {
     }
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载小程序详情失败')
+    ElMessage.error(isAppList.value ? '加载 APP 详情失败' : '加载小程序详情失败')
   } finally {
     detailLoading.value = false
   }
@@ -1125,7 +1290,7 @@ function isUpdatedToday(value) {
 }
 
 function getRequestParams(nextPage = 1) {
-  const params = { page: nextPage, size: pageSize }
+  const params = { page: nextPage, size: pageSize, kind: listKind.value }
   const keyword = searchKeyword.value.trim()
   if (keyword) params.q = keyword
   if (favoriteFilter.value === 'favorite') params.is_favorite = true
@@ -1162,7 +1327,7 @@ async function fetchPrograms(nextPage = 1, append = false) {
     console.error(error)
     loadError.value = true
     if (!append) programs.value = []
-    ElMessage.error('加载小程序列表失败')
+    ElMessage.error(isAppList.value ? '加载 APP 列表失败' : '加载小程序列表失败')
   } finally {
     loading.value = false
     loadingMore.value = false
@@ -1362,11 +1527,20 @@ async function toggleFavorite(program) {
 
 function formatPointsGap(product) {
   const maxPoints = stockMaxUserPoints.value
+  const maxCash = stockMaxUserCash.value
   const needPoints = Number(product?.points) || 0
+  const needCash = Number(product?.cash) || 0
   const stock = Number(product?.stock) || 0
   if (stock <= 0) return '无货'
-  if (needPoints <= maxPoints) return '可兑'
-  return `差 ${needPoints - maxPoints}`
+  if (isProductRedeemable(product, maxPoints, maxCash)) return '可兑'
+
+  const parts = []
+  if (needPoints > maxPoints) parts.push(`积分差 ${needPoints - maxPoints}`)
+  if (needCash > 0) {
+    if (maxCash == null) parts.push(`需现金 ¥${formatCashNumber(needCash)}`)
+    else if (needCash > maxCash) parts.push(`现金差 ¥${formatCashNumber(needCash - maxCash)}`)
+  }
+  return parts.length ? parts.join(' / ') : '不可兑'
 }
 
 function stockRowClassName({ row }) {
@@ -1396,7 +1570,7 @@ async function deleteProgram(program) {
 
   try {
     await ElMessageBox.confirm(
-      `确定删除小程序“${program.program_name || program.program_id}”吗？该操作会同时删除相关库存和积分记录。`,
+      `确定删除${entityLabel.value}“${program.program_name || program.program_id}”吗？该操作会同时删除相关库存和积分记录。`,
       '删除确认',
       {
         confirmButtonText: '确认删除',
@@ -1418,10 +1592,10 @@ async function deleteProgram(program) {
       programs.value.flatMap((item) => normalizeTags(item.tags || [])),
       availableTags.value,
     )
-    ElMessage.success('小程序已删除')
+    ElMessage.success(isAppList.value ? 'APP 已删除' : '小程序已删除')
   } catch (error) {
     console.error(error)
-    ElMessage.error('删除小程序失败')
+    ElMessage.error(isAppList.value ? '删除 APP 失败' : '删除小程序失败')
   } finally {
     deletingProgramId.value = ''
   }
@@ -1474,7 +1648,28 @@ watch(() => programs.value.length, async (value) => {
   initInfiniteScroll()
 })
 
+// Same component for /programs and /apps — reload when kind switches.
+watch(
+  () => listKind.value,
+  async () => {
+    searchKeyword.value = ''
+    favoriteFilter.value = 'all'
+    statusFilter.value = 'active'
+    qlStatusFilter.value = 'all'
+    sortFilter.value = 'default'
+    currentTag.value = ''
+    programs.value = []
+    page.value = 1
+    hasMore.value = false
+    total.value = 0
+    await fetchPrograms(1, false)
+  },
+)
+
 onMounted(async () => {
+  window.addEventListener('resize', handleViewportResize, { passive: true })
+  handleViewportResize()
+
   const validStatus = new Set(['active', 'archived', 'all'])
   const queryStatus = typeof route.query.status === 'string' ? route.query.status : ''
   const hasExplicitStatusQuery = validStatus.has(queryStatus)
@@ -1490,6 +1685,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleViewportResize)
   destroyInfiniteScroll()
 })
 </script>
@@ -2797,9 +2993,55 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+/* Mobile labeled stock/detail buttons — hidden on desktop */
+.mobile-primary-actions {
+  display: none;
+}
+
+.mobile-text-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fff8ef, #fff1df);
+  color: #8b5e34;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(232, 210, 184, 0.85);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mobile-text-action :deep(.el-icon) {
+  font-size: 16px;
+}
+
+.mobile-text-action.detail-action {
+  background: linear-gradient(135deg, #f0c37c, #d9a25f);
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(219, 162, 88, 0.22);
+}
+
+.mobile-text-action.is-disabled-action,
+.mobile-text-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: rgba(245, 240, 232, 0.95);
+  color: #b7a28a;
+}
+
 .showcase-icon-button {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border: 0;
   border-radius: 12px;
   display: inline-flex;
@@ -2810,6 +3052,8 @@ onBeforeUnmount(() => {
   box-shadow: none;
   cursor: pointer;
   transition: color 0.18s ease, transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .ref-action-button {
@@ -3147,14 +3391,54 @@ onBeforeUnmount(() => {
     align-items: stretch;
   }
 
+  .showcase-card-footer.compact-footer {
+    gap: 10px;
+  }
+
+  .showcase-footer-meta {
+    width: 100%;
+  }
+
+  /* Primary labeled actions for stock / detail */
+  .mobile-primary-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .mobile-text-action {
+    width: 100%;
+    min-height: 44px; /* comfortable touch target */
+  }
+
   .showcase-card-actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    flex-wrap: nowrap;
     width: 100%;
   }
 
   .ref-action-group {
-    gap: 8px;
+    gap: 4px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .desktop-only-action {
+    display: none !important;
+  }
+
+  .showcase-icon-button,
+  .icon-plain-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 14px;
+  }
+
+  .icon-plain-button :deep(.el-icon) {
+    font-size: 20px;
   }
 
   .compact-footer,
@@ -3164,11 +3448,66 @@ onBeforeUnmount(() => {
   }
 
   .footer-actions {
-    justify-content: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px;
   }
 
-  .detail-info-grid {
+  .detail-info-grid,
+  .stock-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .showcase-dialog-intro {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .stock-dialog-badges {
+    flex-wrap: wrap;
+  }
+
+  .showcase-dialog :deep(.el-dialog) {
+    margin: 0 auto;
+    max-width: 100vw;
+  }
+
+  .showcase-dialog :deep(.el-dialog__body) {
+    max-height: min(78vh, 720px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .showcase-dialog.is-fullscreen :deep(.el-dialog__body) {
+    max-height: none;
+  }
+
+  .showcase-dialog-table {
+    width: 100%;
+  }
+
+  .showcase-dialog-table :deep(.el-table) {
+    width: 100% !important;
+  }
+
+  .showcase-dialog-table :deep(.el-table__body-wrapper) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-primary-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .showcase-footer-time {
+    font-size: 11px;
+  }
+
+  .ref-action-group {
+    gap: 2px;
   }
 }
 </style>

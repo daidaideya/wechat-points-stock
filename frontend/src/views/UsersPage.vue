@@ -27,6 +27,13 @@
           </div>
         </div>
         <div class="users-summary-card">
+          <div class="users-summary-icon" aria-hidden="true">📦</div>
+          <div class="users-summary-body">
+            <span class="users-summary-label">活跃 APP 总计</span>
+            <strong class="users-summary-value">{{ totalActiveApps }}</strong>
+          </div>
+        </div>
+        <div class="users-summary-card">
           <div class="users-summary-icon" aria-hidden="true">📱</div>
           <div class="users-summary-body">
             <span class="users-summary-label">已留手机号</span>
@@ -40,8 +47,11 @@
       <div class="users-list-head">
         <div>
           <h3 class="section-title compact">用户列表</h3>
-          <p class="section-description compact">桌面端支持表格查看，手机端自动切换为卡片布局。</p>
+          <p class="section-description compact">
+            按住左侧 <strong>⋮⋮</strong> 拖拽即可调整顺序，松手后自动保存。
+          </p>
         </div>
+        <div v-if="sorting" class="users-sort-saving">正在保存顺序…</div>
       </div>
 
       <el-skeleton v-if="loading" :rows="8" animated />
@@ -49,17 +59,37 @@
       <template v-else>
         <el-empty v-if="!items.length" description="暂无用户数据" />
 
-        <div v-else class="users-mobile-list">
-          <article v-for="(item, index) in items" :key="item.wechat_id" class="users-mobile-card">
+        <div v-else ref="mobileListRef" class="users-mobile-list">
+          <article
+            v-for="(item, index) in items"
+            :key="item.wechat_id"
+            class="users-mobile-card"
+            :data-wechat-id="item.wechat_id"
+          >
             <div class="users-mobile-card-top">
               <div class="users-mobile-identity">
+                <button
+                  type="button"
+                  class="users-drag-handle users-drag-handle-mobile"
+                  title="拖拽排序"
+                  aria-label="拖拽排序"
+                  @click.stop
+                >
+                  <el-icon><Rank /></el-icon>
+                </button>
                 <div class="users-avatar" :style="{ background: avatarColor(item) }">{{ avatarChar(item) }}</div>
                 <div class="users-mobile-title-wrap">
-                  <h3 class="users-mobile-title">{{ item.nickname || '未命名用户' }}</h3>
-                  <div class="users-mobile-subtitle">{{ item.wechat_id || '未设置微信号' }}</div>
+                  <h3 class="users-mobile-title">
+                    <span class="users-sort-index-inline">{{ index + 1 }}.</span>
+                    {{ displayName(item) }}
+                  </h3>
+                  <div class="users-mobile-subtitle">{{ displayPrimaryId(item) }}</div>
                 </div>
               </div>
-              <span class="users-mobile-count-chip">{{ item.active_program_count ?? 0 }} 个活跃小程序</span>
+              <div class="users-mobile-count-chips">
+                <span class="users-mobile-count-chip">小程序 {{ item.active_program_count ?? 0 }}</span>
+                <span class="users-mobile-count-chip app-chip">APP {{ item.active_app_count ?? 0 }}</span>
+              </div>
             </div>
 
             <div class="users-mobile-meta-grid">
@@ -69,19 +99,15 @@
               </div>
               <div class="users-mobile-meta-item">
                 <span class="users-mobile-meta-label">手机号</span>
-                <span class="users-mobile-meta-value">{{ item.phone || '未填写' }}</span>
+                <span class="users-mobile-meta-value">{{ displayPhone(item) || '未填写' }}</span>
+              </div>
+              <div v-if="displayWechatId(item)" class="users-mobile-meta-item">
+                <span class="users-mobile-meta-label">微信号</span>
+                <span class="users-mobile-meta-value">{{ displayWechatId(item) }}</span>
               </div>
             </div>
 
             <div class="users-mobile-actions">
-              <div class="users-mobile-actions-sort">
-                <el-tooltip content="上移" placement="top">
-                  <el-button size="small" circle :icon="ArrowUp" :disabled="index === 0 || sorting" @click="moveUser(index, -1)" />
-                </el-tooltip>
-                <el-tooltip content="下移" placement="top">
-                  <el-button size="small" circle :icon="ArrowDown" :disabled="index === items.length - 1 || sorting" @click="moveUser(index, 1)" />
-                </el-tooltip>
-              </div>
               <div class="users-mobile-actions-main">
                 <el-button size="small" @click="openEdit(item)">编辑</el-button>
                 <el-button size="small" @click="viewPoints(item)">积分</el-button>
@@ -100,44 +126,46 @@
         </div>
 
         <div v-if="items.length" class="users-desktop-table-wrap">
-          <el-table :data="items" stripe class="users-table">
-            <el-table-column label="顺序" width="120" align="center">
+          <el-table
+            ref="desktopTableRef"
+            :data="items"
+            stripe
+            row-key="wechat_id"
+            class="users-table"
+          >
+            <el-table-column label="排序" width="88" align="center">
               <template #default="scope">
                 <div class="users-sort-cell">
+                  <button
+                    type="button"
+                    class="users-drag-handle"
+                    title="拖拽排序"
+                    aria-label="拖拽排序"
+                    @click.stop
+                  >
+                    <el-icon><Rank /></el-icon>
+                  </button>
                   <span class="users-sort-index">{{ scope.$index + 1 }}</span>
-                  <el-tooltip content="上移" placement="top">
-                    <el-button
-                      size="small"
-                      circle
-                      :icon="ArrowUp"
-                      :disabled="scope.$index === 0 || sorting"
-                      @click="moveUser(scope.$index, -1)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="下移" placement="top">
-                    <el-button
-                      size="small"
-                      circle
-                      :icon="ArrowDown"
-                      :disabled="scope.$index === items.length - 1 || sorting"
-                      @click="moveUser(scope.$index, 1)"
-                    />
-                  </el-tooltip>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="昵称" min-width="200">
+            <el-table-column label="昵称" min-width="180">
               <template #default="scope">
                 <div class="users-table-identity">
                   <div class="users-avatar users-avatar-sm" :style="{ background: avatarColor(scope.row) }">{{ avatarChar(scope.row) }}</div>
-                  <span class="users-table-nickname">{{ scope.row.nickname || '未命名用户' }}</span>
+                  <span class="users-table-nickname">{{ displayName(scope.row) }}</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="wechat_id" label="微信号" min-width="200" />
+            <el-table-column label="手机号" min-width="150">
+              <template #default="scope">{{ displayPhone(scope.row) || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="微信号" min-width="180">
+              <template #default="scope">{{ displayWechatId(scope.row) || '—' }}</template>
+            </el-table-column>
             <el-table-column prop="device" label="设备" min-width="140" />
-            <el-table-column prop="phone" label="手机号" min-width="140" />
-            <el-table-column prop="active_program_count" label="活跃小程序" width="120" />
+            <el-table-column prop="active_program_count" label="活跃小程序" width="110" align="center" />
+            <el-table-column prop="active_app_count" label="活跃APP" width="100" align="center" />
             <el-table-column label="操作" width="240" fixed="right">
               <template #default="scope">
                 <el-button size="small" @click="openEdit(scope.row)">编辑</el-button>
@@ -221,9 +249,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowUp, Plus } from '@element-plus/icons-vue'
+import { Plus, Rank } from '@element-plus/icons-vue'
+import Sortable from 'sortablejs'
 import api from '../api'
 
 const loading = ref(false)
@@ -237,6 +266,12 @@ const items = ref([])
 const pointItems = ref([])
 const currentRow = ref(null)
 const pointsUser = ref(null)
+const mobileListRef = ref(null)
+const desktopTableRef = ref(null)
+
+let mobileSortable = null
+let desktopSortable = null
+let sortSaveTimer = null
 
 const form = reactive({
   wechat_id: '',
@@ -245,9 +280,50 @@ const form = reactive({
   phone: '',
 })
 
-const pointsTitle = computed(() => pointsUser.value ? `${pointsUser.value.nickname || pointsUser.value.wechat_id} - 积分详情` : '积分详情')
+const pointsTitle = computed(() => {
+  if (!pointsUser.value) return '积分详情'
+  return `${displayName(pointsUser.value)} - 积分详情`
+})
 const totalActivePrograms = computed(() => items.value.reduce((sum, item) => sum + Number(item.active_program_count || 0), 0))
-const usersWithPhone = computed(() => items.value.filter((item) => String(item.phone || '').trim()).length)
+const totalActiveApps = computed(() => items.value.reduce((sum, item) => sum + Number(item.active_app_count || 0), 0))
+const usersWithPhone = computed(() => items.value.filter((item) => Boolean(displayPhone(item))).length)
+
+function isPhoneLike(value) {
+  return /^1[3-9]\d{9}$/.test(String(value || '').trim())
+}
+
+/** Prefer phone column; fall back if legacy rows put phone into wechat_id. */
+function displayPhone(item) {
+  const phone = String(item?.phone || '').trim()
+  if (phone) return phone
+  const wid = String(item?.wechat_id || '').trim()
+  return isPhoneLike(wid) ? wid : ''
+}
+
+/** Real WeChat id only — hide when wechat_id is actually a phone number. */
+function displayWechatId(item) {
+  const wid = String(item?.wechat_id || '').trim()
+  if (!wid) return ''
+  if (isPhoneLike(wid)) return ''
+  return wid
+}
+
+function displayName(item) {
+  const nick = String(item?.nickname || '').trim()
+  if (nick) return nick
+  const phone = displayPhone(item)
+  if (phone) return phone
+  return displayWechatId(item) || '未命名用户'
+}
+
+function displayPrimaryId(item) {
+  const phone = displayPhone(item)
+  const wx = displayWechatId(item)
+  if (phone && wx) return `手机 ${phone}`
+  if (phone) return `手机 ${phone}`
+  if (wx) return `微信 ${wx}`
+  return '未设置账号标识'
+}
 
 function formatDate(value) {
   if (!value) return '暂无'
@@ -269,14 +345,14 @@ function formatCashCell(value) {
 }
 
 function avatarChar(item) {
-  const text = String(item?.nickname || item?.wechat_id || '?').trim()
+  const text = String(displayName(item) || '?').trim()
   if (!text) return '?'
   const first = Array.from(text)[0] || '?'
   return first.toUpperCase()
 }
 
 function avatarColor(item) {
-  const seed = String(item?.wechat_id || item?.nickname || '').trim()
+  const seed = String(displayPhone(item) || displayWechatId(item) || item?.nickname || '').trim()
   if (!seed) return 'linear-gradient(135deg, #e7b35a, #d89a3c)'
   let hash = 0
   for (let i = 0; i < seed.length; i++) {
@@ -334,7 +410,7 @@ async function saveUser() {
     })
     dialogVisible.value = false
     ElMessage.success('保存成功')
-    loadUsers()
+    await loadUsersAndBindSort()
   } catch (error) {
     console.error(error)
     ElMessage.error('保存用户失败')
@@ -369,7 +445,7 @@ async function removeUser(row) {
   try {
     await api.delete(`/accounts/${encodeURIComponent(wechatId)}`)
     ElMessage.success('删除成功')
-    await loadUsers()
+    await loadUsersAndBindSort()
   } catch (error) {
     console.error(error)
     const detail = error?.response?.data?.detail
@@ -394,32 +470,174 @@ async function viewPoints(row) {
   }
 }
 
-async function moveUser(index, delta) {
-  if (sorting.value) return
-  const targetIndex = index + delta
-  if (targetIndex < 0 || targetIndex >= items.value.length) return
+function destroySortables() {
+  if (mobileSortable) {
+    mobileSortable.destroy()
+    mobileSortable = null
+  }
+  if (desktopSortable) {
+    desktopSortable.destroy()
+    desktopSortable = null
+  }
+  if (sortSaveTimer) {
+    clearTimeout(sortSaveTimer)
+    sortSaveTimer = null
+  }
+}
 
-  // 乐观更新：本地先 swap，请求失败再回滚
-  const previousOrder = items.value.slice()
-  const next = items.value.slice()
-  ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
-  items.value = next
+function reorderByWechatIds(orderedIds) {
+  const map = new Map(items.value.map((item) => [item.wechat_id, item]))
+  const next = []
+  for (const id of orderedIds) {
+    const row = map.get(id)
+    if (row) next.push(row)
+  }
+  // Keep any rows missing from DOM (shouldn't happen) at the end.
+  for (const item of items.value) {
+    if (!orderedIds.includes(item.wechat_id)) next.push(item)
+  }
+  return next
+}
 
+async function persistSortOrder(nextItems, previousItems) {
   sorting.value = true
   try {
     await api.put('/accounts/sort-order', {
-      wechat_ids: next.map((item) => item.wechat_id),
+      wechat_ids: nextItems.map((item) => item.wechat_id),
     })
   } catch (error) {
     console.error(error)
-    items.value = previousOrder
+    items.value = previousItems
+    await nextTick()
+    initSortables()
     ElMessage.error('调整顺序失败，已回滚')
   } finally {
     sorting.value = false
   }
 }
 
-onMounted(loadUsers)
+function schedulePersistSort(nextItems, previousItems) {
+  // Debounce rapid consecutive drags.
+  if (sortSaveTimer) clearTimeout(sortSaveTimer)
+  sortSaveTimer = setTimeout(() => {
+    sortSaveTimer = null
+    persistSortOrder(nextItems, previousItems)
+  }, 120)
+}
+
+function onSortEnd(evt, mode) {
+  if (!evt || evt.oldIndex == null || evt.newIndex == null) return
+  if (evt.oldIndex === evt.newIndex) return
+  if (sorting.value) return
+
+  const previousItems = items.value.slice()
+  let orderedIds = []
+
+  if (mode === 'mobile') {
+    const root = mobileListRef.value
+    if (!root) return
+    orderedIds = Array.from(root.querySelectorAll('.users-mobile-card'))
+      .map((el) => el.getAttribute('data-wechat-id'))
+      .filter(Boolean)
+  } else {
+    // Sortable mutates tbody DOM; read row-key order back out.
+    const tbody = desktopTableRef.value?.$el?.querySelector?.('.el-table__body-wrapper tbody')
+    if (!tbody) return
+    orderedIds = Array.from(tbody.querySelectorAll('tr.el-table__row'))
+      .map((tr) => {
+        // Prefer data-wechat-id if present; else match by displayed order via row-key dataset
+        return tr.getAttribute('data-wechat-id')
+          || tr.dataset?.wechatId
+          || null
+      })
+      .filter(Boolean)
+
+    // Element Plus doesn't put wechat_id on tr by default — rebuild from indices.
+    if (orderedIds.length !== items.value.length) {
+      const next = items.value.slice()
+      const [moved] = next.splice(evt.oldIndex, 1)
+      next.splice(evt.newIndex, 0, moved)
+      items.value = next
+      schedulePersistSort(next, previousItems)
+      return
+    }
+  }
+
+  const next = reorderByWechatIds(orderedIds)
+  items.value = next
+  schedulePersistSort(next, previousItems)
+}
+
+function initMobileSortable() {
+  if (mobileSortable) {
+    mobileSortable.destroy()
+    mobileSortable = null
+  }
+  const el = mobileListRef.value
+  if (!el || !items.value.length) return
+  mobileSortable = Sortable.create(el, {
+    animation: 180,
+    handle: '.users-drag-handle',
+    draggable: '.users-mobile-card',
+    ghostClass: 'users-sortable-ghost',
+    chosenClass: 'users-sortable-chosen',
+    dragClass: 'users-sortable-drag',
+    forceFallback: true,
+    fallbackOnBody: true,
+    fallbackTolerance: 4,
+    onEnd: (evt) => onSortEnd(evt, 'mobile'),
+  })
+}
+
+function initDesktopSortable() {
+  if (desktopSortable) {
+    desktopSortable.destroy()
+    desktopSortable = null
+  }
+  const tableVm = desktopTableRef.value
+  const tbody = tableVm?.$el?.querySelector?.('.el-table__body-wrapper tbody')
+  if (!tbody || !items.value.length) return
+
+  desktopSortable = Sortable.create(tbody, {
+    animation: 180,
+    handle: '.users-drag-handle',
+    draggable: 'tr.el-table__row',
+    ghostClass: 'users-sortable-ghost',
+    chosenClass: 'users-sortable-chosen',
+    dragClass: 'users-sortable-drag',
+    forceFallback: true,
+    fallbackOnBody: true,
+    fallbackTolerance: 3,
+    onEnd: (evt) => onSortEnd(evt, 'desktop'),
+  })
+}
+
+async function initSortables() {
+  await nextTick()
+  // Wait a frame so el-table finishes rendering tbody rows.
+  requestAnimationFrame(() => {
+    initMobileSortable()
+    initDesktopSortable()
+  })
+}
+
+async function loadUsersAndBindSort() {
+  await loadUsers()
+  await initSortables()
+}
+
+watch(
+  () => items.value.length,
+  async () => {
+    await initSortables()
+  },
+)
+
+onMounted(loadUsersAndBindSort)
+
+onBeforeUnmount(() => {
+  destroySortables()
+})
 </script>
 
 <style scoped>
@@ -457,7 +675,7 @@ onMounted(loadUsers)
 .users-summary-grid {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -514,6 +732,17 @@ onMounted(loadUsers)
   margin-bottom: 14px;
 }
 
+.users-sort-saving {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.14);
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .users-desktop-table-wrap,
 .users-points-desktop-table-wrap {
   display: block;
@@ -540,8 +769,46 @@ onMounted(loadUsers)
 .users-sort-cell {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   justify-content: center;
+}
+
+.users-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(231, 179, 90, 0.14);
+  color: #a16207;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.users-drag-handle:hover {
+  background: rgba(231, 179, 90, 0.28);
+  color: #92400e;
+}
+
+.users-drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.96);
+}
+
+.users-drag-handle :deep(.el-icon) {
+  font-size: 16px;
+}
+
+.users-drag-handle-mobile {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
 }
 
 .users-sort-index {
@@ -556,6 +823,30 @@ onMounted(loadUsers)
   color: #b87718;
   font-size: 12px;
   font-weight: 700;
+}
+
+.users-sort-index-inline {
+  margin-right: 4px;
+  color: #b87718;
+  font-weight: 700;
+}
+
+.users-sortable-ghost {
+  opacity: 0.45;
+}
+
+.users-sortable-chosen {
+  box-shadow: 0 10px 24px rgba(145, 109, 61, 0.16);
+}
+
+.users-sortable-drag {
+  opacity: 0.95;
+}
+
+/* Sortable fallback clone (forceFallback) */
+:global(.sortable-fallback.users-sortable-drag),
+:global(.sortable-fallback) {
+  opacity: 0.95 !important;
 }
 
 .users-table-identity {
@@ -621,7 +912,7 @@ onMounted(loadUsers)
   }
 
   .users-summary-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .users-desktop-table-wrap,
@@ -656,9 +947,15 @@ onMounted(loadUsers)
   .users-mobile-identity {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     min-width: 0;
     flex: 1;
+  }
+
+  .users-mobile-card.users-sortable-chosen,
+  .users-mobile-card.users-sortable-drag {
+    border-color: rgba(231, 179, 90, 0.9);
+    box-shadow: 0 14px 28px rgba(145, 109, 61, 0.14);
   }
 
   .users-mobile-title-wrap {
@@ -683,6 +980,13 @@ onMounted(loadUsers)
     word-break: break-all;
   }
 
+  .users-mobile-count-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
   .users-mobile-count-chip {
     flex: 0 0 auto;
     padding: 8px 12px;
@@ -692,6 +996,11 @@ onMounted(loadUsers)
     font-size: 12px;
     font-weight: 700;
     white-space: nowrap;
+  }
+
+  .users-mobile-count-chip.app-chip {
+    background: rgba(96, 165, 250, 0.16);
+    color: #2563eb;
   }
 
   .users-mobile-meta-grid {
