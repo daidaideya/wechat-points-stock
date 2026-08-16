@@ -1,9 +1,9 @@
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.services import cleanup_service
 from app.routers.stock import ensure_product_columns
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 import uuid
 import re
@@ -195,26 +195,8 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
         db.flush()
 
     report_timestamp = report.products[0].last_updated if report.products and report.products[0].last_updated else datetime.utcnow()
-    report_day_start = datetime.combine(report_timestamp.date(), datetime.min.time())
     current_report_product_ids = set()
     updated_products = []
-
-    # 与「最近一次有报告的那天」对比，找出本次没出现的老商品。
-    # 如果今天已经报过一次，再次跑这次报告时不应自相对比，所以排除掉今天的 history。
-    last_reporting_time = db.query(func.max(models.StockHistory.change_time)).filter(
-        models.StockHistory.program_id == report.program_id,
-        models.StockHistory.change_time < report_day_start,
-    ).scalar()
-    last_reporting_product_ids = set()
-    if last_reporting_time:
-        last_reporting_day_start = datetime.combine(last_reporting_time.date(), datetime.min.time())
-        last_reporting_day_end = last_reporting_day_start + timedelta(days=1)
-        rows = db.query(models.StockHistory.product_id).filter(
-            models.StockHistory.program_id == report.program_id,
-            models.StockHistory.change_time >= last_reporting_day_start,
-            models.StockHistory.change_time < last_reporting_day_end,
-        ).distinct().all()
-        last_reporting_product_ids = {row.product_id for row in rows}
 
     for prod_data in report.products:
         # Determine product_id
@@ -292,18 +274,23 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
             db.add(history)
             updated_products.append(p_id)
 
-    # 上次有报告时存在、本次没出现 → 自动下架。注意只动 is_unlisted，不污染 is_hidden。
-    products_to_unlist = last_reporting_product_ids - current_report_product_ids
-    if products_to_unlist:
-        products = db.query(models.Product).filter(
+    # 全量快照语义：本次报告 = 该小程序当前全部在架商品。
+    # 当前仍在架（is_unlisted=0）但本次没出现的商品 → 自动下架。只动 is_unlisted，不污染 is_hidden。
+    # 注意：不再用 stock_history 做「与昨天对比」——history 只在新建/库存变化时写入，
+    # 库存一直不变的商品不会留痕，旧逻辑会永远漏掉它们，导致失效/重复商品一直挂在在架列表里。
+    # 空报告（脚本异常抓了 0 个商品）跳过下架，避免误清空整个小程序。
+    products_to_unlist = set()
+    if report.products:
+        active_products = db.query(models.Product).filter(
             models.Product.program_id == report.program_id,
-            models.Product.product_id.in_(products_to_unlist)
+            or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
         ).all()
-        for product in products:
-            if not product.is_unlisted:
+        for product in active_products:
+            if product.product_id not in current_report_product_ids:
                 product.is_unlisted = 1
                 product.unlisted_at = report_timestamp
                 db.add(product)
+                products_to_unlist.add(product.product_id)
 
     # Prune history
     try:
