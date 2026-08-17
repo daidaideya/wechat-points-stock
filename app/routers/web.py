@@ -174,6 +174,10 @@ def ensure_runtime_schema(db: Session):
     ensure_mini_program_columns(db)
     cleanup_service.ensure_points_history_columns(db)
     cleanup_service.ensure_system_settings_columns(db)
+    # Product flags are introduced lazily by the stock router but are also
+    # needed by the program/dashboard UI filters.
+    from app.routers.stock import ensure_product_columns
+    ensure_product_columns(db)
 
 
 _INDEXES_ENSURED = False
@@ -276,7 +280,9 @@ def get_program_has_stock_map(db: Session, program_ids: List[str]):
         return has_stock_map
 
     stock_rows = db.query(models.Product.program_id).filter(
-        models.Product.program_id.in_(program_ids)
+        models.Product.program_id.in_(program_ids),
+        or_(models.Product.is_hidden == 0, models.Product.is_hidden.is_(None)),
+        or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
     ).distinct().all()
     has_stock_ids = {row[0] for row in stock_rows}
     for program_id in program_ids:
@@ -474,6 +480,7 @@ def get_program_stock_summary_map(db: Session, program_ids: List[str]):
     ).filter(
         models.Product.program_id.in_(program_ids),
         or_(models.Product.is_hidden == 0, models.Product.is_hidden.is_(None)),
+        or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
     ).group_by(models.Product.program_id).all()
 
     summary_map = {program_id: {"product_count": 0} for program_id in program_ids}
@@ -851,6 +858,8 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
               COALESCE(SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END), 0) AS out_of_stock,
               COALESCE(SUM(CASE WHEN image_local_path IS NOT NULL AND image_local_path != '' THEN 1 ELSE 0 END), 0) AS cached_images
             FROM products
+            WHERE (is_hidden = 0 OR is_hidden IS NULL)
+              AND (is_unlisted = 0 OR is_unlisted IS NULL)
             """
         )
     ).one()
@@ -1787,7 +1796,11 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     from app.routers.stock import ensure_product_columns
     ensure_product_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
-    products = db.query(models.Product).filter(models.Product.program_id == program_id).all()
+    products = db.query(models.Product).filter(
+        models.Product.program_id == program_id,
+        or_(models.Product.is_hidden == 0, models.Product.is_hidden.is_(None)),
+        or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
+    ).all()
 
     tz_offset = timedelta(hours=8)
     now_cst = datetime.utcnow() + tz_offset
@@ -1846,7 +1859,7 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     changed_lookup = {}
 
     for product in products:
-        is_visible = product.is_hidden in (0, None)
+        is_visible = product.is_hidden in (0, None) and product.is_unlisted in (0, None)
         change_type = None
         if should_show_changes and product.product_id in added_product_ids:
             change_type = "added"
