@@ -2027,6 +2027,115 @@ async def update_program(program_id: str, update: ProgramUpdate, db: Session = D
     })
 
 
+@router.get("/api/v1/qinglong/crons")
+async def list_qinglong_crons(
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Fetch all cron tasks from the QingLong panel (live, not DB mirror)."""
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    base_url = (settings.ql_base_url or "").strip()
+    client_id = (settings.ql_client_id or "").strip()
+    client_secret = (settings.ql_client_secret or "").strip()
+    if not base_url or not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="未配置青龙 OpenAPI（需要 URL / Client ID / Client Secret）")
+
+    try:
+        token = qinglong_open_service.get_token(base_url, client_id, client_secret)
+        rows = qinglong_open_service.list_crons(base_url, token)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"拉取青龙任务失败: {exc}")
+
+    items = []
+    for cron in rows:
+        schedule = str(cron.get("schedule") or "").strip()
+        items.append({
+            "id": cron.get("id"),
+            "name": cron.get("name") or "",
+            "command": cron.get("command") or "",
+            "schedule": schedule,
+            "is_disabled": int(cron.get("isDisabled") or 0),
+            "is_system": int(cron.get("isSystem") or 0),
+            "is_pinned": int(cron.get("isPinned") or 0),
+            "last_running_time": cron.get("last_running_time") or 0,
+            "last_execution_time": cron.get("last_execution_time"),
+            "earliest_minute": parse_cron_earliest_minute(schedule),
+        })
+    return JSONResponse(content={"status": "success", "total": len(items), "items": items})
+
+
+class QinglongCronScheduleUpdate(BaseModel):
+    id: object
+    schedule: str
+
+
+class QinglongCronBatchUpdate(BaseModel):
+    items: List[QinglongCronScheduleUpdate]
+
+
+@router.post("/api/v1/qinglong/crons/schedules")
+async def update_qinglong_cron_schedules(
+    payload: QinglongCronBatchUpdate,
+    x_access_key: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Batch update cron schedules on the QingLong panel, then resync mirror."""
+    settings = cleanup_service.get_or_create_settings(db)
+    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
+        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
+
+    base_url = (settings.ql_base_url or "").strip()
+    client_id = (settings.ql_client_id or "").strip()
+    client_secret = (settings.ql_client_secret or "").strip()
+    if not base_url or not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="未配置青龙 OpenAPI（需要 URL / Client ID / Client Secret）")
+
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="没有需要更新的任务")
+    if len(payload.items) > 500:
+        raise HTTPException(status_code=400, detail="单次最多更新 500 个任务")
+
+    cleaned = []
+    for item in payload.items:
+        schedule = (item.schedule or "").strip()
+        fields = schedule.split()
+        if len(fields) < 5 or len(fields) > 6:
+            raise HTTPException(status_code=400, detail=f"无效的 cron 表达式: {schedule!r}")
+        cleaned.append({"id": item.id, "schedule": schedule[:100]})
+
+    try:
+        token = qinglong_open_service.get_token(base_url, client_id, client_secret)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"青龙鉴权失败: {exc}")
+
+    updated, failed = 0, []
+    for item in cleaned:
+        try:
+            qinglong_open_service.update_cron_schedule(base_url, token, item["id"], item["schedule"])
+            updated += 1
+        except Exception as exc:
+            failed.append({"id": item["id"], "schedule": item["schedule"], "error": str(exc)})
+
+    # Refresh the local mirror so 小程序列表 reflects new schedules immediately.
+    sync_result = None
+    if updated:
+        try:
+            ensure_mini_program_columns(db)
+            sync_result = qinglong_open_service.sync_cron_status(db)
+        except Exception as exc:
+            sync_result = {"status": "error", "message": str(exc)}
+
+    return JSONResponse(content={
+        "status": "success" if not failed else "partial",
+        "updated": updated,
+        "failed": failed,
+        "sync": sync_result,
+    })
+
+
 @router.delete("/api/v1/programs/{program_id}")
 async def delete_program(program_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)

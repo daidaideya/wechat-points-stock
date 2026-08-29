@@ -88,6 +88,15 @@
             </a>
           </router-link>
         </el-menu-item>
+        <el-menu-item index="/qinglong-crons">
+          <router-link to="/qinglong-crons" custom v-slot="{ href }">
+            <a :href="href" class="menu-item-anchor" @click.prevent>
+              <span class="menu-item-icon"><el-icon><Timer /></el-icon></span>
+              <span class="menu-item-text">青龙定时</span>
+              <span class="menu-item-badge">调度</span>
+            </a>
+          </router-link>
+        </el-menu-item>
         <el-menu-item index="/settings">
           <router-link to="/settings" custom v-slot="{ href }">
             <a :href="href" class="menu-item-anchor" @click.prevent>
@@ -203,6 +212,15 @@
               </a>
             </router-link>
           </el-menu-item>
+          <el-menu-item index="/qinglong-crons">
+            <router-link to="/qinglong-crons" custom v-slot="{ href }">
+              <a :href="href" class="menu-item-anchor" @click.prevent>
+                <span class="menu-item-icon"><el-icon><Timer /></el-icon></span>
+                <span class="menu-item-text">青龙定时整理</span>
+                <span class="menu-item-badge">调度</span>
+              </a>
+            </router-link>
+          </el-menu-item>
           <el-menu-item index="/settings">
             <router-link to="/settings" custom v-slot="{ href }">
               <a :href="href" class="menu-item-anchor" @click.prevent>
@@ -267,6 +285,7 @@ import {
   Menu,
   Monitor,
   Setting,
+  Timer,
   UserFilled,
 } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
@@ -297,6 +316,7 @@ const pageDescription = computed(() => {
     '/users': '管理微信账号、设备和手机号信息。',
     '/points': '按账号查看积分详情与活跃小程序数量。',
     '/stock': '按小程序和商品维度查看库存信息。',
+    '/qinglong-crons': '查看青龙脚本时间线，一键重排执行间隔。',
     '/settings': '基础设置、青龙联动、Bark 推送与数据库备份分栏管理。',
   }
 

@@ -9,6 +9,7 @@ const PointsPage = () => import('./views/PointsPage.vue')
 const StockPage = () => import('./views/StockPage.vue')
 const SettingsPage = () => import('./views/SettingsPage.vue')
 const FavoritesPage = () => import('./views/FavoritesPage.vue')
+const QinglongCronsPage = () => import('./views/QinglongCronsPage.vue')
 const AccessGatePage = () => import('./views/AccessGatePage.vue')
 
 const routes = [
@@ -77,6 +78,12 @@ const routes = [
     name: 'stock',
     component: StockPage,
     meta: { title: '库存管理' },
+  },
+  {
+    path: '/qinglong-crons',
+    name: 'qinglong-crons',
+    component: QinglongCronsPage,
+    meta: { title: '青龙定时' },
   },
   {
     path: '/settings',

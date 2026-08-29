@@ -183,6 +183,23 @@ def get_token(base_url: str, client_id: str, client_secret: str, force_refresh: 
     return token
 
 
+def update_cron_schedule(base_url: str, token: str, cron_id: Any, schedule: str) -> None:
+    """Update one cron's schedule via QingLong OpenAPI (PUT /open/crons)."""
+    base = base_url.rstrip("/")
+    url = f"{base}/open/crons"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.put(
+        url,
+        headers=headers,
+        json={"id": cron_id, "schedule": schedule},
+        timeout=20,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    if body.get("code") != 200:
+        raise RuntimeError(body.get("message") or f"QingLong update cron failed: {body}")
+
+
 def list_crons(base_url: str, token: str) -> List[Dict[str, Any]]:
     base = base_url.rstrip("/")
     url = f"{base}/open/crons"
