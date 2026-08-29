@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import json
 import os
@@ -2077,7 +2078,7 @@ class QinglongCronBatchUpdate(BaseModel):
 
 
 @router.post("/api/v1/qinglong/crons/schedules")
-async def update_qinglong_cron_schedules(
+def update_qinglong_cron_schedules(
     payload: QinglongCronBatchUpdate,
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
@@ -2111,13 +2112,35 @@ async def update_qinglong_cron_schedules(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"青龙鉴权失败: {exc}")
 
-    updated, failed = 0, []
-    for item in cleaned:
+    # QingLong's PUT /open/crons requires the full cron object (name/command),
+    # so pull the current list once and merge fields per id.
+    try:
+        cron_map = {c.get("id"): c for c in qinglong_open_service.list_crons(base_url, token)}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"获取青龙任务列表失败: {exc}")
+
+    # Parallelize the PUT calls: sequential updates of hundreds of crons can
+    # take minutes and exceed client/proxy timeouts.
+    def _apply(item):
+        cron = cron_map.get(item["id"])
+        if cron is None:
+            return item, "任务不存在于青龙面板"
         try:
-            qinglong_open_service.update_cron_schedule(base_url, token, item["id"], item["schedule"])
-            updated += 1
+            qinglong_open_service.update_cron_schedule(
+                base_url, token, item["id"], item["schedule"],
+                name=cron.get("name"), command=cron.get("command"),
+            )
+            return item, None
         except Exception as exc:
-            failed.append({"id": item["id"], "schedule": item["schedule"], "error": str(exc)})
+            return item, str(exc)
+
+    updated, failed = 0, []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for item, error in pool.map(_apply, cleaned):
+            if error is None:
+                updated += 1
+            else:
+                failed.append({"id": item["id"], "schedule": item["schedule"], "error": error})
 
     # Refresh the local mirror so 小程序列表 reflects new schedules immediately.
     sync_result = None

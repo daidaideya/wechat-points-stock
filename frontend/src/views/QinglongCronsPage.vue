@@ -676,7 +676,7 @@ function openEditDialog(cron) {
 async function applyBatch(items, successText) {
   applying.value = true
   try {
-    const { data } = await api.post('/qinglong/crons/schedules', { items })
+    const { data } = await api.post('/qinglong/crons/schedules', { items }, { timeout: 300000 })
     const failed = data.failed || []
     if (failed.length) {
       ElMessage.warning(`成功 ${data.updated} 个，失败 ${failed.length} 个：${failed[0].error}`)
@@ -783,7 +783,7 @@ async function applySinglePlanItem(row) {
   try {
     const { data } = await api.post('/qinglong/crons/schedules', {
       items: [{ id: row.id, schedule: row.newSchedule }],
-    })
+    }, { timeout: 60000 })
     if (data.failed && data.failed.length) {
       ElMessage.error(`应用失败：${data.failed[0].error}`)
       return

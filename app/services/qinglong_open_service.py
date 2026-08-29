@@ -183,15 +183,34 @@ def get_token(base_url: str, client_id: str, client_secret: str, force_refresh: 
     return token
 
 
-def update_cron_schedule(base_url: str, token: str, cron_id: Any, schedule: str) -> None:
-    """Update one cron's schedule via QingLong OpenAPI (PUT /open/crons)."""
+def update_cron_schedule(
+    base_url: str,
+    token: str,
+    cron_id: Any,
+    schedule: str,
+    name: Optional[str] = None,
+    command: Optional[str] = None,
+) -> None:
+    """Update one cron's schedule via QingLong OpenAPI (PUT /open/crons).
+
+    QingLong requires the full cron object (name + command) on PUT, so callers
+    should pass the existing name/command (from list_crons) to avoid 400s.
+    """
     base = base_url.rstrip("/")
     url = f"{base}/open/crons"
     headers = {"Authorization": f"Bearer {token}"}
+    if name is None or command is None:
+        existing = {c.get("id"): c for c in list_crons(base_url, token)}
+        cron = existing.get(cron_id)
+        if cron is None:
+            raise RuntimeError(f"cron id={cron_id} 不存在于青龙面板")
+        name = name if name is not None else cron.get("name")
+        command = command if command is not None else cron.get("command")
+    payload: Dict[str, Any] = {"id": cron_id, "name": name, "command": command, "schedule": schedule}
     resp = requests.put(
         url,
         headers=headers,
-        json={"id": cron_id, "schedule": schedule},
+        json=payload,
         timeout=20,
     )
     resp.raise_for_status()
