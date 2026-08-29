@@ -209,3 +209,6 @@ __marimo__/
 database.db
 
 *.pyc
+# Runtime data (SQLite db, locks, logs)
+data/
+logs/

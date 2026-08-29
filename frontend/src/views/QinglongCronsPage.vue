@@ -56,17 +56,26 @@
           <div class="points-metric-foot">已停用，不参与整理</div>
         </article>
 
-        <article class="points-metric-card tone-amber">
+        <article class="points-metric-card tone-amber ql-next-slot-card">
           <div class="points-metric-top">
             <div>
-              <div class="points-metric-label">覆盖时段</div>
-              <div class="points-metric-value ql-coverage-value">{{ coverageText }}</div>
+              <div class="points-metric-label">新脚本时间</div>
+              <div class="points-metric-value ql-coverage-value">{{ nextSlotTime || '-' }}</div>
             </div>
             <span class="points-metric-icon">
-              <el-icon><Clock /></el-icon>
+              <el-icon><CopyDocument /></el-icon>
             </span>
           </div>
-          <div class="points-metric-foot">启用任务每日最早到最晚触发时间</div>
+          <div class="points-metric-foot ql-next-slot-foot">
+            <code class="ql-next-slot-code">{{ nextSlotSchedule || '暂无可复制的表达式' }}</code>
+            <el-button
+              size="small"
+              type="primary"
+              plain
+              :disabled="!nextSlotSchedule"
+              @click="copyNextSlot"
+            >复制</el-button>
+          </div>
         </article>
       </div>
 
@@ -350,6 +359,7 @@ import {
   CircleCheck,
   CircleClose,
   Clock,
+  CopyDocument,
   Document,
   Files,
   RefreshRight,
@@ -582,6 +592,68 @@ const coverageText = computed(() => {
   const minutes = enabledCrons.value.map((cron) => cron.earliest_minute)
   return `${formatMinute(Math.min(...minutes))} ~ ${formatMinute(Math.max(...minutes))}`
 })
+
+// 新脚本一键复制：取时间线上最后一个（最晩）启用脚本的 cron，
+// 分钟数加间隔（默认 2 分钟），小时 / 日期字段保持不变。
+// 例：最后一个为 "46 13,20 * * *" → 建议 "48 13,20 * * *"。
+const nextSlotInfo = computed(() => {
+  const list = enabledCrons.value
+    .filter((cron) => cron.earliest_minute !== null && cron.earliest_minute < 24 * 60)
+    .slice()
+    .sort((a, b) => a.earliest_minute - b.earliest_minute)
+  if (!list.length) return { schedule: '', time: '', lastTime: '', overflow: false }
+
+  const interval = Math.max(1, planForm.intervalMinutes || 2)
+  const occupied = new Set(list.map((cron) => cron.earliest_minute))
+
+  // 从最后一个脚本之后开始找第一个未被占用的槽位（保持等间隔递增）
+  const last = list[list.length - 1]
+  let cursor = last.earliest_minute + interval
+  while (cursor < 24 * 60 && occupied.has(cursor)) {
+    cursor += interval
+  }
+  const overflow = cursor >= 24 * 60
+
+  const fields = String(last.schedule || '').trim().split(/\s+/)
+  if (fields.length < 5) return { schedule: '', time: '', lastTime: formatMinute(last.earliest_minute), overflow: true }
+
+  const minute = overflow ? 59 : cursor % 60
+  const hour = overflow ? fields[1] : Math.floor(cursor / 60)
+  const rest = fields.slice(2).join(' ')
+  const schedule = `${minute} ${hour} ${rest}`
+  return {
+    schedule,
+    time: overflow ? '' : formatMinute(cursor),
+    lastTime: formatMinute(last.earliest_minute),
+    lastName: last.name,
+    overflow,
+  }
+})
+
+const nextSlotSchedule = computed(() => nextSlotInfo.value.schedule)
+const nextSlotTime = computed(() => nextSlotInfo.value.time)
+
+async function copyNextSlot() {
+  const text = nextSlotSchedule.value
+  if (!text) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    ElMessage.success(`已复制：${text}`)
+  } catch {
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
 
 // 一键整理的目标脚本（受「仅 code 版」开关控制）
 const organizeTargetCrons = computed(() =>
@@ -854,6 +926,24 @@ onMounted(() => {
   font-size: 24px;
   line-height: 1.35;
   padding-top: 6px;
+}
+
+.ql-next-slot-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ql-next-slot-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--el-text-color-regular);
+  word-break: break-all;
 }
 
 /* 搜索框放进 meta chip 里，保持胶囊形态 */
