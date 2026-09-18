@@ -6,7 +6,7 @@
           <h2 class="section-title">系统设置</h2>
           <p class="section-description">基础配置、青龙联动、Bark 推送与数据备份分栏管理。</p>
         </div>
-        <el-button text @click="refreshCurrentSection">刷新当前页</el-button>
+        <el-button text :loading="loading" @click="refreshCurrentSection">刷新当前页</el-button>
       </div>
 
       <div class="settings-layout">
@@ -251,36 +251,13 @@
               </el-form>
             </section>
 
-            <section v-else class="settings-section-card">
-              <div class="settings-section-header">
-                <div>
-                  <h3 class="settings-section-title">数据库备份 / 恢复</h3>
-                  <p class="settings-section-desc">导出备份，或从备份文件恢复当前 SQLite 数据库。</p>
-                </div>
-              </div>
-
-              <el-form label-width="140px" class="settings-form">
-                <p class="settings-help-block">
-                  导出当前 SQLite 数据库作为备份；导入会完整替换现有数据。导入前请先导出一份备份。
-                  导入成功后会在数据库旁保留 <code>.pre_restore</code> 回滚副本。
-                </p>
-                <el-form-item label="备份导出">
-                  <el-button type="primary" plain :loading="exporting" @click="exportDatabase">导出数据库</el-button>
-                </el-form-item>
-                <el-form-item label="备份恢复">
-                  <div class="settings-inline-row">
-                    <input
-                      ref="importInputRef"
-                      type="file"
-                      accept=".db,application/x-sqlite3,application/octet-stream"
-                      class="settings-file-input"
-                      @change="onImportFileChange"
-                    />
-                    <el-button type="danger" plain :loading="importing" @click="triggerImport">选择文件并导入</el-button>
-                  </div>
-                </el-form-item>
-              </el-form>
-            </section>
+            <SettingsDatabaseSection
+              v-else
+              :exporting="exporting"
+              :importing="importing"
+              @export="exportDatabase"
+              @import-file="onImportFileChange"
+            />
           </template>
         </div>
       </div>
@@ -294,6 +271,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
+import SettingsDatabaseSection from '../components/SettingsDatabaseSection.vue'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
@@ -317,7 +295,6 @@ const barkSaving = ref(false)
 const barkTesting = ref(false)
 const exporting = ref(false)
 const importing = ref(false)
-const importInputRef = ref(null)
 const updatedAt = ref('')
 const accessKeyConfigured = ref(false)
 const qlSecretConfigured = ref(false)
@@ -681,12 +658,7 @@ async function exportDatabase() {
   }
 }
 
-function triggerImport() {
-  importInputRef.value?.click()
-}
-
-async function onImportFileChange(event) {
-  const file = event?.target?.files?.[0]
+async function onImportFileChange(file) {
   if (!file) return
 
   try {
@@ -700,7 +672,6 @@ async function onImportFileChange(event) {
       },
     )
   } catch (_) {
-    if (importInputRef.value) importInputRef.value.value = ''
     return
   }
 
@@ -721,7 +692,6 @@ async function onImportFileChange(event) {
     ElMessage.error(getApiErrorMessage(error, '导入数据库失败'))
   } finally {
     importing.value = false
-    if (importInputRef.value) importInputRef.value.value = ''
   }
 }
 
