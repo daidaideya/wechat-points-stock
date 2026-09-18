@@ -1,13 +1,15 @@
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app import models
+from app import models, schemas
 from app.database import Base
 from app.routers import web
+from app.services import qinglong_service
 
 
 @pytest.fixture()
@@ -73,6 +75,13 @@ def test_equal_report_time_uses_highest_id_for_latest_balances(points_db):
     assert web.get_program_max_user_points_map(points_db, ["program-1"]) == {"program-1": 40.0}
     assert web.get_program_max_user_cash_map(points_db, ["program-1"]) == {"program-1": 4.0}
 
+    snapshot = points_db.query(models.CurrentPointBalance).one()
+    assert snapshot.wechat_id == "wechat-1"
+    assert snapshot.program_id == "program-1"
+    assert snapshot.points == 40
+    assert snapshot.cash == 4
+    assert snapshot.history_id == newer.id
+
     stock_payload = web.get_program_stock("program-1", points_db)
     assert stock_payload["max_user_points"] == 40
     assert stock_payload["max_user_cash"] == 4
@@ -101,3 +110,92 @@ def test_single_program_balance_does_not_mix_other_program(points_db):
     payload = web.get_program_stock("program-1", points_db)
     assert payload["max_user_points"] == 100
     assert payload["max_user_cash"] == 5
+
+
+def test_points_report_updates_current_balance_snapshot(points_db, monkeypatch):
+    monkeypatch.setattr(
+        qinglong_service.cleanup_service,
+        "prune_points_history",
+        lambda *args: None,
+    )
+    monkeypatch.setattr(
+        qinglong_service.cleanup_service,
+        "get_or_create_settings",
+        lambda _db: SimpleNamespace(max_log_entries=10000, max_retention_days=0),
+    )
+    execution_time = datetime.utcnow().replace(microsecond=0)
+    report = schemas.PointsReportRequest.model_validate({
+        "script_id": "snapshot-test",
+        "execution_time": execution_time.isoformat(),
+        "data": {
+            "wechat_accounts": [{
+                "wechat_id": "wechat-1",
+                "points_data": [{
+                    "program_id": "program-1",
+                    "program_name": "程序一",
+                    "current_points": 88.5,
+                    "current_cash": 6.6,
+                }],
+            }],
+        },
+    })
+
+    result = qinglong_service.process_points_report(points_db, report)
+
+    snapshot = points_db.query(models.CurrentPointBalance).one()
+    history = points_db.query(models.PointsHistory).one()
+    assert result["status"] == "success"
+    assert snapshot.points == 88.5
+    assert snapshot.cash == 6.6
+    assert snapshot.last_report_time == history.report_time
+    assert snapshot.history_id == history.id
+
+
+def test_current_balance_snapshot_ignores_late_older_history(points_db):
+    first = models.PointsHistory(
+        program_id="program-1",
+        wechat_id="wechat-1",
+        points=50,
+        cash=5,
+        report_time=datetime(2025, 1, 2, 12, 0, 0),
+    )
+    points_db.add(first)
+    points_db.commit()
+
+    assert web.get_program_max_user_points_map(points_db, ["program-1"]) == {
+        "program-1": 50.0,
+    }
+
+    late_older = models.PointsHistory(
+        program_id="program-1",
+        wechat_id="wechat-1",
+        points=999,
+        cash=99,
+        report_time=datetime(2025, 1, 1, 12, 0, 0),
+    )
+    points_db.add(late_older)
+    points_db.commit()
+
+    assert web.get_program_max_user_points_map(points_db, ["program-1"]) == {
+        "program-1": 50.0,
+    }
+
+
+def test_current_balance_table_is_created_and_backfilled_for_legacy_db(points_db):
+    points_db.execute(text("DROP TABLE current_point_balances"))
+    points_db.commit()
+    points_db.add(models.PointsHistory(
+        program_id="program-1",
+        wechat_id="wechat-1",
+        points=72,
+        cash=7.2,
+        report_time=datetime(2025, 1, 3, 12, 0, 0),
+    ))
+    points_db.commit()
+
+    assert web.get_program_max_user_points_map(points_db, ["program-1"]) == {
+        "program-1": 72.0,
+    }
+    snapshot = points_db.query(models.CurrentPointBalance).one()
+    assert snapshot.points == 72
+    assert snapshot.cash == 7.2

@@ -253,6 +253,7 @@ def ensure_runtime_schema(db: Session):
     """Lazy-migrate columns used across most UI routes (safe to call often)."""
     ensure_mini_program_columns(db)
     cleanup_service.ensure_points_history_columns(db)
+    cleanup_service.ensure_current_balance_table(db)
     cleanup_service.ensure_system_settings_columns(db)
     # Product flags are introduced lazily by the stock router but are also
     # needed by the program/dashboard UI filters.
@@ -276,6 +277,9 @@ def ensure_indexes(db: Session):
         ("ix_points_history_wechat_program", "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program ON points_history (wechat_id, program_id)"),
         ("ix_points_history_wechat_program_time_id", "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program_time_id ON points_history (wechat_id, program_id, report_time DESC, id DESC)"),
         ("ix_points_history_program_wechat_time_id", "CREATE INDEX IF NOT EXISTS ix_points_history_program_wechat_time_id ON points_history (program_id, wechat_id, report_time DESC, id DESC)"),
+        ("ix_current_point_balances_program_id", "CREATE INDEX IF NOT EXISTS ix_current_point_balances_program_id ON current_point_balances (program_id)"),
+        ("ix_current_point_balances_program_points", "CREATE INDEX IF NOT EXISTS ix_current_point_balances_program_points ON current_point_balances (program_id, points)"),
+        ("ix_current_point_balances_program_cash", "CREATE INDEX IF NOT EXISTS ix_current_point_balances_program_cash ON current_point_balances (program_id, cash)"),
         ("ix_stock_history_program_id", "CREATE INDEX IF NOT EXISTS ix_stock_history_program_id ON stock_history (program_id)"),
         ("ix_stock_history_change_time", "CREATE INDEX IF NOT EXISTS ix_stock_history_change_time ON stock_history (change_time)"),
         ("ix_products_program_id", "CREATE INDEX IF NOT EXISTS ix_products_program_id ON products (program_id)"),
@@ -336,12 +340,13 @@ def get_program_last_updates(db: Session, program_ids: List[str]):
     if not program_ids:
         return {}
 
+    cleanup_service.ensure_current_balance_table(db)
     rows = db.query(
-        models.PointsHistory.program_id,
-        func.max(models.PointsHistory.report_time),
+        models.CurrentPointBalance.program_id,
+        func.max(models.CurrentPointBalance.last_report_time),
     ).filter(
-        models.PointsHistory.program_id.in_(program_ids)
-    ).group_by(models.PointsHistory.program_id).all()
+        models.CurrentPointBalance.program_id.in_(program_ids)
+    ).group_by(models.CurrentPointBalance.program_id).all()
 
     return {row[0]: row[1].isoformat() if row[1] else None for row in rows}
 
@@ -504,19 +509,15 @@ def get_program_max_user_points_map(db: Session, program_ids: List[str]):
     if not program_ids:
         return {}
 
-    cleanup_service.ensure_points_history_columns(db)
-
-    latest_rows = _query_latest_points_history(
-        db,
-        program_ids=program_ids,
-    ).subquery()
+    cleanup_service.ensure_current_balance_table(db)
 
     rows = db.query(
-        latest_rows.c.program_id,
-        func.max(latest_rows.c.points).label("max_points"),
+        models.CurrentPointBalance.program_id,
+        func.max(models.CurrentPointBalance.points).label("max_points"),
     ).filter(
-        latest_rows.c.points.isnot(None),
-    ).group_by(latest_rows.c.program_id).all()
+        models.CurrentPointBalance.program_id.in_(program_ids),
+        models.CurrentPointBalance.points.isnot(None),
+    ).group_by(models.CurrentPointBalance.program_id).all()
 
     # Keep as float so fractional balances (0.1 etc.) are not truncated.
     return {row.program_id: float(row.max_points or 0) for row in rows}
@@ -527,19 +528,15 @@ def get_program_max_user_cash_map(db: Session, program_ids: List[str]):
     if not program_ids:
         return {}
 
-    cleanup_service.ensure_points_history_columns(db)
-
-    latest_rows = _query_latest_points_history(
-        db,
-        program_ids=program_ids,
-    ).subquery()
+    cleanup_service.ensure_current_balance_table(db)
 
     rows = db.query(
-        latest_rows.c.program_id,
-        func.max(latest_rows.c.cash).label("max_cash"),
+        models.CurrentPointBalance.program_id,
+        func.max(models.CurrentPointBalance.cash).label("max_cash"),
     ).filter(
-        latest_rows.c.cash.isnot(None),
-    ).group_by(latest_rows.c.program_id).all()
+        models.CurrentPointBalance.program_id.in_(program_ids),
+        models.CurrentPointBalance.cash.isnot(None),
+    ).group_by(models.CurrentPointBalance.program_id).all()
 
     return {row.program_id: float(row.max_cash or 0) for row in rows}
 
@@ -1783,11 +1780,15 @@ def delete_account(
     db: Session = Depends(get_db),
     request: Request = None,
 ):
+    cleanup_service.ensure_current_balance_table(db)
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
     db.query(models.PointsHistory).filter(models.PointsHistory.wechat_id == wechat_id).delete()
+    db.query(models.CurrentPointBalance).filter(
+        models.CurrentPointBalance.wechat_id == wechat_id,
+    ).delete()
     db.delete(account)
     db.commit()
     _record_high_risk_audit(db, request, "account_deleted")
@@ -1801,9 +1802,14 @@ def delete_program_points(
     db: Session = Depends(get_db),
     request: Request = None,
 ):
+    cleanup_service.ensure_current_balance_table(db)
     deleted_count = db.query(models.PointsHistory).filter(
         models.PointsHistory.wechat_id == wechat_id,
         models.PointsHistory.program_id == program_id,
+    ).delete()
+    db.query(models.CurrentPointBalance).filter(
+        models.CurrentPointBalance.wechat_id == wechat_id,
+        models.CurrentPointBalance.program_id == program_id,
     ).delete()
     db.commit()
     _record_high_risk_audit(db, request, "account_points_deleted")
@@ -2100,6 +2106,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     from app.routers.stock import ensure_product_columns
     ensure_product_columns(db)
     cleanup_service.ensure_points_history_columns(db)
+    cleanup_service.ensure_current_balance_table(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     products = db.query(models.Product).filter(
         models.Product.program_id == program_id,
@@ -2109,14 +2116,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
 
     today_local = timeutil.now_local().date()
 
-    latest_rows = _query_latest_points_history(
-        db,
-        program_id=program_id,
-    ).subquery()
-
-    max_points_val = db.query(func.max(latest_rows.c.points)).filter(
-        latest_rows.c.points.isnot(None),
-    ).scalar()
+    max_points_val = get_program_max_user_points_map(db, [program_id]).get(program_id, 0)
 
     report_rows = db.query(
         models.StockHistory.product_id,
@@ -2216,9 +2216,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     removed_count = len(removed_product_ids) if should_show_changes else 0
 
     # Also expose highest current cash among accounts (for mixed-redeem UI).
-    max_cash_val = db.query(func.max(latest_rows.c.cash)).filter(
-        latest_rows.c.cash.isnot(None),
-    ).scalar()
+    max_cash_val = get_program_max_user_cash_map(db, [program_id]).get(program_id)
 
     return {
         "program_id": program_id,
@@ -2455,8 +2453,12 @@ def delete_program(
     request: Request = None,
 ):
     ensure_mini_program_columns(db)
+    cleanup_service.ensure_current_balance_table(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     db.query(models.PointsHistory).filter(models.PointsHistory.program_id == program_id).delete()
+    db.query(models.CurrentPointBalance).filter(
+        models.CurrentPointBalance.program_id == program_id,
+    ).delete()
     db.query(models.Product).filter(models.Product.program_id == program_id).delete()
     if program:
         db.delete(program)

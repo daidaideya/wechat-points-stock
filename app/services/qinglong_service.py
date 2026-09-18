@@ -114,6 +114,7 @@ def resolve_report_account(db: Session, account_data: schemas.WechatAccountData)
 
 def process_points_report(db: Session, report: schemas.PointsReportRequest):
     cleanup_service.ensure_points_history_columns(db)
+    cleanup_service.ensure_current_balance_table(db)
     batch_id = str(uuid.uuid4())
 
     for account_data in report.data.wechat_accounts:
@@ -170,6 +171,18 @@ def process_points_report(db: Session, report: schemas.PointsReportRequest):
                 batch_id=batch_id
             )
             db.add(history)
+            # The snapshot keeps the history row's id as the deterministic
+            # tie-breaker when QingLong sends multiple rows with one timestamp.
+            db.flush()
+            cleanup_service.upsert_current_point_balance(
+                db,
+                wechat_id=history.wechat_id,
+                program_id=history.program_id,
+                points=history.points,
+                cash=history.cash,
+                report_time=history.report_time,
+                history_id=history.id,
+            )
     
     # Prune history
     try:

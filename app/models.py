@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -106,6 +106,50 @@ class PointsHistory(Base):
 
     account = relationship("WechatAccount", back_populates="points")
     program = relationship("MiniProgram", back_populates="points")
+
+
+class CurrentPointBalance(Base):
+    """The latest reported balance for one account/program pair.
+
+    ``PointsHistory`` remains the source of truth for trends and audits. This
+    table mirrors the newest history row so current-balance list aggregates do
+    not need to scan the complete history table. ``history_id`` is intentionally
+    not a foreign key: history retention may remove the source row while the
+    current balance must remain available.
+    """
+
+    __tablename__ = "current_point_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    wechat_id = Column(String(50), nullable=False)
+    program_id = Column(String(100), nullable=False)
+    points = Column(Float, nullable=True)
+    cash = Column(Float, nullable=True)
+    last_report_time = Column(DateTime, nullable=True)
+    history_id = Column(Integer, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "wechat_id",
+            "program_id",
+            name="uix_current_point_balance_account_program",
+        ),
+        Index(
+            "ix_current_point_balances_program_id",
+            "program_id",
+        ),
+        Index(
+            "ix_current_point_balances_program_points",
+            "program_id",
+            "points",
+        ),
+        Index(
+            "ix_current_point_balances_program_cash",
+            "program_id",
+            "cash",
+        ),
+    )
 
 class Product(Base):
     __tablename__ = "products"

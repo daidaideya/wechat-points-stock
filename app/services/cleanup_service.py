@@ -3,8 +3,8 @@ import time
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select, text
-from app import models
+from sqlalchemy import select, text, func
+from app import models, timeutil
 from app.security import hash_access_key
 
 
@@ -209,6 +209,121 @@ def ensure_points_history_columns(db: Session):
     for statement in missing_statements:
         db.execute(text(statement))
     db.commit()
+
+
+def _latest_points_history_rows_for_snapshot(db: Session):
+    """Return one stable latest history row for every account/program pair."""
+    ranked = db.query(
+        models.PointsHistory.id.label("history_id"),
+        func.row_number().over(
+            partition_by=(
+                models.PointsHistory.wechat_id,
+                models.PointsHistory.program_id,
+            ),
+            order_by=(
+                models.PointsHistory.report_time.desc(),
+                models.PointsHistory.id.desc(),
+            ),
+        ).label("history_rank"),
+    ).subquery()
+
+    return db.query(models.PointsHistory).join(
+        ranked,
+        models.PointsHistory.id == ranked.c.history_id,
+    ).filter(
+        ranked.c.history_rank == 1,
+    ).all()
+
+
+def _is_newer_balance_report(
+    report_time,
+    history_id,
+    current_report_time,
+    current_history_id,
+) -> bool:
+    candidate_time = timeutil.to_aware_utc(report_time)
+    stored_time = timeutil.to_aware_utc(current_report_time)
+    if stored_time is None:
+        return candidate_time is not None or (history_id or 0) > (current_history_id or 0)
+    if candidate_time is None:
+        return False
+    if candidate_time != stored_time:
+        return candidate_time > stored_time
+    return (history_id or 0) > (current_history_id or 0)
+
+
+def ensure_current_balance_table(db: Session):
+    """Create and lazily backfill the current balance snapshot table.
+
+    Older SQLite databases do not have this table. The migration is additive:
+    it creates the table and copies the stable latest history row for each
+    account/program pair. A non-empty table is considered already migrated,
+    so normal requests do not rescan history after startup.
+    """
+    models.CurrentPointBalance.__table__.create(bind=db.bind, checkfirst=True)
+    if db.query(models.CurrentPointBalance.id).first() is not None:
+        return
+
+    latest_rows = _latest_points_history_rows_for_snapshot(db)
+    if not latest_rows:
+        return
+
+    db.add_all([
+        models.CurrentPointBalance(
+            wechat_id=row.wechat_id,
+            program_id=row.program_id,
+            points=row.points,
+            cash=row.cash,
+            last_report_time=row.report_time,
+            history_id=row.id,
+            updated_at=datetime.utcnow(),
+        )
+        for row in latest_rows
+    ])
+    db.commit()
+
+
+def upsert_current_point_balance(
+    db: Session,
+    *,
+    wechat_id: str,
+    program_id: str,
+    points,
+    cash,
+    report_time,
+    history_id: int,
+):
+    """Mirror a newly flushed PointsHistory row into the current snapshot."""
+    snapshot = db.query(models.CurrentPointBalance).filter(
+        models.CurrentPointBalance.wechat_id == wechat_id,
+        models.CurrentPointBalance.program_id == program_id,
+    ).first()
+
+    if snapshot is None:
+        db.add(models.CurrentPointBalance(
+            wechat_id=wechat_id,
+            program_id=program_id,
+            points=points,
+            cash=cash,
+            last_report_time=report_time,
+            history_id=history_id,
+            updated_at=datetime.utcnow(),
+        ))
+        return
+
+    if not _is_newer_balance_report(
+        report_time,
+        history_id,
+        snapshot.last_report_time,
+        snapshot.history_id,
+    ):
+        return
+
+    snapshot.points = points
+    snapshot.cash = cash
+    snapshot.last_report_time = report_time
+    snapshot.history_id = history_id
+    snapshot.updated_at = datetime.utcnow()
 
 
 def get_or_create_settings(db: Session) -> models.SystemSettings:
