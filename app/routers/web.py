@@ -32,7 +32,11 @@ from app.dependencies import (
     require_ui_access,
     set_ui_access_cookie,
 )
-from app.maintenance import database_maintenance
+from app.maintenance import (
+    DatabaseMaintenanceBusy,
+    database_maintenance,
+    database_maintenance_lock_path,
+)
 from app.security import hash_access_key
 from app.services import bark_service, cleanup_service
 from app.services import qinglong_open_service
@@ -1395,7 +1399,7 @@ def import_database(
 
         _validate_sqlite_backup(tmp_upload_path)
 
-        with database_maintenance():
+        with database_maintenance(database_maintenance_lock_path(db_path)):
             # Commit the request session first, checkpoint WAL, then release
             # SQLAlchemy connections before replacing the file.
             try:
@@ -1410,7 +1414,18 @@ def import_database(
             if os.path.isfile(db_path):
                 checkpoint_conn = sqlite3.connect(db_path, timeout=10)
                 try:
-                    checkpoint_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    checkpoint_result = checkpoint_conn.execute(
+                        "PRAGMA wal_checkpoint(TRUNCATE)"
+                    ).fetchone()
+                    # SQLite returns (busy, log_pages, checkpointed_pages). Do
+                    # not remove sidecars or replace the file while a different
+                    # worker still has an open transaction.
+                    if checkpoint_result and int(checkpoint_result[0] or 0) != 0:
+                        raise HTTPException(
+                            status_code=503,
+                            detail="数据库仍有进行中的事务，请稍后重试恢复",
+                            headers={"Retry-After": "5"},
+                        )
                 finally:
                     checkpoint_conn.close()
 
@@ -1437,6 +1452,12 @@ def import_database(
             "path": db_path,
             "rollback_path": rollback_path if os.path.isfile(rollback_path) else None,
         }
+    except DatabaseMaintenanceBusy as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="数据库正在执行另一项恢复操作，请稍后重试",
+            headers={"Retry-After": "5"},
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:

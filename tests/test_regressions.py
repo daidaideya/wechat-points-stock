@@ -1,5 +1,8 @@
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +25,11 @@ from app.dependencies import (
     verify_token,
 )
 from app.main import health_live, health_ready, resolve_frontend_asset
+from app.maintenance import (
+    DatabaseMaintenanceBusy,
+    database_maintenance,
+    is_database_maintenance,
+)
 from app.routers import stock, web
 from app.routers import images
 from app.security import hash_access_key, verify_access_key_hash
@@ -269,6 +277,45 @@ def test_access_audit_persists_without_credential_material():
     engine.dispose()
 
 
+def test_database_maintenance_uses_a_cross_process_lock(tmp_path):
+    lock_path = str(tmp_path / "database.maintenance.lock")
+
+    assert not is_database_maintenance(lock_path)
+    with database_maintenance(lock_path):
+        assert is_database_maintenance(lock_path)
+        with pytest.raises(DatabaseMaintenanceBusy):
+            with database_maintenance(lock_path):
+                pass
+    assert not is_database_maintenance(lock_path)
+
+
+def test_database_maintenance_lock_is_visible_to_another_process(tmp_path):
+    lock_path = str(tmp_path / "database.maintenance.lock")
+    child_code = (
+        "import sys\n"
+        "from app.maintenance import database_maintenance\n"
+        "with database_maintenance(sys.argv[1]):\n"
+        "    print('ready', flush=True)\n"
+        "    sys.stdin.readline()\n"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", child_code, lock_path],
+        cwd=str(Path(__file__).resolve().parents[1]),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert process.stdout.readline().strip() == "ready"
+        assert is_database_maintenance(lock_path)
+        process.stdin.write("\n")
+        process.stdin.flush()
+        assert process.wait(timeout=5) == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
 def test_frontend_asset_resolution_blocks_traversal():
     assert resolve_frontend_asset("assets/app.js") is not None
     assert resolve_frontend_asset("../.env") is None

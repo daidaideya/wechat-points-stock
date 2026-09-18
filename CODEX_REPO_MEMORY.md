@@ -435,7 +435,7 @@ docker compose up -d --build
 ## 11. 构建与开发约束
 
 - 后端没有自动迁移框架；新增可空列必须同步 lazy migration helper。
-- SQLite 默认单 worker；若必须多 worker，保留 WAL、busy timeout 和调度文件锁。
+- SQLite 默认单 worker；若必须多 worker，保留 WAL、busy timeout、调度文件锁和数据库恢复旁路锁。
 - 前端不要在 `main.js` 全量注册 Element Plus，也不要导入 `element-plus/dist/index.css`；组件/样式由 Vite 插件按需处理。
 - 新增重依赖时检查 `frontend/vite.config.js` 的 `manualChunks`，必要时加入拆包规则。
 - 生成构建产物使用 `npm run build`，它会额外运行 `scripts/gzip-assets.mjs`；不要手写 `.gz`。
@@ -451,7 +451,7 @@ docker compose up -d --build
 1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
 3. **UI access 已完成第一阶段会话化和单进程限流。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；SQLite 明文和持久化审计仍待处理，多 worker 场景需依赖反向代理共享限流。
-4. **数据库恢复已加第一阶段保护。** 仍需跨进程维护锁、完整调度暂停和真实文件恢复集成测试；不要把 `os.replace` 视作已完成全部恢复治理。
+4. **数据库恢复已加跨进程保护。** `app/maintenance.py` 使用数据库路径旁路锁，维护期间新 API 返回 503，恢复前 `wal_checkpoint(TRUNCATE)` 忙则中止；仍需完整调度暂停、在途事务排空和真实文件恢复/回滚集成测试，不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。
 7. **日期处理仍有历史混用。** `get_unreported_programs()` 等位置使用 `datetime.now()` 或固定 `+8h`，而其他位置使用 `timeutil`；部署环境改变时需要优先回归“今日未报”和设置时间显示。
