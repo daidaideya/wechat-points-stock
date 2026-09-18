@@ -1,6 +1,6 @@
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import os
 import shutil
@@ -17,7 +17,7 @@ from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
-from app import models
+from app import models, timeutil
 from app.config import settings as app_settings
 from app.database import get_db
 from app.dependencies import (
@@ -50,6 +50,37 @@ try:
     )
 except ValueError:
     DATABASE_IMPORT_MAX_BYTES = 256 * 1024 * 1024
+
+
+def _local_business_date(value: Optional[datetime]) -> date:
+    """Return the local business date for a DB timestamp.
+
+    Database DateTime columns are historically naive UTC values. Missing
+    timestamps retain the old route behavior of being treated as today, but
+    the date itself always comes from the shared Asia/Shanghai clock.
+    """
+    return timeutil.local_date(value) or timeutil.now_local().date()
+
+
+def _parse_datetime_value(value) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value
+    if value is None:
+        return None
+    text_value = str(value).strip()
+    if not text_value:
+        return None
+    if text_value.endswith("Z"):
+        text_value = text_value[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text_value)
+    except ValueError:
+        return None
+
+
+def _is_local_today(value) -> bool:
+    """Whether an API timestamp falls on today's Asia/Shanghai date."""
+    return timeutil.is_same_local_day(_parse_datetime_value(value))
 
 
 class AccountUpdate(BaseModel):
@@ -569,10 +600,8 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
     if not program_ids:
         return {}
 
-    tz_offset = timedelta(hours=8)
-    now_cst = datetime.utcnow() + tz_offset
-    today_cst = now_cst.date()
-    previous_day_cst = today_cst - timedelta(days=1)
+    today_local = timeutil.now_local().date()
+    previous_day_local = today_local - timedelta(days=1)
 
     change_map = {
         program_id: {
@@ -598,7 +627,7 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
     for row in report_rows:
         if not row.last_change_time:
             continue
-        report_date = (row.last_change_time + tz_offset).date()
+        report_date = _local_business_date(row.last_change_time)
         latest_date = latest_report_dates.get(row.program_id)
         if latest_date is None or report_date > latest_date:
             latest_report_dates[row.program_id] = report_date
@@ -607,7 +636,7 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
     for row in report_rows:
         if not row.last_change_time:
             continue
-        report_date = (row.last_change_time + tz_offset).date()
+        report_date = _local_business_date(row.last_change_time)
         latest_date = latest_report_dates.get(row.program_id)
         if latest_date is None or report_date >= latest_date:
             continue
@@ -620,7 +649,7 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
     for row in report_rows:
         if not row.last_change_time:
             continue
-        report_date = (row.last_change_time + tz_offset).date()
+        report_date = _local_business_date(row.last_change_time)
         if report_date == latest_report_dates.get(row.program_id):
             latest_product_ids[row.program_id].add(row.product_id)
         if report_date == previous_report_dates.get(row.program_id):
@@ -637,7 +666,7 @@ def get_program_stock_change_map(db: Session, program_ids: List[str]):
         removed_count = len(previous_ids - latest_ids) if previous_ids else 0
 
         latest_date = latest_report_dates.get(program_id)
-        should_show = latest_date == today_cst or latest_date == previous_day_cst
+        should_show = latest_date == today_local or latest_date == previous_day_local
 
         change_map[program_id] = {
             "added_count": added_count if should_show else 0,
@@ -736,9 +765,7 @@ def build_account_points_summary(
         if item.program_id not in latest_map:
             latest_map[item.program_id] = item
 
-    tz_offset = timedelta(hours=8)
-    now_cst = datetime.utcnow() + tz_offset
-    today_cst_date = now_cst.date()
+    today_local = timeutil.now_local().date()
 
     def calculate_field_diff(program_id, current_value, field_name: str):
         if current_value in ("未注册", None):
@@ -749,14 +776,14 @@ def build_account_points_summary(
             return 0
 
         latest = records[0]
-        latest_cst = (latest.report_time or datetime.utcnow()) + tz_offset
-        if latest_cst.date() != today_cst_date:
+        latest_local_date = _local_business_date(latest.report_time)
+        if latest_local_date != today_local:
             return 0
 
         prev_value = None
         for record in records[1:]:
-            record_cst = (record.report_time or datetime.utcnow()) + tz_offset
-            if record_cst.date() < today_cst_date:
+            record_local_date = _local_business_date(record.report_time)
+            if record_local_date < today_local:
                 prev_value = getattr(record, field_name, None)
                 break
         if prev_value is None:
@@ -927,21 +954,13 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     ).all()
     program_ids = [program.program_id for program in programs]
     last_updates = get_program_last_updates(db, program_ids)
-    from app.timeutil import local_today_str
-
-    today_str = local_today_str()
-
     archived_program_ids = {p.program_id for p in programs if (p.is_archived or 0) == 1}
     active_programs = [p for p in programs if p.program_id not in archived_program_ids]
 
     unreported_programs = []
     for program in active_programs:
         last_time_iso = last_updates.get(program.program_id)
-        last_day = None
-        if last_time_iso:
-            # Accept both "YYYY-MM-DDTHH:MM:SS" and "YYYY-MM-DD HH:MM:SS"
-            last_day = str(last_time_iso)[:10]
-        if not last_day or last_day != today_str:
+        if not _is_local_today(last_time_iso):
             unreported_programs.append((program, last_time_iso))
     unreported_count = len(unreported_programs)
 
@@ -1850,12 +1869,10 @@ def get_unreported_programs(db: Session = Depends(get_db)):
     stock_change_map = get_program_stock_change_map(db, program_ids)
     max_points_map = get_program_max_user_points_map(db, program_ids)
     max_cash_map = get_program_max_user_cash_map(db, program_ids)
-    today_str = datetime.now().strftime("%Y-%m-%d")
-
     items = []
     for program in programs:
         last_time_iso = last_updates.get(program.program_id)
-        if not last_time_iso or last_time_iso.split("T")[0] != today_str:
+        if not _is_local_today(last_time_iso):
             payload = build_program_payload(
                 program, last_updates, has_stock_map, stock_summary_map, stock_change_map, max_points_map, max_cash_map
             )
@@ -1921,9 +1938,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
         or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
     ).all()
 
-    tz_offset = timedelta(hours=8)
-    now_cst = datetime.utcnow() + tz_offset
-    today_cst = now_cst.date()
+    today_local = timeutil.now_local().date()
 
     latest_rows = _query_latest_points_history(
         db,
@@ -1946,7 +1961,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     for row in report_rows:
         if not row.last_change_time:
             continue
-        report_date = (row.last_change_time + tz_offset).date()
+        report_date = _local_business_date(row.last_change_time)
         if latest_report_date is None or report_date > latest_report_date:
             previous_report_date = latest_report_date
             latest_report_date = report_date
@@ -1958,7 +1973,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     for row in report_rows:
         if not row.last_change_time:
             continue
-        report_date = (row.last_change_time + tz_offset).date()
+        report_date = _local_business_date(row.last_change_time)
         if report_date == latest_report_date:
             latest_product_ids.add(row.product_id)
         if report_date == previous_report_date:
@@ -1966,7 +1981,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
 
     added_product_ids = latest_product_ids - previous_product_ids if previous_product_ids else set()
     removed_product_ids = previous_product_ids - latest_product_ids if previous_product_ids else set()
-    should_show_changes = latest_report_date == today_cst and previous_report_date is not None
+    should_show_changes = latest_report_date == today_local and previous_report_date is not None
 
     items = []
     changed_lookup = {}

@@ -10,7 +10,7 @@ mis-parse naive ISO strings as local when the container was UTC.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -52,6 +52,16 @@ def to_local(dt: Optional[datetime]) -> Optional[datetime]:
     if aware is None:
         return None
     return aware.astimezone(APP_TZ)
+
+
+def local_date(dt: Optional[datetime]) -> Optional[date]:
+    """Return the Asia/Shanghai calendar date for a stored timestamp.
+
+    Naive timestamps follow the project's legacy convention and are treated
+    as UTC, matching :func:`to_local` and the database timestamp columns.
+    """
+    local = to_local(dt)
+    return local.date() if local is not None else None
 
 
 def iso_for_api(dt: Optional[datetime]) -> Optional[str]:
