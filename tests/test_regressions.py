@@ -13,7 +13,13 @@ from starlette.requests import Request
 from app import models
 from app.config import settings
 from app.database import Base
-from app.dependencies import require_ui_access, verify_token
+from app.dependencies import (
+    ACCESS_SESSION_TTL_SECONDS,
+    create_ui_access_session,
+    is_valid_ui_access_session,
+    require_ui_access,
+    verify_token,
+)
 from app.main import health_live, health_ready, resolve_frontend_asset
 from app.routers import stock, web
 from app.routers import images
@@ -72,6 +78,76 @@ def test_ui_access_dependency_respects_protection(monkeypatch):
 
     public_request = make_request("/api/v1/access/status")
     assert require_ui_access(public_request, None, object()) is None
+
+
+def test_ui_access_session_is_signed_short_lived_and_bound_to_key():
+    session = create_ui_access_session("ui-secret", now=1000)
+
+    assert is_valid_ui_access_session(session, "ui-secret", now=1000)
+    assert is_valid_ui_access_session(
+        session,
+        "ui-secret",
+        now=1000 + ACCESS_SESSION_TTL_SECONDS - 1,
+    )
+    assert not is_valid_ui_access_session(session, "other-secret", now=1000)
+    assert not is_valid_ui_access_session(
+        session,
+        "ui-secret",
+        now=1000 + ACCESS_SESSION_TTL_SECONDS,
+    )
+
+
+def test_ui_access_dependency_accepts_signed_session(monkeypatch):
+    access_settings = SimpleNamespace(access_protection_enabled=1, access_key="ui-secret")
+    monkeypatch.setattr(cleanup_service, "get_or_create_settings", lambda _db: access_settings)
+    request = make_request("/api/v1/accounts")
+    session = create_ui_access_session("ui-secret")
+
+    assert require_ui_access(request, None, object(), session) is None
+
+
+def test_access_status_migrates_legacy_header_to_cookie(monkeypatch):
+    access_settings = SimpleNamespace(access_protection_enabled=1, access_key="ui-secret")
+    monkeypatch.setattr(cleanup_service, "get_or_create_settings", lambda _db: access_settings)
+
+    response = web.get_access_status(make_request("/api/v1/access/status"), "ui-secret", None, object())
+
+    assert response.status_code == 200
+    assert b'"authenticated":true' in response.body
+    assert "site_access_session=" in response.headers["set-cookie"]
+
+
+def test_log_settings_does_not_clear_existing_access_key_on_empty_field(monkeypatch):
+    access_settings = SimpleNamespace(
+        max_log_entries=100,
+        max_retention_days=30,
+        access_protection_enabled=1,
+        access_key="ui-secret",
+        updated_at=None,
+    )
+
+    class FakeDB:
+        def add(self, _value):
+            return None
+
+        def commit(self):
+            return None
+
+    monkeypatch.setattr(cleanup_service, "get_or_create_settings", lambda _db: access_settings)
+    monkeypatch.setattr(cleanup_service, "prune_points_history", lambda *args: None)
+    monkeypatch.setattr(cleanup_service, "prune_stock_history", lambda *args: None)
+
+    web.update_log_settings(
+        web.LogSettingsUpdate(
+            max_log_entries=200,
+            max_retention_days=60,
+            access_protection_enabled=True,
+            access_key="",
+        ),
+        FakeDB(),
+    )
+
+    assert access_settings.access_key == "ui-secret"
 
 
 def test_frontend_asset_resolution_blocks_traversal():

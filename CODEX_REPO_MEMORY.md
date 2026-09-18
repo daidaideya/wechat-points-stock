@@ -13,7 +13,7 @@
 - 工作区：当前正在按 `docs/优化路线图.md` 实施第二批安全/性能/运行可靠性改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：`requirements-dev.txt` + `tests/`，当前 `16 passed`
+- 回归测试：`requirements-dev.txt` + `tests/`，当前 `20 passed`
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -59,7 +59,7 @@
 | `app/models.py` | `SystemSettings`、`WechatAccount`、`MiniProgram`、`PointsHistory`、`Product`、`StockHistory` |
 | `app/schemas.py` | 外部积分/现金上报与库存上报的 Pydantic 请求模型 |
 | `app/schemas_stock.py` | 库存管理 CRUD/分页响应模型 |
-| `app/dependencies.py` | Bearer 上报鉴权、UI `require_ui_access()` 统一访问保护 |
+| `app/dependencies.py` | Bearer 上报鉴权、UI `require_ui_access()` 统一访问保护、8 小时签名 HttpOnly Cookie 会话 |
 | `app/routers/web.py` | 大部分 UI API：仪表盘、账号、积分、小程序、设置、备份、青龙定时；同步 I/O 路由使用普通 `def` 交给 FastAPI 线程池 |
 | `app/routers/qinglong.py` | 外部脚本上报积分/现金、库存 |
 | `app/routers/stock.py` | 库存中心、商品隐藏/恢复/下架恢复和商品 CRUD |
@@ -73,7 +73,7 @@
 | `app/static_assets.py` | 优先返回 Vite 生成的 `.gz` 资源 |
 | `frontend/src/App.vue` | 全局布局、桌面/移动导航、页面标题、图片预览关闭处理 |
 | `frontend/src/router.js` | SPA 路由、访问保护路由守卫、30 秒 access-status 缓存 |
-| `frontend/src/api.js` | Axios 实例，baseURL=`/api/v1`，自动注入 `X-Access-Key` |
+| `frontend/src/api.js` | Axios 实例，baseURL=`/api/v1`；新 UI 鉴权依赖 HttpOnly Cookie，旧 `site_access_key` 仅迁移时注入 `X-Access-Key` |
 | `frontend/src/stockCache.js` | 库存中心第一页短 TTL 跨组件内存缓存与失效 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
 | `scripts/api_template.py` | 给青龙/自写脚本复用的 `PointsReporter`、`StockReporter` |
@@ -229,7 +229,7 @@ Authorization: Bearer <INGEST_TOKEN>
 
 ## 6. API 速查
 
-所有路径都基于 `/api/v1`，除非特别注明。访问保护开启且配置密钥时，`web` 与 `stock` router 的 UI API 统一检查 `X-Access-Key`；只有 `/access/status`、`/access/verify` 作为访问入口豁免。
+所有路径都基于 `/api/v1`，除非特别注明。访问保护开启且配置密钥时，`web` 与 `stock` router 的 UI API 统一检查签名 HttpOnly Cookie；旧 `X-Access-Key` 仅用于迁移兼容。只有 `/access/status`、`/access/verify` 作为访问入口豁免。
 
 ### 6.1 访问与设置
 
@@ -349,7 +349,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 
 前端关键行为：
 
-- `api.js` 的 Axios baseURL 是 `/api/v1`，若 localStorage 存在 `site_access_key`，每个请求自动加 `X-Access-Key`。
+- `api.js` 的 Axios baseURL 是 `/api/v1`；新登录流程依赖后端 HttpOnly Cookie，不把原始 access key 写入 localStorage。若旧版本残留 `site_access_key`，会暂时自动加 `X-Access-Key`，服务端成功迁移后前端清理它。
 - `router.js` 对页面导航做 access-status 检查，缓存 30 秒；`api.js` 对受保护 API 的 401 清理会话并触发跳转；保护开启且密钥无效时跳 `/access-gate`。
 - `ProgramsPage` 每页 20 条，用 `IntersectionObserver` 无限加载，并分别用 `sessionStorage` 保存小程序/APP 页面状态。
 - `QinglongCronsPage` 的排除名单保存在 `localStorage` 的 `ql_crons_excluded_names`，只影响前端一键整理，不写后端。
@@ -375,9 +375,9 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 ### 9.2 两套不同鉴权
 
 1. Bearer `INGEST_TOKEN`：仅保护外部写入路由（积分/库存上报）和图片上传；暂时读取旧 `.env` 的 `API_TOKEN` 作为兼容别名。缺少、仍为 `default_token` 或少于 32 个字符时，应用启动失败。
-2. `X-Access-Key`：人类用户界面锁，密钥保存在 `system_settings.access_key`。`web` 和 `stock` router 当前统一挂 `require_ui_access()`，只豁免 `/access/status`、`/access/verify`；前端收到受保护 API 的 401 会清理会话并回到访问页。
+2. UI access session：人类用户界面锁的原始密钥保存在 `system_settings.access_key`，登录后签发 8 小时签名 HttpOnly Cookie。`web` 和 `stock` router 当前统一挂 `require_ui_access()`，只豁免 `/access/status`、`/access/verify`；旧 `X-Access-Key` 仅用于迁移，前端收到受保护 API 的 401 会清理会话并回到访问页。
 
-重要：当前仍把 access key 明文放在 SQLite 和浏览器 localStorage，这是后续会话化/哈希化事项；不要把它当作长期安全边界。
+重要：当前仍把 access key 明文放在 SQLite；登录失败限流、审计日志和数据库内密钥哈希化仍是后续事项，不要把它当作长期安全边界。
 
 ## 10. 运行与部署
 
@@ -449,7 +449,7 @@ docker compose up -d --build
 
 1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
-3. **access key 仍未会话化。** router 统一保护已完成第一阶段，但 SQLite 明文、localStorage、登录失败限流和审计仍待处理。
+3. **UI access 已完成第一阶段会话化。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；SQLite 明文、登录失败限流和审计仍待处理。
 4. **数据库恢复已加第一阶段保护。** 仍需跨进程维护锁、完整调度暂停和真实文件恢复集成测试；不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import api, { clearAccessSession, getAccessSession } from './api'
+import api, { clearAccessSession } from './api'
 
 const DashboardPage = () => import('./views/DashboardPage.vue')
 const ProgramsPage = () => import('./views/ProgramsPage.vue')
@@ -140,29 +140,28 @@ router.beforeEach(async (to) => {
     const cached = readAccessStatusCache()
     if (cached) {
       if (!cached.enabled) return true
-      if (!cached.ok || !getAccessSession()) {
+      if (!cached.ok) {
         return { name: 'access-gate' }
       }
       return true
     }
 
     // One request only (previously double-fetched). Backend returns enabled
-    // without 401 when no key is stored; validates when X-Access-Key is sent.
+    // without 401 when no session is stored; validates legacy X-Access-Key
+    // headers during the migration window.
     const { data } = await api.get('/access/status')
     const enabled = Boolean(data?.enabled)
-    const accessKey = getAccessSession()
 
     if (!enabled) {
       accessStatusCache = { at: Date.now(), enabled: false, ok: true }
       return true
     }
 
-    if (!accessKey) {
-      accessStatusCache = { at: Date.now(), enabled: true, ok: false }
-      return { name: 'access-gate' }
+    if (data?.authenticated === true) {
+      accessStatusCache = { at: Date.now(), enabled: true, ok: true }
+      return true
     }
 
-    // Key present: if server says not authenticated, treat as invalid.
     if (data?.authenticated === false) {
       clearAccessSession()
       accessStatusCache = { at: Date.now(), enabled: true, ok: false }

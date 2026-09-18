@@ -68,7 +68,7 @@ Backend regression tests live in `tests/` and run with `python -m pytest -q`; CI
 These do different things and should not be confused:
 
 1. **Bearer token** (`INGEST_TOKEN` from `.env`, with one-release `API_TOKEN` compatibility, checked by `app/dependencies.py:verify_token`). Protects QingLong ingest and image upload routers only: `/api/v1/qinglong/*`, `/api/v1/stock-report`, `/api/v1/upload/image`. Missing/default/short credentials fail startup. Used by external scripts (see `scripts/api_template.py`).
-2. **Access key** (header `X-Access-Key`, stored in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. `web` and `stock` routers use `require_ui_access` uniformly; only `/access/status` and `/access/verify` are public. Frontend reads/writes it through `frontend/src/api.js` (localStorage key `site_access_key`) and redirects to `/access-gate` on a protected API 401.
+2. **Access session** (signed `HttpOnly`/`SameSite=Lax` cookie bound to the key in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. `web` and `stock` routers use `require_ui_access` uniformly; only `/access/status` and `/access/verify` are public. A legacy `X-Access-Key` header is accepted only for migration, and the frontend redirects to `/access-gate` on a protected API 401.
 
 When adding a new UI API router, attach `Depends(require_ui_access)` unless it is deliberately public. Do not rely only on the Vue route guard.
 
@@ -168,7 +168,7 @@ Do **not** use Element Plus `el-drawer` for the main mobile nav. `App.vue` uses 
 - `app/services/cleanup_service.py`: settings accessor, lazy column ensure, history pruning.
 - `app/models.py`: SQLAlchemy models. Note `is_favorite`, `is_hidden`, `access_protection_enabled`, `bark_enabled`, `ql_is_disabled` are `Integer` (0/1), not boolean. `PointsHistory.points/cash` are nullable floats. `Product.points` is required points cost; `Product.cash` is optional yuan cost for 积分加钱购 (0/NULL = pure points).
 - `frontend/src/router.js`: route table, also drives the access-gate redirect.
-- `frontend/src/api.js`: axios instance with `/api/v1` baseURL and `X-Access-Key` injection.
+- `frontend/src/api.js`: axios instance with `/api/v1` baseURL; new UI auth uses the browser's HttpOnly session cookie, while legacy `site_access_key` values are only sent as migration headers.
 - `frontend/src/views/ProgramsPage.vue`: main program cards UI (filters, stock/detail dialogs, cron sort).
 - `frontend/src/views/SettingsPage.vue`: sectioned settings (general / qinglong / bark / database).
 - `scripts/api_template.py`: reference client for QingLong scripts that report points/cash.

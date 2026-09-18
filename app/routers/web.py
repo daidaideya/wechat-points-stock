@@ -3,14 +3,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import json
 import os
-from secrets import compare_digest
 import shutil
 import sqlite3
 import tempfile
 from typing import List, Optional
 from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Cookie, Depends, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from pypinyin import Style, lazy_pinyin, pinyin
@@ -21,7 +20,14 @@ from starlette.background import BackgroundTask
 from app import models
 from app.config import settings as app_settings
 from app.database import get_db
-from app.dependencies import require_ui_access
+from app.dependencies import (
+    ACCESS_SESSION_COOKIE,
+    clear_ui_access_cookie,
+    is_valid_ui_access_key,
+    is_valid_ui_access_session,
+    require_ui_access,
+    set_ui_access_cookie,
+)
 from app.maintenance import database_maintenance
 from app.services import bark_service, cleanup_service
 from app.services import qinglong_open_service
@@ -672,29 +678,6 @@ def build_program_payload(
     }
 
 
-def verify_access_or_raise(
-    db: Session,
-    x_access_key: Optional[str],
-    allow_empty_when_disabled: bool = True,
-):
-    settings = cleanup_service.get_or_create_settings(db)
-    enabled = settings.access_protection_enabled == 1
-    stored_key = (settings.access_key or "").strip()
-
-    if not enabled:
-        return settings
-
-    if not stored_key:
-        if allow_empty_when_disabled:
-            return settings
-        raise HTTPException(status_code=403, detail="已开启访问保护，但尚未设置访问密钥")
-
-    if not compare_digest((x_access_key or "").strip(), stored_key):
-        raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
-
-    return settings
-
-
 def fetch_points_history_grouped(db: Session, wechat_ids):
     """One-shot pull of all PointsHistory rows for a set of wechat_ids,
     grouped per wechat_id, descending by report_time. Avoids the N+1
@@ -1018,56 +1001,74 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
 @router.get("/api/v1/access/status")
 def get_access_status(
+    request: Request,
     x_access_key: Optional[str] = Header(default=None),
+    access_session: Optional[str] = Cookie(default=None, alias=ACCESS_SESSION_COOKIE),
     db: Session = Depends(get_db),
 ):
     """Bootstrap-friendly access check.
 
     - Always returns 200 when protection is off, or when no key is sent
       (so the SPA can learn `enabled` without a 401 round-trip).
-    - If a key *is* sent while protection is on, validate it (401 on mismatch).
+    - A valid HttpOnly session is preferred; the old header is accepted once
+      to migrate clients from the localStorage-based implementation.
     """
     settings = cleanup_service.get_or_create_settings(db)
     enabled = settings.access_protection_enabled == 1
     has_access_key = bool((settings.access_key or "").strip())
     protection_on = enabled and has_access_key
-    provided = (x_access_key or "").strip()
+    stored_key = (settings.access_key or "").strip()
 
     authenticated = False
-    if protection_on and provided:
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
-        authenticated = True
+    should_set_cookie = False
+    if protection_on:
+        authenticated = is_valid_ui_access_session(access_session, stored_key)
+        if not authenticated and x_access_key:
+            if not is_valid_ui_access_key(x_access_key, stored_key):
+                raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
+            authenticated = True
+            should_set_cookie = True
 
-    return {
+    response = JSONResponse(content={
         "enabled": protection_on,
         "configured": has_access_key,
         "authenticated": authenticated if protection_on else True,
-    }
+    })
+    if protection_on and authenticated and should_set_cookie:
+        set_ui_access_cookie(response, stored_key, secure=request.url.scheme == "https")
+    elif not protection_on:
+        clear_ui_access_cookie(response)
+    return response
 
 
 @router.post("/api/v1/access/verify")
-def verify_access_key(payload: AccessVerifyRequest, db: Session = Depends(get_db)):
+def verify_access_key(
+    payload: AccessVerifyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     settings = cleanup_service.get_or_create_settings(db)
     enabled = settings.access_protection_enabled == 1
     stored_key = (settings.access_key or "").strip()
 
     if not enabled or not stored_key:
-        return JSONResponse(content={"status": "disabled"})
+        response = JSONResponse(content={"status": "disabled"})
+        clear_ui_access_cookie(response)
+        return response
 
-    if not compare_digest(payload.access_key.strip(), stored_key):
+    if not is_valid_ui_access_key(payload.access_key, stored_key):
         raise HTTPException(status_code=401, detail="访问密钥错误")
 
-    return JSONResponse(content={"status": "success"})
+    response = JSONResponse(content={"status": "success"})
+    set_ui_access_cookie(response, stored_key, secure=request.url.scheme == "https")
+    return response
 
 
 @router.get("/api/v1/settings/logs")
 def get_log_settings(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     return {
         "max_log_entries": settings.max_log_entries,
         "max_retention_days": settings.max_retention_days,
@@ -1080,19 +1081,20 @@ def get_log_settings(
 @router.post("/api/v1/settings/logs")
 def update_log_settings(
     update: LogSettingsUpdate,
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     settings.max_log_entries = max(0, update.max_log_entries)
     settings.max_retention_days = max(0, update.max_retention_days)
     settings.access_protection_enabled = 1 if update.access_protection_enabled else 0
 
     if update.access_key is not None:
         normalized_key = update.access_key.strip()
-        settings.access_key = normalized_key or None
+        # The UI intentionally sends an empty field when the operator is not
+        # rotating the key. Preserve the current key instead of silently
+        # disabling protection during an unrelated settings save.
+        if normalized_key:
+            settings.access_key = normalized_key
 
     settings.updated_at = datetime.utcnow()
     db.add(settings)
@@ -1104,12 +1106,9 @@ def update_log_settings(
 
 @router.get("/api/v1/settings/qinglong")
 def get_qinglong_settings(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     from app.timeutil import iso_for_api, local_display
 
     return {
@@ -1132,12 +1131,9 @@ def get_qinglong_settings(
 @router.post("/api/v1/settings/qinglong")
 def update_qinglong_settings(
     update: QinglongSettingsUpdate,
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
 
     if update.ql_base_url is not None:
         settings.ql_base_url = update.ql_base_url.strip().rstrip("/") or None
@@ -1172,12 +1168,9 @@ def update_qinglong_settings(
 
 @router.post("/api/v1/settings/qinglong/sync")
 def sync_qinglong_settings(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     ensure_mini_program_columns(db)
     result = qinglong_open_service.sync_cron_status(db)
     status_code = 200 if result.get("status") in ("success", "skipped") else 502
@@ -1186,12 +1179,9 @@ def sync_qinglong_settings(
 
 @router.get("/api/v1/settings/bark")
 def get_bark_settings(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     from app.timeutil import iso_for_api, local_display
 
     return {
@@ -1208,12 +1198,9 @@ def get_bark_settings(
 @router.post("/api/v1/settings/bark")
 def update_bark_settings(
     update: BarkSettingsUpdate,
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
 
     settings.bark_enabled = 1 if update.bark_enabled else 0
     if update.bark_server is not None:
@@ -1233,12 +1220,9 @@ def update_bark_settings(
 
 @router.post("/api/v1/settings/bark/test")
 def test_bark_push(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
     result = bark_service.push_unreported_now(db, force=True)
     status_code = 200 if result.get("status") in ("success", "skipped") else 502
     return JSONResponse(content=result, status_code=status_code)
@@ -1315,14 +1299,9 @@ def _validate_sqlite_backup(path: str):
 
 @router.get("/api/v1/settings/database/export")
 def export_database(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Download a consistent snapshot of the SQLite database (backup)."""
-    settings_row = cleanup_service.get_or_create_settings(db)
-    if settings_row.access_protection_enabled == 1 and (settings_row.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
-
     db_path = _resolve_sqlite_db_path()
     _assert_sqlite_file(db_path)
 
@@ -1367,14 +1346,9 @@ def export_database(
 @router.post("/api/v1/settings/database/import")
 def import_database(
     file: UploadFile = File(...),
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Restore database from an uploaded .db backup. Replaces current SQLite file."""
-    settings_row = cleanup_service.get_or_create_settings(db)
-    if settings_row.access_protection_enabled == 1 and (settings_row.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
-
     db_path = _resolve_sqlite_db_path()
     db_dir = os.path.dirname(db_path) or "."
     os.makedirs(db_dir, exist_ok=True)
@@ -2124,13 +2098,10 @@ def update_program(program_id: str, update: ProgramUpdate, db: Session = Depends
 
 @router.get("/api/v1/qinglong/crons")
 def list_qinglong_crons(
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Fetch all cron tasks from the QingLong panel (live, not DB mirror)."""
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
 
     base_url = (settings.ql_base_url or "").strip()
     client_id = (settings.ql_client_id or "").strip()
@@ -2174,13 +2145,10 @@ class QinglongCronBatchUpdate(BaseModel):
 @router.post("/api/v1/qinglong/crons/schedules")
 def update_qinglong_cron_schedules(
     payload: QinglongCronBatchUpdate,
-    x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Batch update cron schedules on the QingLong panel, then resync mirror."""
     settings = cleanup_service.get_or_create_settings(db)
-    if settings.access_protection_enabled == 1 and (settings.access_key or "").strip():
-        verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
 
     base_url = (settings.ql_base_url or "").strip()
     client_id = (settings.ql_client_id or "").strip()

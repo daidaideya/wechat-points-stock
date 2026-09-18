@@ -291,7 +291,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import api, { setAccessSession } from '../api'
+import api, { clearAccessSession } from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -482,7 +482,14 @@ async function saveSettings() {
     })
 
     if (nextAccessKey) {
-      setAccessSession(nextAccessKey)
+      // Rotate the HttpOnly session when the access key changes. The key is
+      // never persisted in localStorage by the new flow.
+      await api.post('/access/verify', { access_key: nextAccessKey })
+      clearAccessSession()
+    } else {
+      // This also migrates an older localStorage header to an HttpOnly cookie
+      // and clears a stale cookie when protection was just disabled.
+      await api.get('/access/status')
     }
 
     ElMessage.success('设置已保存')

@@ -47,7 +47,7 @@
 import { ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api, { setAccessSession } from '../api'
+import api, { clearAccessSession } from '../api'
 import { invalidateAccessStatusCache } from '../router'
 
 const router = useRouter()
@@ -69,7 +69,10 @@ async function submitAccess() {
       access_key: accessKey.value,
     })
 
-    setAccessSession(accessKey.value)
+    // The backend sets an HttpOnly session cookie; do not persist the key in
+    // localStorage or keep it in a request header after login.
+    clearAccessSession()
+    accessKey.value = ''
     invalidateAccessStatusCache()
     router.replace('/dashboard')
   } catch (error) {

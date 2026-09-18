@@ -6,16 +6,12 @@ export function getAccessSession() {
   return localStorage.getItem(ACCESS_SESSION_KEY) || ''
 }
 
-export function setAccessSession(value) {
-  if (!value) {
-    localStorage.removeItem(ACCESS_SESSION_KEY)
-    return
-  }
-  localStorage.setItem(ACCESS_SESSION_KEY, value)
-}
-
 export function clearAccessSession() {
   localStorage.removeItem(ACCESS_SESSION_KEY)
+}
+
+function isAccessBootstrapRequest(url) {
+  return url.endsWith('/access/status') || url.endsWith('/access/verify')
 }
 
 const api = axios.create({
@@ -33,11 +29,21 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const requestUrl = String(response?.config?.url || '')
+    if (
+      isAccessBootstrapRequest(requestUrl) &&
+      (response?.data?.authenticated === true || response?.data?.enabled === false)
+    ) {
+      // New sessions are HttpOnly cookies. Drop only the legacy localStorage
+      // copy after the backend has confirmed the session/bootstrap state.
+      clearAccessSession()
+    }
+    return response
+  },
   (error) => {
     const requestUrl = String(error?.config?.url || '')
-    const isAccessBootstrapRequest = requestUrl.endsWith('/access/status') || requestUrl.endsWith('/access/verify')
-    if (error?.response?.status === 401 && !isAccessBootstrapRequest) {
+    if (error?.response?.status === 401 && !isAccessBootstrapRequest(requestUrl)) {
       clearAccessSession()
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('site-access-required'))
