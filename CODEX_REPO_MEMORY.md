@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`c7e17c4`（2026-09-18）
-- 工作区：OPT-016 已落地当前余额快照第一批；后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
+- 快照提交：`547243d`（2026-09-18）
+- 工作区：OPT-015 已完成主要页面错误边界第二批；OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `23 passed`，`npm run lint` 通过
@@ -396,7 +396,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `ProgramsPage.vue` 与 `/apps` 共用 `frontend/src/composables/useProgramFilters.js` 管理搜索、状态、收藏、青龙状态、排序和标签筛选；页面保留 API 请求、分页、sessionStorage 恢复和归档/删除等业务编排。
 - `ProgramFilterBar.vue` 负责 Programs/Apps 页筛选栏展示和事件派发；`ProgramsPage.vue` 保留筛选状态、请求、分页、缓存恢复和业务操作。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
-- `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误和 Axios 取消；访问页、设置页、青龙页、用户页和 Programs 请求已使用该边界。
+- `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误和 Axios 取消；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - 前端 Node 内置测试目前共 `23 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL 和 API 错误解析测试。
 - `frontend/package.json` 提供 `npm test`、`npm run lint` 和 `npm run build`；ESLint 已接入 CI 可复用命令，现有代码基线通过 lint。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
