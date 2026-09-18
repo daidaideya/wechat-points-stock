@@ -823,6 +823,7 @@ import {
   isRedeemable,
 } from '../utils/product'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
+import { useProgramFilters } from '../composables/useProgramFilters'
 
 const router = useRouter()
 const route = useRoute()
@@ -869,12 +870,24 @@ const page = ref(1)
 const hasMore = ref(false)
 const programs = ref([])
 const availableTags = ref([])
-const currentTag = ref('')
-const searchKeyword = ref('')
-const favoriteFilter = ref('all')
-const statusFilter = ref('active')
-const qlStatusFilter = ref('all')
-const sortFilter = ref('default')
+const {
+  currentTag,
+  searchKeyword,
+  favoriteFilter,
+  statusFilter,
+  qlStatusFilter,
+  sortFilter,
+  hasActiveFilters,
+  activeFilterChips,
+  buildProgramParams,
+  setStatusFilter: updateStatusFilter,
+  setFavoriteFilter: updateFavoriteFilter,
+  setQlStatusFilter: updateQlStatusFilter,
+  setSortFilter: updateSortFilter,
+  toggleTag,
+  clearFilterChip: clearProgramFilterChip,
+  resetFilters: resetProgramFilters,
+} = useProgramFilters({ listKind, pageSize })
 const updatingProgramId = ref('')
 const deletingProgramId = ref('')
 const archivingProgramId = ref('')
@@ -987,41 +1000,6 @@ const redeemableProductCount = computed(() => {
 const quickTags = computed(() => {
   const knownSet = new Set(availableTags.value)
   return [...availableTags.value, ...editingTags.value.filter((tag) => !knownSet.has(tag))]
-})
-
-const hasActiveFilters = computed(() => {
-  return Boolean(searchKeyword.value.trim())
-    || favoriteFilter.value !== 'all'
-    || Boolean(currentTag.value)
-    || statusFilter.value !== 'active'
-    || qlStatusFilter.value !== 'all'
-    || sortFilter.value !== 'default'
-})
-
-const activeFilterChips = computed(() => {
-  const chips = []
-  if (searchKeyword.value.trim()) {
-    chips.push({ key: 'search', label: `搜索：${searchKeyword.value.trim()}` })
-  }
-  if (statusFilter.value !== 'active') {
-    const map = { archived: '仅归档', all: '全部状态' }
-    chips.push({ key: 'status', label: map[statusFilter.value] || statusFilter.value })
-  }
-  if (favoriteFilter.value !== 'all') {
-    const map = { favorite: '仅收藏', unfavorite: '仅未收藏' }
-    chips.push({ key: 'favorite', label: map[favoriteFilter.value] || favoriteFilter.value })
-  }
-  if (qlStatusFilter.value !== 'all') {
-    const map = { enabled: '青龙启用', disabled: '青龙禁用', unknown: '青龙未关联' }
-    chips.push({ key: 'ql', label: map[qlStatusFilter.value] || qlStatusFilter.value })
-  }
-  if (sortFilter.value !== 'default') {
-    chips.push({ key: 'sort', label: '按定时排序' })
-  }
-  if (currentTag.value) {
-    chips.push({ key: 'tag', label: `标签：${currentTag.value}` })
-  }
-  return chips
 })
 
 function normalizeTags(input) {
@@ -1262,21 +1240,6 @@ function isUpdatedToday(value) {
     && date.getDate() === now.getDate()
 }
 
-function getRequestParams(nextPage = 1) {
-  const params = { page: nextPage, size: pageSize, kind: listKind.value }
-  const keyword = searchKeyword.value.trim()
-  if (keyword) params.q = keyword
-  if (favoriteFilter.value === 'favorite') params.is_favorite = true
-  else if (favoriteFilter.value === 'unfavorite') params.is_favorite = false
-  if (currentTag.value) params.tag = currentTag.value
-  if (statusFilter.value && statusFilter.value !== 'active') params.status = statusFilter.value
-  else params.status = 'active'
-  if (qlStatusFilter.value && qlStatusFilter.value !== 'all') params.ql_status = qlStatusFilter.value
-  if (sortFilter.value && sortFilter.value !== 'default') params.sort = sortFilter.value
-  else params.sort = 'default'
-  return params
-}
-
 async function fetchPrograms(nextPage = 1, append = false) {
   if (append) {
     if (loadingMore.value || loading.value || !hasMore.value) return
@@ -1287,7 +1250,7 @@ async function fetchPrograms(nextPage = 1, append = false) {
 
   try {
     loadError.value = false
-    const { data } = await api.get('/programs', { params: getRequestParams(nextPage) })
+    const { data } = await api.get('/programs', { params: buildProgramParams(nextPage) })
     total.value = data.total || 0
     hasMore.value = Boolean(data.has_more)
     page.value = data.page || nextPage
@@ -1315,51 +1278,41 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  searchKeyword.value = ''
-  favoriteFilter.value = 'all'
-  currentTag.value = ''
-  statusFilter.value = 'active'
-  qlStatusFilter.value = 'all'
-  sortFilter.value = 'default'
+  resetProgramFilters()
   applyFilters()
 }
 
 function setStatusFilter(value) {
   if (statusFilter.value === value) return
-  statusFilter.value = value
+  updateStatusFilter(value)
   applyFilters()
 }
 
 function setFavoriteFilter(value) {
   if (favoriteFilter.value === value) return
-  favoriteFilter.value = value
+  updateFavoriteFilter(value)
   applyFilters()
 }
 
 function setQlStatusFilter(value) {
   if (qlStatusFilter.value === value) return
-  qlStatusFilter.value = value
+  updateQlStatusFilter(value)
   applyFilters()
 }
 
 function setSortFilter(value) {
   if (sortFilter.value === value) return
-  sortFilter.value = value
+  updateSortFilter(value)
   applyFilters()
 }
 
 function selectTag(tag) {
-  currentTag.value = currentTag.value === tag ? '' : tag
+  toggleTag(tag)
   applyFilters()
 }
 
 function clearFilterChip(key) {
-  if (key === 'search') searchKeyword.value = ''
-  if (key === 'status') statusFilter.value = 'active'
-  if (key === 'favorite') favoriteFilter.value = 'all'
-  if (key === 'ql') qlStatusFilter.value = 'all'
-  if (key === 'sort') sortFilter.value = 'default'
-  if (key === 'tag') currentTag.value = ''
+  clearProgramFilterChip(key)
   applyFilters()
 }
 
@@ -1608,12 +1561,7 @@ watch(() => programs.value.length, async (value) => {
 watch(
   () => listKind.value,
   async () => {
-    searchKeyword.value = ''
-    favoriteFilter.value = 'all'
-    statusFilter.value = 'active'
-    qlStatusFilter.value = 'all'
-    sortFilter.value = 'default'
-    currentTag.value = ''
+    resetProgramFilters()
     programs.value = []
     page.value = 1
     hasMore.value = false
