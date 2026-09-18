@@ -4,6 +4,7 @@ const desktopRoutes = [
   ['/dashboard', '仪表盘'],
   ['/programs', '小程序列表'],
   ['/apps', 'APP列表'],
+  ['/programs/demo', '小程序详情'],
   ['/users', '用户管理'],
   ['/points', '积分总览'],
   ['/stock', '库存管理'],

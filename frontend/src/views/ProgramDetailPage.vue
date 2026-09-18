@@ -130,7 +130,8 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
 const router = useRouter()
@@ -138,6 +139,7 @@ const programId = route.params.programId
 const loading = ref(false)
 const detail = ref(null)
 const stock = ref(null)
+const requestController = useAbortableRequest()
 
 function formatDate(value) {
   if (!value) return '暂无'
@@ -165,19 +167,25 @@ function goBackToPrograms() {
 }
 
 async function loadDetail() {
+  const request = requestController.start()
   loading.value = true
   try {
     const [detailResp, stockResp] = await Promise.all([
-      api.get(`/programs/${programId}`),
-      api.get(`/programs/${programId}/stock`),
+      api.get(`/programs/${programId}`, { signal: request.signal }),
+      api.get(`/programs/${programId}/stock`, { signal: request.signal }),
     ])
+    if (!request.isCurrent()) return
     detail.value = detailResp.data
     stock.value = stockResp.data
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载小程序详情失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 

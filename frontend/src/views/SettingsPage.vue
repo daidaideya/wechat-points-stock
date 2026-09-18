@@ -293,11 +293,13 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
 const router = useRouter()
 const { clearAccessSession } = useAccessSession()
+const readRequestController = useAbortableRequest()
 
 const navItems = [
   { key: 'general', label: '基础设置', desc: '日志清理 / 访问保护', icon: '⚙️' },
@@ -392,8 +394,8 @@ function syncSectionFromRoute() {
   activeSection.value = normalizeSection(route.query.section)
 }
 
-async function loadSettings() {
-  const { data } = await api.get('/settings/logs')
+async function loadSettings(signal) {
+  const { data } = await api.get('/settings/logs', signal ? { signal } : undefined)
   form.max_log_entries = data.max_log_entries ?? 10000
   form.max_retention_days = data.max_retention_days ?? 30
   form.access_protection_enabled = Boolean(data.access_protection_enabled)
@@ -408,8 +410,8 @@ function normalizeQlSyncMode(value) {
   return 'auto'
 }
 
-async function loadQinglong() {
-  const { data } = await api.get('/settings/qinglong')
+async function loadQinglong(signal) {
+  const { data } = await api.get('/settings/qinglong', signal ? { signal } : undefined)
   qlForm.ql_base_url = data.ql_base_url || ''
   qlForm.ql_client_id = data.ql_client_id || ''
   qlForm.ql_client_secret = ''
@@ -422,8 +424,8 @@ async function loadQinglong() {
   qlLastSyncStatus.value = data.ql_last_sync_status || ''
 }
 
-async function loadBark() {
-  const { data } = await api.get('/settings/bark')
+async function loadBark(signal) {
+  const { data } = await api.get('/settings/bark', signal ? { signal } : undefined)
   barkForm.bark_enabled = Boolean(data.bark_enabled)
   barkForm.bark_server = data.bark_server || 'https://api.day.app'
   barkForm.bark_device_key = ''
@@ -434,36 +436,52 @@ async function loadBark() {
   barkLastPushStatus.value = data.bark_last_push_status || ''
 }
 async function loadAll() {
+  const request = readRequestController.start()
   loading.value = true
   try {
-    await Promise.all([loadSettings(), loadQinglong(), loadBark()])
+    await Promise.all([
+      loadSettings(request.signal),
+      loadQinglong(request.signal),
+      loadBark(request.signal),
+    ])
+    if (!request.isCurrent()) return
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载设置失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 
 async function refreshCurrentSection() {
+  const request = readRequestController.start()
   loading.value = true
   try {
     if (activeSection.value === 'qinglong') {
-      await loadQinglong()
+      await loadQinglong(request.signal)
     } else if (activeSection.value === 'bark') {
-      await loadBark()
+      await loadBark(request.signal)
     } else if (activeSection.value === 'general') {
-      await loadSettings()
+      await loadSettings(request.signal)
     } else {
       // database section has no remote config to load
       await Promise.resolve()
     }
+    if (!request.isCurrent()) return
     ElMessage.success('已刷新')
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '刷新失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 
