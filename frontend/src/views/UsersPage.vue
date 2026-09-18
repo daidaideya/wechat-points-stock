@@ -87,31 +87,14 @@
       </template>
     </section>
 
-    <el-dialog
+    <UserEditDialog
       v-model="dialogVisible"
-      :title="currentRow ? '编辑用户' : '新增用户'"
-      width="520px"
-      class="users-edit-dialog"
-    >
-      <el-form label-width="90px" class="users-form">
-        <el-form-item label="微信号">
-          <el-input v-model="form.wechat_id" :disabled="Boolean(currentRow)" />
-        </el-form-item>
-        <el-form-item label="昵称">
-          <el-input v-model="form.nickname" />
-        </el-form-item>
-        <el-form-item label="设备">
-          <el-input v-model="form.device" />
-        </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="form.phone" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" class="users-primary-button" @click="saveUser" :loading="saving">保存</el-button>
-      </template>
-    </el-dialog>
+      :editing="Boolean(currentRow)"
+      :form="form"
+      :saving="saving"
+      @update-field="updateFormField"
+      @save="saveUser"
+    />
 
     <UserPointsDialog v-model="pointsVisible" :title="pointsTitle" :loading="pointsLoading" :items="pointItems" />
   </div>
@@ -124,6 +107,7 @@ import { Plus } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import api from '../api'
 import UserDesktopTable from '../components/UserDesktopTable.vue'
+import UserEditDialog from '../components/UserEditDialog.vue'
 import UserPointsDialog from '../components/UserPointsDialog.vue'
 import UserMobileCard from '../components/UserMobileCard.vue'
 import { getApiErrorMessage } from '../utils/apiError'
@@ -182,6 +166,12 @@ function openEdit(row) {
     resetForm()
   }
   dialogVisible.value = true
+}
+
+function updateFormField(field, value) {
+  if (field === 'wechat_id' || field === 'nickname' || field === 'device' || field === 'phone') {
+    form[field] = value
+  }
 }
 
 async function loadUsers() {
@@ -545,19 +535,6 @@ onBeforeUnmount(() => {
 
 .users-mobile-list {
   display: none;
-}
-
-.users-edit-dialog :deep(.el-dialog) {
-  border-radius: 24px;
-}
-
-.users-form :deep(.el-input__wrapper) {
-  box-shadow: 0 0 0 1px rgba(232, 211, 183, 0.88) inset;
-  background: #fffdf9;
-}
-
-.users-form :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #d89a3c inset;
 }
 
 @media (max-width: 900px) {
