@@ -19,7 +19,11 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal
-from app.maintenance import is_database_maintenance
+from app.maintenance import (
+    is_database_maintenance,
+    leave_database_request,
+    try_enter_database_request,
+)
 from app.services import cleanup_service
 
 # In-process token cache: key -> (token, expire_unix)
@@ -485,14 +489,19 @@ def trigger_background_sync(min_interval_minutes: Optional[int] = None) -> None:
     """Fire-and-forget sync for auto mode only. Never used on blocking list path."""
 
     def _run():
-        db = SessionLocal()
+        if not try_enter_database_request():
+            return
+        db = None
         try:
+            db = SessionLocal()
             # Only when mode is auto; never steal the list request.
             maybe_auto_sync(db, min_interval_minutes=min_interval_minutes, respect_mode=True)
         except Exception as exc:
             print(f"[qinglong_open_service] background sync failed: {exc}")
         finally:
-            db.close()
+            if db is not None:
+                db.close()
+            leave_database_request()
 
     threading.Thread(target=_run, name="qinglong-sync-bg", daemon=True).start()
 
@@ -596,18 +605,23 @@ def _scheduler_loop(stop_event: threading.Event) -> None:
         while not stop_event.is_set():
             interval = DEFAULT_AUTO_SYNC_MINUTES
             db = None
+            request_gate_entered = False
             try:
-                db = SessionLocal()
-                mode = get_configured_sync_mode(db)
-                interval = get_configured_auto_sync_minutes(db)
-                if mode == SYNC_MODE_AUTO:
-                    maybe_auto_sync(db, min_interval_minutes=interval, respect_mode=True)
+                request_gate_entered = try_enter_database_request()
+                if request_gate_entered:
+                    db = SessionLocal()
+                    mode = get_configured_sync_mode(db)
+                    interval = get_configured_auto_sync_minutes(db)
+                    if mode == SYNC_MODE_AUTO:
+                        maybe_auto_sync(db, min_interval_minutes=interval, respect_mode=True)
                 # blocking / manual: scheduler idle (blocking uses list path; manual uses button)
             except Exception as exc:
                 print(f"[qinglong_open_service] scheduler loop error: {exc}")
             finally:
                 if db is not None:
                     db.close()
+                if request_gate_entered:
+                    leave_database_request()
             # Re-read interval/mode each cycle so Settings changes apply without restart.
             if stop_event.wait(max(60, interval * 60)):
                 break

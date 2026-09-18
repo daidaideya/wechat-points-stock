@@ -45,7 +45,7 @@ Docker notes for this project:
 - Compose adds `host.docker.internal:host-gateway` so QingLong on the host is reachable as `http://host.docker.internal:5700`.
 - Volumes: `data`, `logs`, `static/uploads`, plus read-only bind-mounted `app/` and `scripts/` for the existing local workflow. The image itself contains `frontend/dist`.
 - SQLite enables `PRAGMA journal_mode=WAL` and `busy_timeout=5000` on connect for safer concurrent readers.
-- Database restore uses a database-path sidecar maintenance lock, rejects new API work while replacing the SQLite file, and aborts when `wal_checkpoint(TRUNCATE)` reports a busy transaction. Full in-flight transaction draining is still a follow-up.
+- Database restore uses a database-path sidecar maintenance lock, rejects new API work, drains in-flight database tasks in the current process, and aborts when `wal_checkpoint(TRUNCATE)` reports a busy transaction. Cross-worker in-flight work is still guarded by the checkpoint barrier.
 
 Backend regression tests live in `tests/` and run with `python -m pytest -q`; CI also runs `compileall`, frontend `npm run build`, and the blocking Gitleaks secret scan. Frontend lint/test tooling is still not configured.
 

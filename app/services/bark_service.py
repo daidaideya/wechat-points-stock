@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal
-from app.maintenance import is_database_maintenance
+from app.maintenance import leave_database_request, try_enter_database_request
 from app.services import cleanup_service
 
 _DEFAULT_SERVER = "https://api.day.app"
@@ -201,10 +201,11 @@ def _already_pushed_today(settings: models.SystemSettings) -> bool:
 
 
 def maybe_run_scheduled_push() -> None:
-    if is_database_maintenance():
+    if not try_enter_database_request():
         return
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         settings = cleanup_service.get_or_create_settings(db)
         if int(getattr(settings, "bark_enabled", 0) or 0) != 1:
             return
@@ -224,7 +225,9 @@ def maybe_run_scheduled_push() -> None:
     except Exception as exc:
         print(f"[bark_service] scheduled push failed: {exc}")
     finally:
-        db.close()
+        if db is not None:
+            db.close()
+        leave_database_request()
 
 
 def _scheduler_loop(stop_event: threading.Event) -> None:

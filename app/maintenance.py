@@ -3,7 +3,7 @@
 import os
 import time
 from contextlib import contextmanager
-from threading import Lock
+from threading import Condition, Lock
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
@@ -15,9 +15,12 @@ class DatabaseMaintenanceBusy(RuntimeError):
 
 
 _state_lock = Lock()
+_state_condition = Condition(_state_lock)
 _database_maintenance = False
+_active_database_requests = 0
 _FILE_LOCK_TIMEOUT_SECONDS = 30.0
 _FILE_LOCK_POLL_SECONDS = 0.05
+_IN_FLIGHT_DRAIN_TIMEOUT_SECONDS = 30.0
 
 
 def _resolve_sqlite_path(database_url: Optional[str]) -> Optional[str]:
@@ -151,26 +154,63 @@ def is_database_maintenance(lock_path: Optional[str] = None) -> bool:
     return False
 
 
+def try_enter_database_request(lock_path: Optional[str] = None) -> bool:
+    """Register a database request unless maintenance is already active."""
+    if is_database_maintenance(lock_path):
+        return False
+
+    global _active_database_requests
+    with _state_condition:
+        if _database_maintenance:
+            return False
+        _active_database_requests += 1
+    return True
+
+
+def leave_database_request():
+    """Release a request registered by ``try_enter_database_request``."""
+    global _active_database_requests
+    with _state_condition:
+        if _active_database_requests > 0:
+            _active_database_requests -= 1
+        if _active_database_requests == 0:
+            _state_condition.notify_all()
+
+
+def _wait_for_in_flight_requests(timeout: float) -> bool:
+    deadline = time.monotonic() + max(0.0, timeout)
+    with _state_condition:
+        while _active_database_requests:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            _state_condition.wait(timeout=remaining)
+    return True
+
+
 @contextmanager
 def database_maintenance(lock_path: Optional[str] = None):
     """Reject concurrent restores across threads and worker processes."""
     global _database_maintenance
 
-    with _state_lock:
+    with _state_condition:
         if _database_maintenance:
             raise DatabaseMaintenanceBusy("database maintenance is already in progress")
 
     path = lock_path or database_maintenance_lock_path()
     file_handle = _acquire_file_lock(path, timeout=_FILE_LOCK_TIMEOUT_SECONDS)
-    with _state_lock:
+    with _state_condition:
         if _database_maintenance:
             _release_file_lock(file_handle)
             raise DatabaseMaintenanceBusy("database maintenance is already in progress")
         _database_maintenance = True
 
     try:
+        if not _wait_for_in_flight_requests(_IN_FLIGHT_DRAIN_TIMEOUT_SECONDS):
+            raise DatabaseMaintenanceBusy("database requests did not drain before restore")
         yield
     finally:
-        with _state_lock:
+        with _state_condition:
             _database_maintenance = False
+            _state_condition.notify_all()
         _release_file_lock(file_handle)

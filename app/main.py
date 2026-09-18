@@ -17,7 +17,11 @@ from app.services import bark_service
 from app.services import qinglong_open_service
 from app.config import settings as app_settings
 from app.database import SessionLocal
-from app.maintenance import is_database_maintenance
+from app.maintenance import (
+    database_maintenance_lock_path,
+    leave_database_request,
+    try_enter_database_request,
+)
 from app.static_assets import file_response_with_optional_gzip, is_hashed_asset_path
 
 
@@ -142,7 +146,15 @@ async def static_and_cache_middleware(request: Request, call_next):
     """
     path = request.url.path
 
-    if is_database_maintenance() and path.startswith("/api/v1/") and path != "/api/v1/settings/database/import":
+    requires_database_request_gate = (
+        path.startswith("/api/v1/") or path == "/health/ready"
+    ) and path != "/api/v1/settings/database/import"
+    request_gate_entered = False
+    if requires_database_request_gate:
+        request_gate_entered = try_enter_database_request(
+            database_maintenance_lock_path()
+        )
+    if requires_database_request_gate and not request_gate_entered:
         return JSONResponse(
             status_code=503,
             content={"detail": "数据库维护中，请稍后重试"},
@@ -162,7 +174,11 @@ async def static_and_cache_middleware(request: Request, call_next):
             except FileNotFoundError:
                 pass
 
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    finally:
+        if request_gate_entered:
+            leave_database_request()
     if path.startswith(("/assets/", "/app/assets/", "/static/uploads/")):
         response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
         if "Content-Encoding" in response.headers:

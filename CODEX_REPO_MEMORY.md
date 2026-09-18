@@ -57,8 +57,8 @@
 | `app/config.py` | 从 `.env` 读取 `INGEST_TOKEN`（兼容旧 `API_TOKEN`）、`DATABASE_URL`、上传目录并校验启动配置 |
 | `app/database.py` | SQLAlchemy engine/session；SQLite 开启 WAL、busy timeout、NORMAL synchronous |
 | `app/models.py` | `SystemSettings`、`WechatAccount`、`MiniProgram`、`PointsHistory`、`Product`、`StockHistory` |
-| `app/schemas.py` | 外部积分/现金上报与库存上报的 Pydantic 请求模型 |
-| `app/schemas_stock.py` | 库存管理 CRUD/分页响应模型 |
+| `app/schemas.py` | 外部积分/现金上报与库存上报的 Pydantic 请求模型；包含字符串、finite/非负数值和批量上限约束 |
+| `app/schemas_stock.py` | 库存管理 CRUD/分页响应模型及分页、排序、字段范围约束 |
 | `app/dependencies.py` | Bearer 上报鉴权、UI `require_ui_access()` 统一访问保护、8 小时签名 HttpOnly Cookie 会话 |
 | `app/access_control.py` | UI access-key 失败尝试的单进程 IP 限流：60 秒最多 5 次，随后锁定 5 分钟 |
 | `app/routers/web.py` | 大部分 UI API：仪表盘、账号、积分、小程序、设置、备份、青龙定时；同步 I/O 路由使用普通 `def` 交给 FastAPI 线程池 |
@@ -69,11 +69,11 @@
 | `app/services/qinglong_open_service.py` | QingLong OpenAPI token、任务列表、匹配、同步和定时器 |
 | `app/services/bark_service.py` | 今日未上报小程序计算、Bark 推送和定时器 |
 | `app/services/cleanup_service.py` | 设置单例、懒迁移、积分/库存历史清理 |
-| `app/maintenance.py` | 数据库恢复期间的进程内维护态标记 |
+| `app/maintenance.py` | 数据库恢复期间的进程内维护态、跨进程旁路锁和在途数据库请求排空 |
 | `app/timeutil.py` | Asia/Shanghai 与 UTC 转换辅助函数；Windows 缺少 IANA tzdata 时回退到固定 UTC+08:00 |
 | `app/static_assets.py` | 优先返回 Vite 生成的 `.gz` 资源 |
 | `frontend/src/App.vue` | 全局布局、桌面/移动导航、页面标题、图片预览关闭处理 |
-| `frontend/src/router.js` | SPA 路由、访问保护路由守卫、30 秒 access-status 缓存 |
+| `frontend/src/router.js` | SPA 路由、访问保护路由守卫、30 秒 access-status 缓存、导航进度和库存 chunk 预加载 |
 | `frontend/src/api.js` | Axios 实例，baseURL=`/api/v1`；新 UI 鉴权依赖 HttpOnly Cookie，旧 `site_access_key` 仅迁移时注入 `X-Access-Key` |
 | `frontend/src/stockCache.js` | 库存中心第一页短 TTL 跨组件内存缓存与失效 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
@@ -354,6 +354,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `router.js` 对页面导航做 access-status 检查，缓存 30 秒；`api.js` 对受保护 API 的 401 清理会话并触发跳转；保护开启且密钥无效时跳 `/access-gate`。
 - `ProgramsPage` 每页 20 条，用 `IntersectionObserver` 无限加载，并分别用 `sessionStorage` 保存小程序/APP 页面状态。
 - `QinglongCronsPage` 的排除名单保存在 `localStorage` 的 `ql_crons_excluded_names`，只影响前端一键整理，不写后端。
+- 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
 - Vite 自动导入 Vue/Vue Router API 和 Element Plus 组件及样式；图标仍需从 `@element-plus/icons-vue` 显式导入。
@@ -451,12 +452,13 @@ docker compose up -d --build
 1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
 3. **UI access 已完成第一阶段会话化和单进程限流。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；SQLite 明文和持久化审计仍待处理，多 worker 场景需依赖反向代理共享限流。
-4. **数据库恢复已加跨进程保护。** `app/maintenance.py` 使用数据库路径旁路锁，维护期间新 API 返回 503，恢复前 `wal_checkpoint(TRUNCATE)` 忙则中止；仍需完整调度暂停、在途事务排空和真实文件恢复/回滚集成测试，不要把 `os.replace` 视作已完成全部恢复治理。
+4. **数据库恢复已加跨进程保护。** `app/maintenance.py` 使用数据库路径旁路锁，维护期间新 API 返回 503，并等待当前进程的 API/Bark/QingLong 数据库任务退出；恢复前 `wal_checkpoint(TRUNCATE)` 忙则中止，其他 worker 的在途事务由 checkpoint 兜底。真实文件恢复/回滚集成测试和更完整的调度暂停仍待补齐，不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。
 7. **日期处理仍有历史混用。** `get_unreported_programs()` 等位置使用 `datetime.now()` 或固定 `+8h`，而其他位置使用 `timeutil`；部署环境改变时需要优先回归“今日未报”和设置时间显示。
-8. **库存中心与下架抽屉已改成服务端分页。** 首屏不再自动请求下架明细，抽屉默认每页 50 条并可继续加载；后续仍需补 revision/ETag 和真实 p95 基准。
+8. **库存中心与下架抽屉已改成服务端分页。** 首屏不再自动请求下架明细，抽屉默认每页 50 条并可继续加载；全局导航骨架、进度反馈和库存 chunk 预加载已补，后续仍需补 revision/ETag、真实 p95 基准和虚拟网格。
 9. **健康检查已提供。** `/health/live` 只表示进程路由可用；`/health/ready` 执行 `SELECT 1`，Compose 已用它做容器 healthcheck。
+10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。上传像素限制、请求体/代理统一上限和校验审计仍待补。
 
 ## 13. 后续接手时的推荐阅读顺序
 
