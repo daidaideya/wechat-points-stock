@@ -38,11 +38,12 @@ class SystemSettings(Base):
 
 
 class AccessAuditEvent(Base):
-    """Minimal persistent audit trail for UI access events.
+    """Minimal persistent audit trail for UI access and high-risk actions.
 
-    Never store the submitted access key. ``client_id`` is currently the
-    requester's IP address and is intentionally kept separate from payload or
-    credential data so the audit trail stays low-cardinality and reviewable.
+    Never store submitted credentials or action payloads. ``client_id`` is
+    currently the requester's IP address and is intentionally kept separate
+    from payload or credential data so the audit trail stays low-cardinality
+    and reviewable.
     """
 
     __tablename__ = "access_audit_events"

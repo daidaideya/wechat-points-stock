@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`6d355dc`（2026-09-18）
+- 快照提交：待本轮审计改造提交后刷新（2026-09-18）
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `104 passed`；前端 `npm test` 为 `6 passed`
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `105 passed`；前端 `npm test` 为 `6 passed`
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -241,7 +241,7 @@ Authorization: Bearer <INGEST_TOKEN>
 |---|---|---|
 | `GET` | `/access/status` | 返回访问保护是否开启、是否已认证 |
 | `POST` | `/access/verify` | 验证访问密钥 |
-| `GET` | `/access/audit-events` | 受 UI 鉴权保护的访问审计分页查询；支持事件类型/IP 过滤，不返回密钥 |
+| `GET` | `/access/audit-events` | 受 UI 鉴权保护的安全审计分页查询；包含 UI 访问和成功高风险操作，支持事件类型/IP 过滤，不返回密钥 |
 | `GET/POST` | `/settings/logs` | 日志数量/天数、访问保护和密钥 |
 | `GET/POST` | `/settings/qinglong` | QingLong URL、Client ID、Secret、同步模式/间隔 |
 | `POST` | `/settings/qinglong/sync` | 立即同步任务状态 |
@@ -389,7 +389,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 1. Bearer `INGEST_TOKEN`：仅保护外部写入路由（积分/库存上报）和图片上传；暂时读取旧 `.env` 的 `API_TOKEN` 作为兼容别名。缺少、仍为 `default_token` 或少于 32 个字符时，应用启动失败。
 2. UI access session：人类用户界面锁现在只在 `system_settings.access_key_hash` 保存 PBKDF2-HMAC-SHA256 哈希；旧数据库中的 `system_settings.access_key` 会在启动时一次性哈希并清空。登录后签发绑定该哈希的 8 小时签名 HttpOnly Cookie。`web` 和 `stock` router 当前统一挂 `require_ui_access()`，只豁免 `/access/status`、`/access/verify`；旧 `X-Access-Key` 仅用于迁移，前端收到受保护 API 的 401 会清理会话并回到访问页。访问成功/失败/限流事件写入 `access_audit_events`，不保存提交的密钥。
 
-重要：数据库内 access key 已改为单向哈希，旧明文仅作为兼容迁移字段存在且启动迁移后清空；Cookie 会话使用哈希作为签名绑定材料。生产 Docker 当前是单 worker，单进程失败限流覆盖当前实例；UI 审计已支持低频保留和受保护分页查询，只有未来启用多 worker/多实例时才需要反向代理共享限流，高风险操作审计和指标仍可继续完善。
+重要：数据库内 access key 已改为单向哈希，旧明文仅作为兼容迁移字段存在且启动迁移后清空；Cookie 会话使用哈希作为签名绑定材料。生产 Docker 当前是单 worker，单进程失败限流覆盖当前实例；UI 审计已支持低频保留和受保护分页查询，成功的设置修改、数据库导入、账号/程序删除和批量 QingLong cron 更新也会记录无凭据事件。只有未来启用多 worker/多实例时才需要反向代理共享限流；失败/拒绝类高风险事件、指标和统一 JSON 日志仍待完善。
 
 ## 10. 运行与部署
 
@@ -461,7 +461,7 @@ docker compose up -d --build
 
 1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
-3. **UI access 已完成第一阶段会话化、单进程限流和基础审计治理。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；UI 审计按默认 90 天/10,000 条低频清理，并由受保护 API 分页查询。当前生产 Docker 是单 worker，不存在跨 worker 限流分散问题；未来扩容才需依赖反向代理共享限流，高风险操作审计仍待补。
+3. **UI access 已完成第一阶段会话化、单进程限流和基础审计治理。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；UI 审计按默认 90 天/10,000 条低频清理，并由受保护 API 分页查询；成功的配置修改、数据库导入、账号/程序删除和批量 QingLong cron 更新共用同一审计表。当前生产 Docker 是单 worker，不存在跨 worker 限流分散问题；未来扩容才需依赖反向代理共享限流，失败/拒绝类高风险事件、指标和统一 JSON 日志仍待补。
 4. **数据库恢复已加跨进程保护。** `app/maintenance.py` 使用数据库路径旁路锁，维护期间新 API 返回 503，并等待当前进程的 API/Bark/QingLong 数据库任务退出；恢复前 `wal_checkpoint(TRUNCATE)` 忙则中止，其他 worker 的在途事务由 checkpoint 兜底。真实文件恢复/回滚集成测试和更完整的调度暂停仍待补齐，不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。

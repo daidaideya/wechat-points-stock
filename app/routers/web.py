@@ -53,6 +53,12 @@ except ValueError:
     DATABASE_IMPORT_MAX_BYTES = 256 * 1024 * 1024
 
 
+def _record_high_risk_audit(db: Session, request: Optional[Request], event_type: str):
+    """Record a credential-free audit event after a high-risk action succeeds."""
+    if request is not None:
+        cleanup_service.record_access_audit(db, request, event_type)
+
+
 def _local_business_date(value: Optional[datetime]) -> date:
     """Return the local business date for a DB timestamp.
 
@@ -1208,7 +1214,7 @@ def list_access_audit_events(
     client_id: Optional[str] = Query(default=None, min_length=1, max_length=128),
     db: Session = Depends(get_db),
 ):
-    """Return a protected, credential-free page of UI access audit events."""
+    """Return a protected, credential-free page of security audit events."""
     query = db.query(models.AccessAuditEvent)
     if event_type is not None:
         query = query.filter(models.AccessAuditEvent.event_type == event_type.strip())
@@ -1266,6 +1272,7 @@ def get_log_settings(
 def update_log_settings(
     update: LogSettingsUpdate,
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     settings = cleanup_service.get_or_create_settings(db)
     settings.max_log_entries = max(0, update.max_log_entries)
@@ -1286,6 +1293,7 @@ def update_log_settings(
     cleanup_service.prune_points_history(db, settings.max_log_entries, settings.max_retention_days)
     cleanup_service.prune_stock_history(db, settings.max_log_entries, settings.max_retention_days)
     db.commit()
+    _record_high_risk_audit(db, request, "settings_logs_updated")
     return JSONResponse(content={"status": "success"})
 
 
@@ -1317,6 +1325,7 @@ def get_qinglong_settings(
 def update_qinglong_settings(
     update: QinglongSettingsUpdate,
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     settings = cleanup_service.get_or_create_settings(db)
 
@@ -1338,6 +1347,7 @@ def update_qinglong_settings(
     settings.updated_at = datetime.utcnow()
     db.add(settings)
     db.commit()
+    _record_high_risk_audit(db, request, "settings_qinglong_updated")
     return JSONResponse(
         content={
             "status": "success",
@@ -1384,6 +1394,7 @@ def get_bark_settings(
 def update_bark_settings(
     update: BarkSettingsUpdate,
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     settings = cleanup_service.get_or_create_settings(db)
 
@@ -1400,6 +1411,7 @@ def update_bark_settings(
     settings.updated_at = datetime.utcnow()
     db.add(settings)
     db.commit()
+    _record_high_risk_audit(db, request, "settings_bark_updated")
     return JSONResponse(content={"status": "success"})
 
 
@@ -1532,6 +1544,7 @@ def export_database(
 def import_database(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """Restore database from an uploaded .db backup. Replaces current SQLite file."""
     db_path = _resolve_sqlite_db_path()
@@ -1609,6 +1622,7 @@ def import_database(
             os.replace(staged_path, db_path)
             staged_path = None
 
+        _record_high_risk_audit(db, request, "database_imported")
         return {
             "status": "success",
             "message": f"数据库已恢复。建议刷新页面；如需回滚可使用 {rollback_path}。",
@@ -1764,7 +1778,11 @@ def update_account(wechat_id: str, update: AccountUpdate, db: Session = Depends(
 
 
 @router.delete("/api/v1/accounts/{wechat_id}")
-def delete_account(wechat_id: str, db: Session = Depends(get_db)):
+def delete_account(
+    wechat_id: str,
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -1772,16 +1790,23 @@ def delete_account(wechat_id: str, db: Session = Depends(get_db)):
     db.query(models.PointsHistory).filter(models.PointsHistory.wechat_id == wechat_id).delete()
     db.delete(account)
     db.commit()
+    _record_high_risk_audit(db, request, "account_deleted")
     return JSONResponse(content={"status": "success"})
 
 
 @router.delete("/api/v1/accounts/{wechat_id}/programs/{program_id}")
-def delete_program_points(wechat_id: str, program_id: str, db: Session = Depends(get_db)):
+def delete_program_points(
+    wechat_id: str,
+    program_id: str,
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     deleted_count = db.query(models.PointsHistory).filter(
         models.PointsHistory.wechat_id == wechat_id,
         models.PointsHistory.program_id == program_id,
     ).delete()
     db.commit()
+    _record_high_risk_audit(db, request, "account_points_deleted")
     return JSONResponse(content={"status": "success", "deleted_count": deleted_count})
 
 
@@ -2344,6 +2369,7 @@ class QinglongCronBatchUpdate(BaseModel):
 def update_qinglong_cron_schedules(
     payload: QinglongCronBatchUpdate,
     db: Session = Depends(get_db),
+    request: Request = None,
 ):
     """Batch update cron schedules on the QingLong panel, then resync mirror."""
     settings = cleanup_service.get_or_create_settings(db)
@@ -2411,6 +2437,9 @@ def update_qinglong_cron_schedules(
         except Exception as exc:
             sync_result = {"status": "error", "message": str(exc)}
 
+    if updated:
+        _record_high_risk_audit(db, request, "qinglong_crons_batch_updated")
+
     return JSONResponse(content={
         "status": "success" if not failed else "partial",
         "updated": updated,
@@ -2420,7 +2449,11 @@ def update_qinglong_cron_schedules(
 
 
 @router.delete("/api/v1/programs/{program_id}")
-def delete_program(program_id: str, db: Session = Depends(get_db)):
+def delete_program(
+    program_id: str,
+    db: Session = Depends(get_db),
+    request: Request = None,
+):
     ensure_mini_program_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     db.query(models.PointsHistory).filter(models.PointsHistory.program_id == program_id).delete()
@@ -2428,4 +2461,5 @@ def delete_program(program_id: str, db: Session = Depends(get_db)):
     if program:
         db.delete(program)
     db.commit()
+    _record_high_risk_audit(db, request, "program_deleted")
     return JSONResponse(content={"status": "success"})
