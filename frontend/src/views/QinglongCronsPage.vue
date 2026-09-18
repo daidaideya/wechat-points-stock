@@ -356,7 +356,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   CircleCheck,
@@ -371,22 +371,17 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import api from '../api'
+import {
+  cronKey,
+  formatMinute,
+  getNextCronSlot,
+  isCodeCron,
+  parseDailyMinutes,
+  parseTimeToMinute,
+} from '../utils/cron'
+import { useViewport } from '../composables/useViewport'
 
-const isMobile = ref(false)
-const MOBILE_BREAKPOINT = 900
-
-function updateMobileFlag() {
-  isMobile.value = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
-}
-
-onMounted(() => {
-  updateMobileFlag()
-  window.addEventListener('resize', updateMobileFlag, { passive: true })
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateMobileFlag)
-})
+const { isMobile } = useViewport({ mobileMax: 900 })
 
 const loading = ref(false)
 const applying = ref(false)
@@ -427,12 +422,6 @@ const planDialogVisible = ref(false)
 const planItems = ref([])
 const planOverflow = ref(false)
 
-const pad2 = (value) => String(value).padStart(2, '0')
-
-function cronKey(cron) {
-  return `${cron.id ?? 'noid'}-${cron.name}-${cron.schedule}`
-}
-
 function isExcluded(cron) {
   return excludedCronNames.value.has(cron.name || '')
 }
@@ -456,69 +445,6 @@ function clearAllExcluded() {
   excludedCronNames.value = new Set()
   saveExcludedNames()
   ElMessage.success('已清空全部排除名单')
-}
-
-// 判断是否为 code 版脚本：任务名以 code版_ 开头，或命令包含 code/ 、code_ 前缀
-function isCodeCron(cron) {
-  const name = (cron.name || '').trim()
-  if (name.startsWith('code版_')) return true
-  const cmd = (cron.command || '').toLowerCase()
-  return /(^|[\s/\\])code[\\/]/.test(cmd) || /(^|[\s/\\])code_/.test(cmd)
-}
-
-// Expand cron "minute hour * * *" fields into concrete daily times.
-function expandField(field, minimum, maximum) {
-  const values = new Set()
-  for (const chunk of String(field).split(',')) {
-    const token = chunk.trim()
-    if (!token) continue
-    let step = 1
-    let base = token
-    if (token.includes('/')) {
-      const parts = token.split('/')
-      base = parts[0]
-      step = Math.max(1, parseInt(parts[1], 10) || 1)
-    }
-    let start
-    let end
-    if (base === '*' || base === '') {
-      start = minimum
-      end = maximum
-    } else if (base.includes('-')) {
-      const parts = base.split('-')
-      start = parseInt(parts[0], 10)
-      end = parseInt(parts[1], 10)
-    } else {
-      start = parseInt(base, 10)
-      end = start
-    }
-    if (Number.isNaN(start) || Number.isNaN(end)) continue
-    start = Math.max(minimum, Math.min(maximum, start))
-    end = Math.max(minimum, Math.min(maximum, end))
-    if (end < start) continue
-    for (let value = start; value <= end; value += step) {
-      values.add(value)
-    }
-  }
-  return [...values].sort((a, b) => a - b)
-}
-
-function parseDailyMinutes(schedule) {
-  const parts = String(schedule || '').trim().split(/\s+/)
-  if (parts.length < 2) return []
-  const minutes = expandField(parts[0], 0, 59)
-  const hours = expandField(parts[1], 0, 23)
-  const result = []
-  for (const hour of hours) {
-    for (const minute of minutes) {
-      result.push(hour * 60 + minute)
-    }
-  }
-  return result.sort((a, b) => a - b)
-}
-
-function formatMinute(minuteOfDay) {
-  return `${pad2(Math.floor(minuteOfDay / 60))}:${pad2(minuteOfDay % 60)}`
 }
 
 const codeCronsCount = computed(() =>
@@ -596,100 +522,11 @@ const coverageText = computed(() => {
   return `${formatMinute(Math.min(...minutes))} ~ ${formatMinute(Math.max(...minutes))}`
 })
 
-// 新脚本一键复制：以「最近创建」的脚本（青龙 ID 最大，跟随当前类型筛选）为基准，
-// 保留它的小时组，分钟数 + 间隔，同组已被占用的分钟自动跳过；
-// 分钟溢出 60 时整体小时后移一组（如 59 13,20 → 1 14,21）。
-// 例：最新 code 脚本为 "46 13,20 * * *" → 建议 "48 13,20 * * *"。
-function bumpHourField(hourField) {
-  const parts = String(hourField).split(',')
-  const bumped = parts.map((part) => {
-    const value = parseInt(part.trim(), 10)
-    if (Number.isNaN(value)) return null
-    return String((value + 1) % 24)
-  })
-  if (bumped.some((part) => part === null)) return null
-  return bumped.join(',')
-}
-
-function firstNumericHour(hourField) {
-  for (const part of String(hourField).split(',')) {
-    const value = parseInt(part.trim(), 10)
-    if (!Number.isNaN(value)) return value
-  }
-  return null
-}
-
-const nextSlotInfo = computed(() => {
-  const empty = { schedule: '', time: '', lastName: '', lastSchedule: '' }
-  let pool = scriptCrons.value.filter(
-    (cron) =>
-      cron.is_disabled !== 1 &&
-      !isExcluded(cron) &&
-      cron.earliest_minute !== null &&
-      cron.earliest_minute < 24 * 60
-  )
-  if (commandTypeFilter.value === 'code') {
-    const filtered = pool.filter(isCodeCron)
-    if (filtered.length) pool = filtered
-  } else if (commandTypeFilter.value === 'other') {
-    const filtered = pool.filter((cron) => !isCodeCron(cron))
-    if (filtered.length) pool = filtered
-  }
-  if (!pool.length) return empty
-
-  const numericId = (cron) => {
-    const value = Number(cron.id)
-    return Number.isFinite(value) ? value : -1
-  }
-  const anyNumericId = pool.some((cron) => numericId(cron) >= 0)
-  const base = pool.reduce((best, cron) => {
-    if (anyNumericId) return numericId(cron) > numericId(best) ? cron : best
-    return cron.earliest_minute > best.earliest_minute ? cron : best
-  })
-
-  const fields = String(base.schedule || '').trim().split(/\s+/)
-  if (fields.length < 5) return { ...empty, lastName: base.name || '', lastSchedule: base.schedule || '' }
-
-  const rest = fields.slice(2).join(' ')
-  const interval = Math.max(1, planForm.intervalMinutes || 2)
-  const occupiedMinutesFor = (hourField) =>
-    new Set(
-      pool
-        .filter((cron) => {
-          const parts = String(cron.schedule || '').trim().split(/\s+/)
-          return parts.length >= 5 && parts[1] === hourField
-        })
-        .map((cron) => parseInt(String(cron.schedule).trim().split(/\s+/)[0], 10))
-        .filter((value) => Number.isFinite(value))
-    )
-
-  let minute = parseInt(fields[0], 10)
-  if (Number.isNaN(minute)) minute = base.earliest_minute % 60
-  let hourField = fields[1]
-
-  for (let attempts = 0; attempts < 200; attempts += 1) {
-    minute += interval
-    if (minute >= 60) {
-      minute -= 60
-      const bumped = bumpHourField(hourField)
-      if (bumped === null) {
-        minute = (minute + interval) % 60
-        continue
-      }
-      hourField = bumped
-    }
-    if (!occupiedMinutesFor(hourField).has(minute)) {
-      const hour = firstNumericHour(hourField)
-      return {
-        schedule: `${minute} ${hourField} ${rest}`,
-        time: hour !== null ? `${pad2(hour)}:${pad2(minute)}` : '',
-        lastName: base.name || '',
-        lastSchedule: base.schedule || '',
-      }
-    }
-  }
-  return { ...empty, lastName: base.name || '', lastSchedule: base.schedule || '' }
-})
+const nextSlotInfo = computed(() => getNextCronSlot(scriptCrons.value, {
+  commandType: commandTypeFilter.value,
+  intervalMinutes: planForm.intervalMinutes,
+  isExcluded,
+}))
 
 const nextSlotLastName = computed(() => nextSlotInfo.value.lastName)
 const nextSlotLastSchedule = computed(() => nextSlotInfo.value.lastSchedule)
@@ -838,12 +675,6 @@ async function applySingleEdit() {
   if (ok) {
     editDialogVisible.value = false
   }
-}
-
-function parseTimeToMinute(timeStr) {
-  const match = /^(\d{2}):(\d{2})$/.exec(timeStr || '')
-  if (!match) return null
-  return parseInt(match[1], 10) * 60 + parseInt(match[2], 10)
 }
 
 function buildPlan() {

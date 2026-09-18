@@ -7,13 +7,13 @@
 ## 0. 快照信息
 
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
-- 本地路径：`D:\pythonCode\wechat-points-stock`
+- 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`aabf612a47eb13f28f7f83f8ab4129dbf791628f`（2026-08-29）
-- 工作区：当前正在按 `docs/优化路线图.md` 实施第二批安全/性能/运行可靠性改造；不要覆盖现有未提交修改
+- 快照提交：`6d355dc`（2026-09-18）
+- 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：`requirements-dev.txt` + `tests/`，当前 `21 passed`
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `104 passed`；前端 `npm test` 为 `6 passed`
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -76,6 +76,9 @@
 | `frontend/src/router.js` | SPA 路由、访问保护路由守卫、30 秒 access-status 缓存、导航进度和库存 chunk 预加载 |
 | `frontend/src/api.js` | Axios 实例，baseURL=`/api/v1`；新 UI 鉴权依赖 HttpOnly Cookie，旧 `site_access_key` 仅迁移时注入 `X-Access-Key` |
 | `frontend/src/stockCache.js` | 库存中心第一页短 TTL 跨组件内存缓存与失效 |
+| `frontend/src/composables/useViewport.js` | 统一响应式视口宽度和移动断点监听 |
+| `frontend/src/utils/cron.js` | QingLong cron 解析、时间格式化、类型判断和新任务时间建议等无副作用纯函数 |
+| `frontend/src/utils/cron.test.js` | QingLong cron 纯函数的 Node 内置单元测试 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
 | `scripts/api_template.py` | 给青龙/自写脚本复用的 `PointsReporter`、`StockReporter` |
 | `scripts/init_db.py` | 新库执行 `Base.metadata.create_all()` |
@@ -357,7 +360,10 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `api.js` 的 Axios baseURL 是 `/api/v1`；新登录流程依赖后端 HttpOnly Cookie，不把原始 access key 写入 localStorage。若旧版本残留 `site_access_key`，会暂时自动加 `X-Access-Key`，服务端成功迁移后前端清理它。
 - `router.js` 对页面导航做 access-status 检查，缓存 30 秒；`api.js` 对受保护 API 的 401 清理会话并触发跳转；保护开启且密钥无效时跳 `/access-gate`。
 - `ProgramsPage` 每页 20 条，用 `IntersectionObserver` 无限加载，并分别用 `sessionStorage` 保存小程序/APP 页面状态。
+- `useViewport()` 统一管理需要响应式更新的移动断点；青龙页使用 900px 断点，积分抽屉使用 768px 断点，组件卸载时会移除 resize 监听。
 - `QinglongCronsPage` 的排除名单保存在 `localStorage` 的 `ql_crons_excluded_names`，只影响前端一键整理，不写后端。
+- QingLong 新脚本时间建议由 `frontend/src/utils/cron.js` 计算：按当前脚本类型筛选，优先使用数字 ID 最大的启用任务作为基准，跳过排除名单和已占用分钟，并正确处理超过 60 分钟的小时进位；页面只负责 Vue 状态和交互编排。
+- 前端 cron 纯函数通过 `npm test` 执行 Node 内置单测，CI 在 `npm run build` 前运行该测试。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
