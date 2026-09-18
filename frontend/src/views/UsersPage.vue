@@ -4,10 +4,14 @@
       <div class="users-hero-head">
         <div>
           <h2 class="section-title users-hero-title">用户管理</h2>
-          <p class="section-description users-hero-description">统一管理微信号、昵称、设备与手机号，并快速查看积分详情。</p>
+          <p class="section-description users-hero-description">
+            统一管理微信号、昵称、设备与手机号，并快速查看积分详情。
+          </p>
         </div>
         <div class="users-hero-actions">
-          <el-button type="primary" :icon="Plus" class="users-primary-button" @click="openEdit(null)">新增用户</el-button>
+          <el-button type="primary" :icon="Plus" class="users-primary-button" @click="openEdit(null)">
+            新增用户
+          </el-button>
         </div>
       </div>
 
@@ -47,9 +51,7 @@
       <div class="users-list-head">
         <div>
           <h3 class="section-title compact">用户列表</h3>
-          <p class="section-description compact">
-            按住左侧 <strong>⋮⋮</strong> 拖拽即可调整顺序，松手后自动保存。
-          </p>
+          <p class="section-description compact">按住左侧 <strong>⋮⋮</strong> 拖拽即可调整顺序，松手后自动保存。</p>
         </div>
         <div v-if="sorting" class="users-sort-saving">正在保存顺序…</div>
       </div>
@@ -126,23 +128,11 @@
         </div>
 
         <div v-if="items.length" class="users-desktop-table-wrap">
-          <el-table
-            ref="desktopTableRef"
-            :data="items"
-            stripe
-            row-key="wechat_id"
-            class="users-table"
-          >
+          <el-table ref="desktopTableRef" :data="items" stripe row-key="wechat_id" class="users-table">
             <el-table-column label="排序" width="88" align="center">
               <template #default="scope">
                 <div class="users-sort-cell">
-                  <button
-                    type="button"
-                    class="users-drag-handle"
-                    title="拖拽排序"
-                    aria-label="拖拽排序"
-                    @click.stop
-                  >
+                  <button type="button" class="users-drag-handle" title="拖拽排序" aria-label="拖拽排序" @click.stop>
                     <el-icon><Rank /></el-icon>
                   </button>
                   <span class="users-sort-index">{{ scope.$index + 1 }}</span>
@@ -152,7 +142,9 @@
             <el-table-column label="昵称" min-width="180">
               <template #default="scope">
                 <div class="users-table-identity">
-                  <div class="users-avatar users-avatar-sm" :style="{ background: avatarColor(scope.row) }">{{ avatarChar(scope.row) }}</div>
+                  <div class="users-avatar users-avatar-sm" :style="{ background: avatarColor(scope.row) }">
+                    {{ avatarChar(scope.row) }}
+                  </div>
                   <span class="users-table-nickname">{{ displayName(scope.row) }}</span>
                 </div>
               </template>
@@ -186,7 +178,12 @@
       </template>
     </section>
 
-    <el-dialog v-model="dialogVisible" :title="currentRow ? '编辑用户' : '新增用户'" width="520px" class="users-edit-dialog">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="currentRow ? '编辑用户' : '新增用户'"
+      width="520px"
+      class="users-edit-dialog"
+    >
       <el-form label-width="90px" class="users-form">
         <el-form-item label="微信号">
           <el-input v-model="form.wechat_id" :disabled="Boolean(currentRow)" />
@@ -207,44 +204,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="pointsVisible" :title="pointsTitle" width="900px" class="users-points-dialog">
-      <el-skeleton v-if="pointsLoading" :rows="6" animated />
-      <template v-else>
-        <el-empty v-if="!pointItems.length" description="暂无积分详情" />
-        <div v-else class="users-points-mobile-list">
-          <article v-for="point in pointItems" :key="`${point.program_name}-${point.report_time}`" class="users-points-mobile-card">
-            <div class="users-points-mobile-top">
-              <strong class="users-points-mobile-title">{{ point.program_name || '未知小程序' }}</strong>
-              <span class="users-points-mobile-value">
-                {{ formatPointsCell(point.points) }} 积分
-                <template v-if="point.cash != null && point.cash !== '未注册'"> · ¥{{ point.cash }}</template>
-              </span>
-            </div>
-            <div class="users-points-mobile-meta">
-              <span>积分变化：{{ point.diff ?? 0 }}</span>
-              <span>现金变化：{{ point.cash_diff ?? 0 }}</span>
-              <span>{{ formatDate(point.report_time) }}</span>
-            </div>
-          </article>
-        </div>
-        <div class="users-points-desktop-table-wrap">
-          <el-table :data="pointItems" stripe class="users-table">
-            <el-table-column prop="program_name" label="小程序" min-width="200" />
-            <el-table-column label="积分" width="110">
-              <template #default="scope">{{ formatPointsCell(scope.row.points) }}</template>
-            </el-table-column>
-            <el-table-column label="现金" width="110">
-              <template #default="scope">{{ formatCashCell(scope.row.cash) }}</template>
-            </el-table-column>
-            <el-table-column prop="diff" label="积分变化" width="100" />
-            <el-table-column prop="cash_diff" label="现金变化" width="100" />
-            <el-table-column label="更新时间" min-width="180">
-              <template #default="scope">{{ formatDate(scope.row.report_time) }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
-      </template>
-    </el-dialog>
+    <UserPointsDialog v-model="pointsVisible" :title="pointsTitle" :loading="pointsLoading" :items="pointItems" />
   </div>
 </template>
 
@@ -254,6 +214,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Rank } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import api from '../api'
+import UserPointsDialog from '../components/UserPointsDialog.vue'
 import { getApiErrorMessage } from '../utils/apiError'
 
 const loading = ref(false)
@@ -285,7 +246,9 @@ const pointsTitle = computed(() => {
   if (!pointsUser.value) return '积分详情'
   return `${displayName(pointsUser.value)} - 积分详情`
 })
-const totalActivePrograms = computed(() => items.value.reduce((sum, item) => sum + Number(item.active_program_count || 0), 0))
+const totalActivePrograms = computed(() =>
+  items.value.reduce((sum, item) => sum + Number(item.active_program_count || 0), 0),
+)
 const totalActiveApps = computed(() => items.value.reduce((sum, item) => sum + Number(item.active_app_count || 0), 0))
 const usersWithPhone = computed(() => items.value.filter((item) => Boolean(displayPhone(item))).length)
 
@@ -324,25 +287,6 @@ function displayPrimaryId(item) {
   if (phone) return `手机 ${phone}`
   if (wx) return `微信 ${wx}`
   return '未设置账号标识'
-}
-
-function formatDate(value) {
-  if (!value) return '暂无'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function formatPointsCell(value) {
-  if (value === '未注册') return '未注册'
-  if (value === null || value === undefined || value === '') return '—'
-  return value
-}
-
-function formatCashCell(value) {
-  if (value === '未注册') return '未注册'
-  if (value === null || value === undefined || value === '') return '—'
-  return `¥${value}`
 }
 
 function avatarChar(item) {
@@ -429,15 +373,11 @@ async function removeUser(row) {
 
   const displayName = row?.nickname || wechatId
   try {
-    await ElMessageBox.confirm(
-      `确认删除用户「${displayName}」吗？将同时删除该账号的积分记录。`,
-      '删除用户',
-      {
-        type: 'warning',
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
-      },
-    )
+    await ElMessageBox.confirm(`确认删除用户「${displayName}」吗？将同时删除该账号的积分记录。`, '删除用户', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    })
   } catch (_) {
     return
   }
@@ -546,9 +486,7 @@ function onSortEnd(evt, mode) {
     orderedIds = Array.from(tbody.querySelectorAll('tr.el-table__row'))
       .map((tr) => {
         // Prefer data-wechat-id if present; else match by displayed order via row-key dataset
-        return tr.getAttribute('data-wechat-id')
-          || tr.dataset?.wechatId
-          || null
+        return tr.getAttribute('data-wechat-id') || tr.dataset?.wechatId || null
       })
       .filter(Boolean)
 
@@ -687,7 +625,9 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   background: rgba(255, 249, 240, 0.9);
   border: 1px solid rgba(232, 211, 183, 0.86);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .users-summary-card:hover {
@@ -743,13 +683,11 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.users-desktop-table-wrap,
-.users-points-desktop-table-wrap {
+.users-desktop-table-wrap {
   display: block;
 }
 
-.users-mobile-list,
-.users-points-mobile-list {
+.users-mobile-list {
   display: none;
 }
 
@@ -788,7 +726,10 @@ onBeforeUnmount(() => {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .users-drag-handle:hover {
@@ -890,8 +831,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 10px rgba(58, 43, 26, 0.14);
 }
 
-.users-edit-dialog :deep(.el-dialog),
-.users-points-dialog :deep(.el-dialog) {
+.users-edit-dialog :deep(.el-dialog) {
   border-radius: 24px;
 }
 
@@ -915,20 +855,17 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .users-desktop-table-wrap,
-  .users-points-desktop-table-wrap {
+  .users-desktop-table-wrap {
     display: none;
   }
 
-  .users-mobile-list,
-  .users-points-mobile-list {
+  .users-mobile-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .users-mobile-card,
-  .users-points-mobile-card {
+  .users-mobile-card {
     padding: 16px;
     border-radius: 20px;
     background: #fffdf9;
@@ -936,8 +873,7 @@ onBeforeUnmount(() => {
     box-shadow: 0 10px 24px rgba(145, 109, 61, 0.06);
   }
 
-  .users-mobile-card-top,
-  .users-points-mobile-top {
+  .users-mobile-card-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -963,16 +899,14 @@ onBeforeUnmount(() => {
     flex: 1;
   }
 
-  .users-mobile-title,
-  .users-points-mobile-title {
+  .users-mobile-title {
     margin: 0;
     color: #3a2b1a;
     font-size: 18px;
     line-height: 1.35;
   }
 
-  .users-mobile-subtitle,
-  .users-points-mobile-meta {
+  .users-mobile-subtitle {
     margin-top: 6px;
     color: #8a6c4c;
     font-size: 12px;
@@ -1049,19 +983,6 @@ onBeforeUnmount(() => {
   .users-mobile-actions-main {
     flex: 1;
   }
-
-  .users-points-mobile-value {
-    color: #b87718;
-    font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  .users-points-mobile-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
 }
 
 @media (max-width: 640px) {
@@ -1070,8 +991,7 @@ onBeforeUnmount(() => {
     border-radius: 20px;
   }
 
-  .users-mobile-card-top,
-  .users-points-mobile-top {
+  .users-mobile-card-top {
     flex-direction: column;
     align-items: stretch;
   }
