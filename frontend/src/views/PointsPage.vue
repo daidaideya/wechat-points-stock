@@ -420,6 +420,7 @@ import {
 } from '@element-plus/icons-vue'
 import api from '../api'
 import { useViewport } from '../composables/useViewport'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const loading = ref(false)
 const items = ref([])
@@ -681,7 +682,7 @@ async function loadPoints() {
     items.value = data.items || []
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载积分总览失败')
+    ElMessage.error(getApiErrorMessage(error, '加载积分总览失败'))
   } finally {
     loading.value = false
   }

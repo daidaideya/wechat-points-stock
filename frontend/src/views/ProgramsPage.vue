@@ -726,7 +726,7 @@ import {
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useProgramFilters } from '../composables/useProgramFilters'
 import { usePageStateCache } from '../composables/usePageStateCache'
-import { isRequestCanceled } from '../utils/apiError'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
 const pageSize = 20
@@ -1247,7 +1247,7 @@ async function saveNote() {
     ElMessage.success('备注已保存')
   } catch (error) {
     console.error(error)
-    ElMessage.error('保存备注失败')
+    ElMessage.error(getApiErrorMessage(error, '保存备注失败'))
   } finally {
     savingNote.value = false
   }
@@ -1313,7 +1313,7 @@ async function saveTags() {
     ElMessage.success('标签已保存')
   } catch (error) {
     console.error(error)
-    ElMessage.error('保存标签失败')
+    ElMessage.error(getApiErrorMessage(error, '保存标签失败'))
   } finally {
     savingTags.value = false
   }
@@ -1328,7 +1328,7 @@ async function toggleFavorite(program) {
     ElMessage.success(program.is_favorite ? '已加入收藏' : '已取消收藏')
   } catch (error) {
     console.error(error)
-    ElMessage.error('更新收藏状态失败')
+    ElMessage.error(getApiErrorMessage(error, '更新收藏状态失败'))
   } finally {
     updatingProgramId.value = ''
   }
@@ -1368,7 +1368,7 @@ async function openStockDialog(program) {
     stockData.value = data
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载库存详情失败')
+    ElMessage.error(getApiErrorMessage(error, '加载库存详情失败'))
   } finally {
     stockLoading.value = false
   }

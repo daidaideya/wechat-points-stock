@@ -391,7 +391,7 @@ async function loadUsers() {
     items.value = data.items || []
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载用户列表失败')
+    ElMessage.error(getApiErrorMessage(error, '加载用户列表失败'))
   } finally {
     loading.value = false
   }
@@ -414,7 +414,7 @@ async function saveUser() {
     await loadUsersAndBindSort()
   } catch (error) {
     console.error(error)
-    ElMessage.error('保存用户失败')
+    ElMessage.error(getApiErrorMessage(error, '保存用户失败'))
   } finally {
     saving.value = false
   }
@@ -464,7 +464,7 @@ async function viewPoints(row) {
     pointItems.value = Array.isArray(data) ? data : []
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载积分详情失败')
+    ElMessage.error(getApiErrorMessage(error, '加载积分详情失败'))
   } finally {
     pointsLoading.value = false
   }
@@ -510,7 +510,7 @@ async function persistSortOrder(nextItems, previousItems) {
     items.value = previousItems
     await nextTick()
     initSortables()
-    ElMessage.error('调整顺序失败，已回滚')
+    ElMessage.error(getApiErrorMessage(error, '调整顺序失败，已回滚'))
   } finally {
     sorting.value = false
   }

@@ -509,6 +509,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
+import { getApiErrorMessage } from '../utils/apiError'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { CASH_CAP_PRESETS, useStockFilters } from '../composables/useStockFilters'
 
@@ -727,7 +728,7 @@ async function loadStockCenter(options = {}) {
       console.error(error)
       if (!silent || !allProducts.value.length) {
         loadError.value = true
-        ElMessage.error('加载库存中心失败')
+        ElMessage.error(getApiErrorMessage(error, '加载库存中心失败'))
       }
     }
   } finally {
@@ -812,7 +813,7 @@ async function fetchHiddenProducts(page = 1) {
   } catch (error) {
     console.error(error)
     hiddenProducts.value = []
-    ElMessage.error('加载已隐藏商品失败')
+    ElMessage.error(getApiErrorMessage(error, '加载已隐藏商品失败'))
   } finally {
     hiddenLoading.value = false
   }
@@ -865,7 +866,7 @@ async function fetchOffShelfProducts(options = {}) {
       offShelfPage.value = 0
       offShelfHasMore.value = false
     }
-    ElMessage.error('加载已下架商品失败')
+    ElMessage.error(getApiErrorMessage(error, '加载已下架商品失败'))
   } finally {
     offShelfLoading.value = false
     offShelfLoadingMore.value = false
@@ -890,7 +891,7 @@ async function relistProduct(product, group) {
     ElMessage.success(`「${product.product_name || product.product_id}」已恢复上架`)
   } catch (error) {
     console.error(error)
-    ElMessage.error('恢复上架失败')
+    ElMessage.error(getApiErrorMessage(error, '恢复上架失败'))
   } finally {
     relistingId.value = null
   }
@@ -932,7 +933,7 @@ async function hideProduct(product) {
     ElMessage.success('已隐藏该商品')
   } catch (error) {
     console.error(error)
-    ElMessage.error('隐藏商品失败')
+    ElMessage.error(getApiErrorMessage(error, '隐藏商品失败'))
   } finally {
     hidingProductId.value = null
   }
@@ -952,7 +953,7 @@ async function restoreProduct(product) {
     ElMessage.success('商品已恢复显示')
   } catch (error) {
     console.error(error)
-    ElMessage.error('恢复商品失败')
+    ElMessage.error(getApiErrorMessage(error, '恢复商品失败'))
   } finally {
     restoringProductId.value = null
   }

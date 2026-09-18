@@ -141,6 +141,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const router = useRouter()
 const loading = ref(false)
@@ -235,7 +236,7 @@ async function openUnreportedDialog() {
     allUnreportedPrograms.value = items
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载今日未报列表失败')
+    ElMessage.error(getApiErrorMessage(error, '加载今日未报列表失败'))
   } finally {
     unreportedDialogLoading.value = false
   }
@@ -264,7 +265,7 @@ async function loadDashboard() {
     allUnreportedPrograms.value = []
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载仪表盘失败')
+    ElMessage.error(getApiErrorMessage(error, '加载仪表盘失败'))
   } finally {
     loading.value = false
   }

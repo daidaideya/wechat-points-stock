@@ -49,6 +49,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const router = useRouter()
 const loading = ref(false)
@@ -68,7 +69,7 @@ async function loadFavorites() {
     items.value = data.items || []
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载收藏列表失败')
+    ElMessage.error(getApiErrorMessage(error, '加载收藏列表失败'))
   } finally {
     loading.value = false
   }

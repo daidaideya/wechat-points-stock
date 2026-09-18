@@ -439,7 +439,7 @@ async function loadAll() {
     await Promise.all([loadSettings(), loadQinglong(), loadBark()])
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载设置失败')
+    ElMessage.error(getApiErrorMessage(error, '加载设置失败'))
   } finally {
     loading.value = false
   }
@@ -461,7 +461,7 @@ async function refreshCurrentSection() {
     ElMessage.success('已刷新')
   } catch (error) {
     console.error(error)
-    ElMessage.error('刷新失败')
+    ElMessage.error(getApiErrorMessage(error, '刷新失败'))
   } finally {
     loading.value = false
   }

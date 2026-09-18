@@ -130,6 +130,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const route = useRoute()
 const router = useRouter()
@@ -174,7 +175,7 @@ async function loadDetail() {
     stock.value = stockResp.data
   } catch (error) {
     console.error(error)
-    ElMessage.error('加载小程序详情失败')
+    ElMessage.error(getApiErrorMessage(error, '加载小程序详情失败'))
   } finally {
     loading.value = false
   }
