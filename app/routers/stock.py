@@ -1,8 +1,12 @@
+import hashlib
+import json
 from datetime import datetime, timedelta
+from threading import Lock
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import and_, case, desc, func, or_, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import models, schemas_stock
@@ -21,6 +25,169 @@ router = APIRouter(
     tags=["stock-management"],
     dependencies=[Depends(require_ui_access)],
 )
+
+
+_STOCK_CENTER_TRIGGER_VERSION = 1
+_STOCK_CENTER_CACHE_CONTROL = "private, max-age=0, must-revalidate"
+_STOCK_CENTER_REVISION_LOCK = Lock()
+
+
+def _ensure_stock_center_revision(db: Session) -> Optional[int]:
+    """Return a durable, exact invalidation counter for stock-center data.
+
+    The stock center combines product rows, current point history, program
+    metadata and stock history.  A COUNT/MAX signature can collide when a row
+    is edited or when rows are deleted and re-created, which would make a
+    conditional request return stale inventory.  SQLite triggers instead
+    increment one counter for every insert/update/delete on each source table.
+    The counter is read with one indexed lookup after the one-time setup.
+
+    The application currently uses SQLite.  Other SQLAlchemy backends fall
+    back to an exact response-body digest, so this helper intentionally returns
+    ``None`` there rather than claiming that an approximate revision is safe.
+    """
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "sqlite":
+        return None
+
+    try:
+        with _STOCK_CENTER_REVISION_LOCK:
+            try:
+                row = db.execute(text(
+                    "SELECT revision, trigger_version "
+                    "FROM stock_center_revision WHERE id = 1"
+                )).first()
+            except SQLAlchemyError:
+                # The table is created lazily so old databases do not need a
+                # separate migration.  Roll back the failed SELECT before
+                # issuing DDL; if the error was unrelated, the outer handler
+                # will conservatively fall back to a body digest.
+                db.rollback()
+                db.execute(text(
+                    "CREATE TABLE IF NOT EXISTS stock_center_revision ("
+                    "id INTEGER PRIMARY KEY CHECK (id = 1), "
+                    "revision INTEGER NOT NULL DEFAULT 0, "
+                    "trigger_version INTEGER NOT NULL DEFAULT 0"
+                    ")"
+                ))
+                db.execute(text(
+                    "INSERT OR IGNORE INTO stock_center_revision "
+                    "(id, revision, trigger_version) VALUES (1, 0, 0)"
+                ))
+                row = db.execute(text(
+                    "SELECT revision, trigger_version "
+                    "FROM stock_center_revision WHERE id = 1"
+                )).first()
+
+            if row is None:
+                db.execute(text(
+                    "INSERT OR IGNORE INTO stock_center_revision "
+                    "(id, revision, trigger_version) VALUES (1, 0, 0)"
+                ))
+                row = (0, 0)
+
+            if int(row[1] or 0) < _STOCK_CENTER_TRIGGER_VERSION:
+                trigger_tables = (
+                    "products",
+                    "points_history",
+                    "mini_programs",
+                    "stock_history",
+                )
+                trigger_events = (("INSERT", "ai"), ("UPDATE", "au"), ("DELETE", "ad"))
+                for table_name in trigger_tables:
+                    for event_name, suffix in trigger_events:
+                        db.execute(text(
+                            f"CREATE TRIGGER IF NOT EXISTS "
+                            f"stock_center_revision_{table_name}_{suffix} "
+                            f"AFTER {event_name} ON {table_name} "
+                            "BEGIN "
+                            "UPDATE stock_center_revision "
+                            "SET revision = revision + 1 WHERE id = 1; "
+                            "END"
+                        ))
+                db.execute(text(
+                    "UPDATE stock_center_revision SET trigger_version = :version "
+                    "WHERE id = 1"
+                ), {"version": _STOCK_CENTER_TRIGGER_VERSION})
+
+            db.commit()
+            revision = db.execute(text(
+                "SELECT revision FROM stock_center_revision WHERE id = 1"
+            )).scalar()
+            return int(revision or 0)
+    except SQLAlchemyError:
+        db.rollback()
+        return None
+
+
+def _stock_center_cache_key(
+    *,
+    page: int,
+    size: int,
+    keyword: str,
+    selected_tag: str,
+    status: str,
+    price_mode: str,
+    cash_max: Optional[float],
+) -> dict:
+    return {
+        "page": page,
+        "size": size,
+        "q": keyword,
+        "tag": selected_tag,
+        "status": status,
+        "price_mode": price_mode,
+        "cash_max": cash_max,
+    }
+
+
+def _build_stock_center_etag(revision: object, cache_key: dict, prefix: str = "revision") -> str:
+    payload = json.dumps(
+        {"revision": revision, "query": cache_key},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return f'"stock-center-{prefix}-{digest}"'
+
+
+def _build_stock_center_body_etag(payload: dict, cache_key: dict) -> str:
+    serialized = json.dumps(
+        {"body": payload, "query": cache_key},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return f'"stock-center-body-{digest}"'
+
+
+def _if_none_match_matches(request: Optional[Request], etag: str) -> bool:
+    if request is None:
+        return False
+    header = request.headers.get("if-none-match")
+    if not header:
+        return False
+
+    expected = etag[2:] if etag.startswith("W/") else etag
+    for candidate in header.split(","):
+        candidate = candidate.strip()
+        if candidate == "*":
+            return True
+        if candidate.startswith("W/"):
+            candidate = candidate[2:]
+        if candidate == expected:
+            return True
+    return False
+
+
+def _stock_center_headers(etag: str) -> dict:
+    return {
+        "ETag": etag,
+        "Cache-Control": _STOCK_CENTER_CACHE_CONTROL,
+    }
 
 
 def ensure_product_columns(db: Session):
@@ -206,6 +373,8 @@ def get_stock_center(
     price_mode: str = Query(default="all"),
     cash_max: Optional[float] = Query(default=None, ge=0),
     db: Session = Depends(get_db),
+    request: Request = None,
+    response: Response = None,
 ):
     """Return a filtered page of stock items instead of the whole catalog."""
     ensure_product_columns(db)
@@ -221,6 +390,20 @@ def get_stock_center(
 
     keyword = (q or "").strip()
     selected_tag = (tag or "").strip()
+
+    cache_key = _stock_center_cache_key(
+        page=page,
+        size=size,
+        keyword=keyword,
+        selected_tag=selected_tag,
+        status=status,
+        price_mode=price_mode,
+        cash_max=cash_max,
+    )
+    revision = _ensure_stock_center_revision(db)
+    etag = _build_stock_center_etag(revision, cache_key) if revision is not None else None
+    if etag is not None and _if_none_match_matches(request, etag):
+        return Response(status_code=304, headers=_stock_center_headers(etag))
 
     latest_points_subquery = db.query(
         models.PointsHistory.program_id.label("program_id"),
@@ -354,7 +537,7 @@ def get_stock_center(
         func.coalesce(func.sum(case((models.Product.is_unlisted == 1, 1), else_=0)), 0),
     ).select_from(models.Product).one()
 
-    return {
+    payload = {
         "page": page,
         "size": size,
         "total": total,
@@ -371,6 +554,20 @@ def get_stock_center(
         "hidden_total": int(visibility_counts[0] or 0),
         "off_shelf_total": int(visibility_counts[1] or 0),
     }
+
+    # SQLite uses the durable trigger-backed revision above, so a matching
+    # request can exit before running the expensive catalog queries.  If a
+    # different backend (or a temporary SQLite setup failure) reaches this
+    # branch, hash the exact response instead of returning a potentially stale
+    # 304 based on an approximate aggregate.
+    if etag is None:
+        etag = _build_stock_center_body_etag(payload, cache_key)
+        if _if_none_match_matches(request, etag):
+            return Response(status_code=304, headers=_stock_center_headers(etag))
+
+    if response is not None:
+        response.headers.update(_stock_center_headers(etag))
+    return payload
 
 
 @router.get("/programs/{program_id}/products", response_model=schemas_stock.PaginatedProducts)
