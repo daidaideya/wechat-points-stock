@@ -81,7 +81,7 @@
 | `scripts/migrate_add_phone_index.py` | 一次性创建手机号索引 |
 | `migrate_note.py` | 旧版本一次性补 `mini_programs.note` |
 | `docs/库存上报.md` | 编写库存上报脚本时的首选完整接口文档 |
-| `.gitleaks.toml`、`.github/workflows/ci.yml` | secret scan 配置和 CI；当前仍会暴露历史提交中的既有泄露，轮换/历史清理未完成 |
+| `.gitleaks.toml`、`.github/workflows/ci.yml` | secret scan 配置和 CI；当前 `main` 可达历史已清理运行时敏感文件，本机旧上报凭据已轮换 |
 | `README.md`、`技术文档.md`、`CLAUDE.md` | 项目说明、技术说明、开发约束 |
 
 前端目录中的 `components/HelloWorld.vue`、`public/vite.svg`、`src/assets/vue.svg` 是 Vite 初始模板遗留物，目前不是业务入口。
@@ -447,7 +447,7 @@ docker compose up -d --build
 
 这些不是本次修复项，只是后续工作时必须知道的事实。
 
-1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前工作区已把 `.env` 从 Git 索引移除但保留本机文件；记忆文档不复述 token。仍应尽快轮换旧凭据，并评估远端历史清理和泄露范围。
+1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
 3. **access key 仍未会话化。** router 统一保护已完成第一阶段，但 SQLite 明文、localStorage、登录失败限流和审计仍待处理。
 4. **数据库恢复已加第一阶段保护。** 仍需跨进程维护锁、完整调度暂停和真实文件恢复集成测试；不要把 `os.replace` 视作已完成全部恢复治理。
