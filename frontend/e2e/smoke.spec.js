@@ -74,6 +74,7 @@ test('desktop primary routes render their page shell without browser errors', as
     await expect(page.locator('main.page-content')).toBeVisible()
     await expect(page.locator('header.top-header h1')).toHaveText(title)
     await expect(page.locator('.route-view-frame')).toBeVisible()
+    await page.waitForLoadState('networkidle')
   }
 
   expect(issues).toEqual([])
