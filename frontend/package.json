@@ -9,7 +9,7 @@
     "test": "node --test",
     "test:e2e": "playwright test",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check src/api.js playwright.config.js \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
+    "format:check": "prettier --check src/api.js eslint.config.js playwright.config.js \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
     "analyze": "vite build --mode analyze && node scripts/gzip-assets.mjs",
     "preview": "vite preview"
   },

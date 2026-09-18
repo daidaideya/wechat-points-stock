@@ -1,0 +1,4613 @@
+{
+  "components": {
+    "schemas": {
+      "AccessAuditEventItem": {
+        "description": "Public, credential-free representation of one access audit event.",
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "event_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Time"
+          },
+          "event_type": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Event Type",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "event_type"
+        ],
+        "title": "AccessAuditEventItem",
+        "type": "object"
+      },
+      "AccessAuditEventPage": {
+        "description": "Paginated access audit response metadata and safe event items.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccessAuditEventItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "size": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Size",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "size",
+          "total",
+          "has_more"
+        ],
+        "title": "AccessAuditEventPage",
+        "type": "object"
+      },
+      "AccessVerifyRequest": {
+        "properties": {
+          "access_key": {
+            "title": "Access Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_key"
+        ],
+        "title": "AccessVerifyRequest",
+        "type": "object"
+      },
+      "AccountUpdate": {
+        "properties": {
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "title": "AccountUpdate",
+        "type": "object"
+      },
+      "BarkSettingsUpdate": {
+        "properties": {
+          "bark_device_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bark Device Key"
+          },
+          "bark_enabled": {
+            "default": false,
+            "title": "Bark Enabled",
+            "type": "boolean"
+          },
+          "bark_push_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bark Push Time"
+          },
+          "bark_server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bark Server"
+          }
+        },
+        "title": "BarkSettingsUpdate",
+        "type": "object"
+      },
+      "Body_import_database_api_v1_settings_database_import_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_database_api_v1_settings_database_import_post",
+        "type": "object"
+      },
+      "Body_upload_image_api_v1_upload_image_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          },
+          "product_id": {
+            "title": "Product Id",
+            "type": "string"
+          },
+          "program_id": {
+            "title": "Program Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_image_api_v1_upload_image_post",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LogSettingsUpdate": {
+        "properties": {
+          "access_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Key"
+          },
+          "access_protection_enabled": {
+            "default": false,
+            "title": "Access Protection Enabled",
+            "type": "boolean"
+          },
+          "max_log_entries": {
+            "title": "Max Log Entries",
+            "type": "integer"
+          },
+          "max_retention_days": {
+            "title": "Max Retention Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_log_entries",
+          "max_retention_days"
+        ],
+        "title": "LogSettingsUpdate",
+        "type": "object"
+      },
+      "PaginatedProducts": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProductResponse"
+            },
+            "maxItems": 100,
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "size": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Size",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "size",
+          "items"
+        ],
+        "title": "PaginatedProducts",
+        "type": "object"
+      },
+      "PointsReportData": {
+        "properties": {
+          "wechat_accounts": {
+            "items": {
+              "$ref": "#/components/schemas/WechatAccountData"
+            },
+            "maxItems": 100,
+            "title": "Wechat Accounts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "wechat_accounts"
+        ],
+        "title": "PointsReportData",
+        "type": "object"
+      },
+      "PointsReportRequest": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PointsReportData"
+          },
+          "execution_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Time"
+          },
+          "script_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Script Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "script_id",
+          "data"
+        ],
+        "title": "PointsReportRequest",
+        "type": "object"
+      },
+      "ProductCreateUpdate": {
+        "properties": {
+          "cash": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Cash"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "points": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Points",
+            "type": "integer"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "product_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Product Name",
+            "type": "string"
+          },
+          "program_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Program Id",
+            "type": "string"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Stock"
+          }
+        },
+        "required": [
+          "product_name",
+          "program_id"
+        ],
+        "title": "ProductCreateUpdate",
+        "type": "object"
+      },
+      "ProductData": {
+        "properties": {
+          "cash": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Cash"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "last_updated": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Updated"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Points"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "product_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Product Name",
+            "type": "string"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Stock"
+          }
+        },
+        "required": [
+          "product_name"
+        ],
+        "title": "ProductData",
+        "type": "object"
+      },
+      "ProductResponse": {
+        "properties": {
+          "cash": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Cash"
+          },
+          "hidden_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_local_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Local Path"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "is_hidden": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Is Hidden"
+          },
+          "points": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Points",
+            "type": "integer"
+          },
+          "product_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Product Id",
+            "type": "string"
+          },
+          "product_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Product Name",
+            "type": "string"
+          },
+          "program_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Program Id",
+            "type": "string"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0,
+            "title": "Stock"
+          }
+        },
+        "required": [
+          "product_name",
+          "id",
+          "product_id",
+          "program_id"
+        ],
+        "title": "ProductResponse",
+        "type": "object"
+      },
+      "ProgramPointsData": {
+        "properties": {
+          "auth_type": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "current_cash": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Cash"
+          },
+          "current_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Points"
+          },
+          "last_updated": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Updated"
+          },
+          "program_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Program Id",
+            "type": "string"
+          },
+          "program_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Name"
+          }
+        },
+        "required": [
+          "program_id"
+        ],
+        "title": "ProgramPointsData",
+        "type": "object"
+      },
+      "ProgramStockSummary": {
+        "properties": {
+          "product_count": {
+            "minimum": 0.0,
+            "title": "Product Count",
+            "type": "integer"
+          },
+          "program_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Program Id",
+            "type": "string"
+          },
+          "program_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Program Name",
+            "type": "string"
+          },
+          "total_stock": {
+            "minimum": 0.0,
+            "title": "Total Stock",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "program_id",
+          "program_name",
+          "product_count",
+          "total_stock"
+        ],
+        "title": "ProgramStockSummary",
+        "type": "object"
+      },
+      "ProgramUpdate": {
+        "properties": {
+          "auth_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "is_archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Archived"
+          },
+          "is_favorite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Favorite"
+          },
+          "is_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Pinned"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "ProgramUpdate",
+        "type": "object"
+      },
+      "QinglongCronBatchUpdate": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QinglongCronScheduleUpdate"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "QinglongCronBatchUpdate",
+        "type": "object"
+      },
+      "QinglongCronScheduleUpdate": {
+        "properties": {
+          "id": {
+            "title": "Id"
+          },
+          "schedule": {
+            "title": "Schedule",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schedule"
+        ],
+        "title": "QinglongCronScheduleUpdate",
+        "type": "object"
+      },
+      "QinglongSettingsUpdate": {
+        "properties": {
+          "ql_auto_sync_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ql Auto Sync Minutes"
+          },
+          "ql_base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ql Base Url"
+          },
+          "ql_client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ql Client Id"
+          },
+          "ql_client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ql Client Secret"
+          },
+          "ql_sync_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ql Sync Mode"
+          }
+        },
+        "title": "QinglongSettingsUpdate",
+        "type": "object"
+      },
+      "SortOrderUpdate": {
+        "properties": {
+          "wechat_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Wechat Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "wechat_ids"
+        ],
+        "title": "SortOrderUpdate",
+        "type": "object"
+      },
+      "StockReportRequest": {
+        "properties": {
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/ProductData"
+            },
+            "maxItems": 2000,
+            "title": "Products",
+            "type": "array"
+          },
+          "program_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Program Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "program_id",
+          "products"
+        ],
+        "title": "StockReportRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WechatAccountData": {
+        "properties": {
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "points_data": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramPointsData"
+            },
+            "maxItems": 500,
+            "title": "Points Data",
+            "type": "array"
+          },
+          "wechat_id": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Wechat Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "wechat_id",
+          "points_data"
+        ],
+        "title": "WechatAccountData",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "WeChat Points & Stock Monitor",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/access/audit-events": {
+      "get": {
+        "description": "Return a protected, credential-free page of security audit events.",
+        "operationId": "list_access_audit_events_api_v1_access_audit_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessAuditEventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Access Audit Events",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/access/status": {
+      "get": {
+        "description": "Bootstrap-friendly access check.\n\n- Always returns 200 when protection is off, or when no key is sent\n  (so the SPA can learn `enabled` without a 401 round-trip).\n- A valid HttpOnly session is preferred; the old header is accepted once\n  to migrate clients from the localStorage-based implementation.",
+        "operationId": "get_access_status_api_v1_access_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Access Status",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/access/verify": {
+      "post": {
+        "operationId": "verify_access_key_api_v1_access_verify_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Access Key",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/accounts": {
+      "get": {
+        "operationId": "get_accounts_api_v1_accounts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Accounts",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/accounts/sort-order": {
+      "put": {
+        "operationId": "update_sort_order_api_v1_accounts_sort_order_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SortOrderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Sort Order",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/accounts/{wechat_id}": {
+      "delete": {
+        "operationId": "delete_account_api_v1_accounts__wechat_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wechat_id",
+            "required": true,
+            "schema": {
+              "title": "Wechat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Account",
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "operationId": "get_account_api_v1_accounts__wechat_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wechat_id",
+            "required": true,
+            "schema": {
+              "title": "Wechat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Account",
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "operationId": "update_account_api_v1_accounts__wechat_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wechat_id",
+            "required": true,
+            "schema": {
+              "title": "Wechat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Account",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/accounts/{wechat_id}/points_details": {
+      "get": {
+        "operationId": "get_account_points_details_api_v1_accounts__wechat_id__points_details_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wechat_id",
+            "required": true,
+            "schema": {
+              "title": "Wechat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Account Points Details",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/accounts/{wechat_id}/programs/{program_id}": {
+      "delete": {
+        "operationId": "delete_program_points_api_v1_accounts__wechat_id__programs__program_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wechat_id",
+            "required": true,
+            "schema": {
+              "title": "Wechat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Program Points",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/dashboard": {
+      "get": {
+        "operationId": "get_dashboard_summary_api_v1_dashboard_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dashboard Summary",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/points": {
+      "get": {
+        "operationId": "get_points_overview_api_v1_points_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Points Overview",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs": {
+      "get": {
+        "operationId": "get_programs_api_api_v1_programs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 21,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_favorite",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Favorite"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "active",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ql_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ql Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "default",
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "mini",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Programs Api",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs/favorites": {
+      "get": {
+        "operationId": "get_favorite_programs_api_v1_programs_favorites_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Favorite Programs",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs/unreported": {
+      "get": {
+        "operationId": "get_unreported_programs_api_v1_programs_unreported_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Unreported Programs",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs/{program_id}": {
+      "delete": {
+        "operationId": "delete_program_api_v1_programs__program_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Program",
+        "tags": [
+          "api"
+        ]
+      },
+      "get": {
+        "operationId": "get_program_detail_api_v1_programs__program_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Program Detail",
+        "tags": [
+          "api"
+        ]
+      },
+      "put": {
+        "operationId": "update_program_api_v1_programs__program_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgramUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Program",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs/{program_id}/ranking": {
+      "get": {
+        "operationId": "get_program_ranking_api_v1_programs__program_id__ranking_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Program Ranking",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs/{program_id}/rankings": {
+      "get": {
+        "operationId": "get_program_rankings_api_v1_programs__program_id__rankings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Program Rankings",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/programs/{program_id}/stock": {
+      "get": {
+        "operationId": "get_program_stock_api_v1_programs__program_id__stock_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Program Stock",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/qinglong/crons": {
+      "get": {
+        "description": "Fetch all cron tasks from the QingLong panel (live, not DB mirror).",
+        "operationId": "list_qinglong_crons_api_v1_qinglong_crons_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Qinglong Crons",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/qinglong/crons/schedules": {
+      "post": {
+        "description": "Batch update cron schedules on the QingLong panel, then resync mirror.",
+        "operationId": "update_qinglong_cron_schedules_api_v1_qinglong_crons_schedules_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QinglongCronBatchUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Qinglong Cron Schedules",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/qinglong/report": {
+      "post": {
+        "operationId": "report_points_api_v1_qinglong_report_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PointsReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report Points",
+        "tags": [
+          "qinglong"
+        ]
+      }
+    },
+    "/api/v1/settings/bark": {
+      "get": {
+        "operationId": "get_bark_settings_api_v1_settings_bark_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Bark Settings",
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "operationId": "update_bark_settings_api_v1_settings_bark_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BarkSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Bark Settings",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/settings/bark/test": {
+      "post": {
+        "operationId": "test_bark_push_api_v1_settings_bark_test_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Bark Push",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/settings/database/export": {
+      "get": {
+        "description": "Download a consistent snapshot of the SQLite database (backup).",
+        "operationId": "export_database_api_v1_settings_database_export_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Database",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/settings/database/import": {
+      "post": {
+        "description": "Restore database from an uploaded .db backup. Replaces current SQLite file.",
+        "operationId": "import_database_api_v1_settings_database_import_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_database_api_v1_settings_database_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Database",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/settings/logs": {
+      "get": {
+        "operationId": "get_log_settings_api_v1_settings_logs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Log Settings",
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "operationId": "update_log_settings_api_v1_settings_logs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Log Settings",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/settings/qinglong": {
+      "get": {
+        "operationId": "get_qinglong_settings_api_v1_settings_qinglong_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Qinglong Settings",
+        "tags": [
+          "api"
+        ]
+      },
+      "post": {
+        "operationId": "update_qinglong_settings_api_v1_settings_qinglong_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QinglongSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Qinglong Settings",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/settings/qinglong/sync": {
+      "post": {
+        "operationId": "sync_qinglong_settings_api_v1_settings_qinglong_sync_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Qinglong Settings",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/v1/stock-report": {
+      "post": {
+        "operationId": "report_stock_api_v1_stock_report_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report Stock",
+        "tags": [
+          "qinglong"
+        ]
+      }
+    },
+    "/api/v1/stock/center": {
+      "get": {
+        "description": "Return a filtered page of stock items instead of the whole catalog.",
+        "operationId": "get_stock_center_api_v1_stock_center_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 50,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "price_mode",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "title": "Price Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cash_max",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cash Max"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stock Center",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/hidden": {
+      "get": {
+        "operationId": "get_hidden_products_api_v1_stock_hidden_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedProducts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Hidden Products",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/off-shelf": {
+      "get": {
+        "description": "已下架（unlisted）商品 — 系统在处理 stock 上报时检测到老商品没出现在最新报告里，\n自动标记为 is_unlisted=1。和「已隐藏」（is_hidden，用户手动）完全独立。",
+        "operationId": "get_off_shelf_products_api_v1_stock_off_shelf_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Off Shelf Products",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/product": {
+      "post": {
+        "operationId": "create_or_update_product_api_v1_stock_product_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCreateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Or Update Product",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/products/{product_id}/hide": {
+      "put": {
+        "operationId": "hide_product_api_v1_stock_products__product_id__hide_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "title": "Product Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hide Product",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/products/{product_id}/relist": {
+      "put": {
+        "description": "把系统判定为「已下架」的商品手动恢复为活跃状态。和 /restore（取消手动隐藏）独立。",
+        "operationId": "relist_product_api_v1_stock_products__product_id__relist_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "title": "Product Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Relist Product",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/products/{product_id}/restore": {
+      "put": {
+        "operationId": "restore_product_api_v1_stock_products__product_id__restore_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "title": "Product Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Product",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/programs": {
+      "get": {
+        "operationId": "get_programs_stock_summary_api_v1_stock_programs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProgramStockSummary"
+                  },
+                  "title": "Response Get Programs Stock Summary Api V1 Stock Programs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Programs Stock Summary",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/programs/{program_id}/products": {
+      "get": {
+        "operationId": "get_program_products_api_v1_stock_programs__program_id__products_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "program_id",
+            "required": true,
+            "schema": {
+              "title": "Program Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedProducts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Program Products",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/stock/search": {
+      "get": {
+        "operationId": "search_products_global_api_v1_stock_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-access-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Key"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "site_access_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Access Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedProducts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Products Global",
+        "tags": [
+          "stock-management"
+        ]
+      }
+    },
+    "/api/v1/upload/image": {
+      "post": {
+        "operationId": "upload_image_api_v1_upload_image_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_image_api_v1_upload_image_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Image",
+        "tags": [
+          "upload"
+        ]
+      }
+    }
+  }
+}

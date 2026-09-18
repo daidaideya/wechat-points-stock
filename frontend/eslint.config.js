@@ -7,6 +7,8 @@ export default [
     ignores: [
       'dist/**',
       'node_modules/**',
+      'test-results/**',
+      'playwright-report/**',
       'src/auto-imports.d.ts',
       'src/components.d.ts',
       'src/components/HelloWorld.vue',
@@ -28,11 +30,14 @@ export default [
     },
     rules: {
       'no-console': 'off',
-      'no-unused-vars': ['error', {
-        args: 'none',
-        caughtErrors: 'none',
-        ignoreRestSiblings: true,
-      }],
+      'no-unused-vars': [
+        'error',
+        {
+          args: 'none',
+          caughtErrors: 'none',
+          ignoreRestSiblings: true,
+        },
+      ],
       'vue/attributes-order': 'off',
       'vue/attribute-hyphenation': 'off',
       'vue/first-attribute-linebreak': 'off',
