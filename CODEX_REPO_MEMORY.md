@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`153ead8`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批和桌面表格第九批；OPT-017 已完成共享层 Prettier 门禁第二批和 Users 展示规则测试第三批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
+- 快照提交：`1b83810`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批；OPT-017 已完成共享层 Prettier 门禁第二批和 Users 展示规则测试第三批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `27 passed`，`npm run lint` 通过
@@ -103,6 +103,7 @@
 | `frontend/src/components/UserPointsDialog.vue` | Users 页积分详情的加载/空态、桌面表格、移动卡片和展示格式化；通过 `v-model` 接收弹窗状态 |
 | `frontend/src/components/UserMobileCard.vue` | Users 页移动端用户卡片展示；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
 | `frontend/src/components/UserDesktopTable.vue` | Users 页桌面表格列、排序句柄、身份展示和操作按钮；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
+| `frontend/src/components/UserEditDialog.vue` | Users 页新增/编辑表单、取消和保存状态展示；通过 `v-model`、`update-field`、`save` 事件回到页面编排 |
 | `frontend/src/utils/apiError.js` | Axios/API 错误载荷归一化和取消请求识别 |
 | `frontend/src/utils/apiError.test.js` | API 错误消息与取消请求解析的 Node 内置单元测试 |
 | `frontend/eslint.config.js` | ESLint 9 + Vue flat config，覆盖前端 JS/Vue 源码 |
@@ -413,6 +414,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `UserPointsDialog.vue` 负责 Users 页积分详情的加载态、空态、桌面/移动展示和积分/现金/日期格式化；`UsersPage.vue` 保留用户与积分详情 API、当前用户标题和弹窗状态编排，组件通过 `v-model` 接收可见性。
 - `frontend/src/utils/user.js` 统一处理 Users 页手机号兼容、微信号/昵称主标识和确定性头像展示；`UserMobileCard.vue` 负责移动卡片展示与操作事件，`UsersPage.vue` 继续持有列表容器、桌面表格和 Sortable 拖拽保存。
 - `UserDesktopTable.vue` 负责 Users 页桌面列、头像、排序句柄和操作按钮展示；`UsersPage.vue` 通过组件 ref 继续取得表格 DOM 给 Sortable 使用，并保留顺序持久化、失败回滚和移动端列表生命周期。
+- `UserEditDialog.vue` 负责 Users 页新增/编辑表单展示和字段更新事件；`UsersPage.vue` 保留表单初始化、字段白名单更新、微信号非空校验、保存 API、刷新和错误提示。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios 取消、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - 前端 Node 内置测试目前共 `27 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析和 Users 身份展示规则测试。
