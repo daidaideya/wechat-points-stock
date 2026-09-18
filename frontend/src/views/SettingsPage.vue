@@ -55,69 +55,18 @@
               @sync="syncQinglong"
             />
 
-            <section v-else-if="activeSection === 'bark'" class="settings-section-card">
-              <div class="settings-section-header">
-                <div>
-                  <h3 class="settings-section-title">Bark 推送</h3>
-                  <p class="settings-section-desc">按设定时间推送今日未上报的小程序列表到 iPhone。</p>
-                </div>
-              </div>
-
-              <el-form label-width="140px" class="settings-form">
-                <p class="settings-help-block">
-                  填写 Bark 的 Device Key 后启用。服务会在每天设定时间检查活跃小程序是否已上报，
-                  并把未报名单推送到你的手机。可随时关闭。
-                </p>
-
-                <el-form-item label="启用推送">
-                  <div class="settings-inline-row">
-                    <el-switch v-model="barkForm.bark_enabled" />
-                    <span class="settings-help-text">关闭后不会自动推送，仍可手动测试</span>
-                  </div>
-                </el-form-item>
-                <el-form-item label="Bark 服务器">
-                  <el-input
-                    v-model="barkForm.bark_server"
-                    placeholder="默认 https://api.day.app，也可填自建地址"
-                    clearable
-                  />
-                </el-form-item>
-                <el-form-item label="Device Key">
-                  <el-input
-                    v-model="barkForm.bark_device_key"
-                    type="password"
-                    show-password
-                    :placeholder="barkKeyConfigured ? '已配置，留空表示不修改' : 'Bark App 里的设备 Key'"
-                  />
-                </el-form-item>
-                <el-form-item label="Key 状态">
-                  <el-tag :type="barkKeyConfigured ? 'success' : 'info'" round effect="plain">
-                    {{ barkKeyConfigured ? '已配置' : '未配置' }}
-                  </el-tag>
-                </el-form-item>
-                <el-form-item label="推送时间">
-                  <el-time-select
-                    v-model="barkForm.bark_push_time"
-                    start="00:00"
-                    step="00:05"
-                    end="23:55"
-                    placeholder="选择时间"
-                    style="width: 180px"
-                  />
-                  <span class="settings-help-text" style="margin-left: 10px">本地时间，每天一次</span>
-                </el-form-item>
-                <el-form-item label="最近推送">
-                  <div class="settings-sync-meta">
-                    <span>{{ barkLastPushAtLocal || formatDate(barkLastPushAt) }}</span>
-                    <span class="settings-help-text">{{ barkLastPushStatus || '尚未推送' }}</span>
-                  </div>
-                </el-form-item>
-                <el-form-item>
-                  <el-button type="primary" @click="saveBark" :loading="barkSaving">保存 Bark 配置</el-button>
-                  <el-button type="success" plain @click="testBark" :loading="barkTesting">立即推送测试</el-button>
-                </el-form-item>
-              </el-form>
-            </section>
+            <SettingsBarkSection
+              v-else-if="activeSection === 'bark'"
+              :form="barkForm"
+              :key-configured="barkKeyConfigured"
+              :last-push-at="barkLastPushAtLocal || formatDate(barkLastPushAt)"
+              :last-push-status="barkLastPushStatus"
+              :saving="barkSaving"
+              :testing="barkTesting"
+              @update-field="updateBarkField"
+              @save="saveBark"
+              @test="testBark"
+            />
 
             <SettingsDatabaseSection
               v-else
@@ -140,6 +89,7 @@ import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import SettingsDatabaseSection from '../components/SettingsDatabaseSection.vue'
+import SettingsBarkSection from '../components/SettingsBarkSection.vue'
 import SettingsGeneralSection from '../components/SettingsGeneralSection.vue'
 import SettingsQinglongSection from '../components/SettingsQinglongSection.vue'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
@@ -310,6 +260,10 @@ function updateGeneralField(field, value) {
 
 function updateQinglongField(field, value) {
   if (Object.prototype.hasOwnProperty.call(qlForm, field)) qlForm[field] = value
+}
+
+function updateBarkField(field, value) {
+  if (Object.prototype.hasOwnProperty.call(barkForm, field)) barkForm[field] = value
 }
 
 async function refreshCurrentSection() {

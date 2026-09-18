@@ -10,6 +10,9 @@ const desktopRoutes = [
   ['/stock', '库存管理'],
   ['/qinglong-crons', '青龙定时'],
   ['/settings', '系统设置'],
+  ['/settings?section=qinglong', '系统设置'],
+  ['/settings?section=bark', '系统设置'],
+  ['/settings?section=database', '系统设置'],
 ]
 
 function mockJson(route, data, status = 200) {

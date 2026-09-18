@@ -49,6 +49,7 @@ declare module 'vue' {
     QinglongCronRow: typeof import('./components/QinglongCronRow.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SettingsBarkSection: typeof import('./components/SettingsBarkSection.vue')['default']
     SettingsDatabaseSection: typeof import('./components/SettingsDatabaseSection.vue')['default']
     SettingsGeneralSection: typeof import('./components/SettingsGeneralSection.vue')['default']
     SettingsQinglongSection: typeof import('./components/SettingsQinglongSection.vue')['default']
