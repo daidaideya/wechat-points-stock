@@ -9,7 +9,7 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`b7cb1b2`（2026-09-18）
+- 快照提交：`6209533`（2026-09-18）
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
