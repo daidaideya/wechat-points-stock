@@ -504,11 +504,12 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 
 const PAGE_SIZE = 20
 const STOCK_CACHE_TTL = 60 * 1000
@@ -563,7 +564,6 @@ const relistingId = ref(null)
 
 const CASH_CAP_PRESETS = [1, 5, 10, 20]
 
-let observer = null
 let stockCenterRequest = null
 let stockCenterRequestKey = ''
 let stockCenterAbortController = null
@@ -840,29 +840,12 @@ async function loadMore() {
   await loadStockCenter({ append: true })
 }
 
-function initObserver() {
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
-  if (!loadMoreSentinel.value || !hasMore.value) return
-
-  observer = new IntersectionObserver(
-    (entries) => {
-      const entry = entries[0]
-      if (entry?.isIntersecting) {
-        loadMore()
-      }
-    },
-    {
-      root: null,
-      rootMargin: '180px 0px',
-      threshold: 0,
-    },
-  )
-
-  observer.observe(loadMoreSentinel.value)
-}
+const { observe: initObserver } = useInfiniteScroll({
+  target: loadMoreSentinel,
+  canLoadMore: () => hasMore.value,
+  onLoadMore: loadMore,
+  rootMargin: '180px 0px',
+})
 
 async function fetchHiddenProducts(page = 1) {
   hiddenLoading.value = true
@@ -1044,12 +1027,6 @@ watch(offShelfDrawerVisible, (visible) => {
 
 onMounted(async () => {
   await loadStockCenter()
-})
-
-onBeforeUnmount(() => {
-  if (observer) {
-    observer.disconnect()
-  }
 })
 </script>
 

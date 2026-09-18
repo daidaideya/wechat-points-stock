@@ -822,6 +822,7 @@ import {
   getRedeemBlockedLabel as getProductRedeemBlockedLabel,
   isRedeemable,
 } from '../utils/product'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 
 const router = useRouter()
 const route = useRoute()
@@ -886,7 +887,6 @@ const editingTags = ref([])
 const customTagInput = ref('')
 const stockData = ref(null)
 
-let observer = null
 let restoringState = false
 
 const TOUCH_LAYOUT_MAX = 768
@@ -1368,32 +1368,15 @@ async function loadMore() {
   await fetchPrograms(page.value + 1, true)
 }
 
-function initInfiniteScroll() {
-  destroyInfiniteScroll()
-  if (!loadMoreSentinel.value) return
-
-  observer = new IntersectionObserver(
-    (entries) => {
-      const [entry] = entries
-      if (!entry?.isIntersecting) return
-      loadMore()
-    },
-    {
-      root: null,
-      rootMargin: '0px 0px 320px 0px',
-      threshold: 0,
-    },
-  )
-
-  observer.observe(loadMoreSentinel.value)
-}
-
-function destroyInfiniteScroll() {
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
-}
+const {
+  observe: initInfiniteScroll,
+  disconnect: destroyInfiniteScroll,
+} = useInfiniteScroll({
+  target: loadMoreSentinel,
+  canLoadMore: () => hasMore.value && !loadError.value,
+  onLoadMore: loadMore,
+  rootMargin: '0px 0px 320px 0px',
+})
 
 function openNoteDialog(program) {
   currentProgram.value = program
@@ -1659,7 +1642,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleViewportResize)
-  destroyInfiniteScroll()
 })
 </script>
 
