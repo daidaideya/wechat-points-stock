@@ -50,6 +50,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StockProductCard: typeof import('./components/StockProductCard.vue')['default']
+    UserDesktopTable: typeof import('./components/UserDesktopTable.vue')['default']
     UserMobileCard: typeof import('./components/UserMobileCard.vue')['default']
     UserPointsDialog: typeof import('./components/UserPointsDialog.vue')['default']
   }
