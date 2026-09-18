@@ -9,11 +9,12 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`39862ab`（2026-09-18）
+- 快照提交：`c2a5531`（2026-09-18）
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `21 passed`，`npm run lint` 通过
+- CI：前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run build` 执行；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -388,6 +389,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 前端 Node 内置测试目前共 `21 passed`，其中包含 Programs/Apps 筛选参数、访问会话和页面状态缓存版本/TTL 测试。
 - `frontend/package.json` 提供 `npm test`、`npm run lint` 和 `npm run build`；ESLint 已接入 CI 可复用命令，现有代码基线通过 lint。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
+- README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
