@@ -62,69 +62,16 @@
         <el-empty v-if="!items.length" description="暂无用户数据" />
 
         <div v-else ref="mobileListRef" class="users-mobile-list">
-          <article
+          <UserMobileCard
             v-for="(item, index) in items"
             :key="item.wechat_id"
-            class="users-mobile-card"
-            :data-wechat-id="item.wechat_id"
-          >
-            <div class="users-mobile-card-top">
-              <div class="users-mobile-identity">
-                <button
-                  type="button"
-                  class="users-drag-handle users-drag-handle-mobile"
-                  title="拖拽排序"
-                  aria-label="拖拽排序"
-                  @click.stop
-                >
-                  <el-icon><Rank /></el-icon>
-                </button>
-                <div class="users-avatar" :style="{ background: avatarColor(item) }">{{ avatarChar(item) }}</div>
-                <div class="users-mobile-title-wrap">
-                  <h3 class="users-mobile-title">
-                    <span class="users-sort-index-inline">{{ index + 1 }}.</span>
-                    {{ displayName(item) }}
-                  </h3>
-                  <div class="users-mobile-subtitle">{{ displayPrimaryId(item) }}</div>
-                </div>
-              </div>
-              <div class="users-mobile-count-chips">
-                <span class="users-mobile-count-chip">小程序 {{ item.active_program_count ?? 0 }}</span>
-                <span class="users-mobile-count-chip app-chip">APP {{ item.active_app_count ?? 0 }}</span>
-              </div>
-            </div>
-
-            <div class="users-mobile-meta-grid">
-              <div class="users-mobile-meta-item">
-                <span class="users-mobile-meta-label">设备</span>
-                <span class="users-mobile-meta-value">{{ item.device || '未填写' }}</span>
-              </div>
-              <div class="users-mobile-meta-item">
-                <span class="users-mobile-meta-label">手机号</span>
-                <span class="users-mobile-meta-value">{{ displayPhone(item) || '未填写' }}</span>
-              </div>
-              <div v-if="displayWechatId(item)" class="users-mobile-meta-item">
-                <span class="users-mobile-meta-label">微信号</span>
-                <span class="users-mobile-meta-value">{{ displayWechatId(item) }}</span>
-              </div>
-            </div>
-
-            <div class="users-mobile-actions">
-              <div class="users-mobile-actions-main">
-                <el-button size="small" @click="openEdit(item)">编辑</el-button>
-                <el-button size="small" @click="viewPoints(item)">积分</el-button>
-                <el-button
-                  size="small"
-                  type="danger"
-                  plain
-                  :loading="deletingWechatId === item.wechat_id"
-                  @click="removeUser(item)"
-                >
-                  删除
-                </el-button>
-              </div>
-            </div>
-          </article>
+            :item="item"
+            :index="index"
+            :deleting-wechat-id="deletingWechatId"
+            @edit="openEdit"
+            @view-points="viewPoints"
+            @remove="removeUser"
+          />
         </div>
 
         <div v-if="items.length" class="users-desktop-table-wrap">
@@ -215,7 +162,9 @@ import { Plus, Rank } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import api from '../api'
 import UserPointsDialog from '../components/UserPointsDialog.vue'
+import UserMobileCard from '../components/UserMobileCard.vue'
 import { getApiErrorMessage } from '../utils/apiError'
+import { avatarChar, avatarColor, displayName, displayPhone, displayWechatId } from '../utils/user'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -251,62 +200,6 @@ const totalActivePrograms = computed(() =>
 )
 const totalActiveApps = computed(() => items.value.reduce((sum, item) => sum + Number(item.active_app_count || 0), 0))
 const usersWithPhone = computed(() => items.value.filter((item) => Boolean(displayPhone(item))).length)
-
-function isPhoneLike(value) {
-  return /^1[3-9]\d{9}$/.test(String(value || '').trim())
-}
-
-/** Prefer phone column; fall back if legacy rows put phone into wechat_id. */
-function displayPhone(item) {
-  const phone = String(item?.phone || '').trim()
-  if (phone) return phone
-  const wid = String(item?.wechat_id || '').trim()
-  return isPhoneLike(wid) ? wid : ''
-}
-
-/** Real WeChat id only — hide when wechat_id is actually a phone number. */
-function displayWechatId(item) {
-  const wid = String(item?.wechat_id || '').trim()
-  if (!wid) return ''
-  if (isPhoneLike(wid)) return ''
-  return wid
-}
-
-function displayName(item) {
-  const nick = String(item?.nickname || '').trim()
-  if (nick) return nick
-  const phone = displayPhone(item)
-  if (phone) return phone
-  return displayWechatId(item) || '未命名用户'
-}
-
-function displayPrimaryId(item) {
-  const phone = displayPhone(item)
-  const wx = displayWechatId(item)
-  if (phone && wx) return `手机 ${phone}`
-  if (phone) return `手机 ${phone}`
-  if (wx) return `微信 ${wx}`
-  return '未设置账号标识'
-}
-
-function avatarChar(item) {
-  const text = String(displayName(item) || '?').trim()
-  if (!text) return '?'
-  const first = Array.from(text)[0] || '?'
-  return first.toUpperCase()
-}
-
-function avatarColor(item) {
-  const seed = String(displayPhone(item) || displayWechatId(item) || item?.nickname || '').trim()
-  if (!seed) return 'linear-gradient(135deg, #e7b35a, #d89a3c)'
-  let hash = 0
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0
-  }
-  const hue = Math.abs(hash) % 360
-  const hue2 = (hue + 35) % 360
-  return `linear-gradient(135deg, hsl(${hue}, 62%, 58%), hsl(${hue2}, 70%, 48%))`
-}
 
 function resetForm() {
   form.wechat_id = ''
@@ -746,12 +639,6 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
-.users-drag-handle-mobile {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-}
-
 .users-sort-index {
   display: inline-flex;
   align-items: center;
@@ -763,12 +650,6 @@ onBeforeUnmount(() => {
   background: rgba(231, 179, 90, 0.16);
   color: #b87718;
   font-size: 12px;
-  font-weight: 700;
-}
-
-.users-sort-index-inline {
-  margin-right: 4px;
-  color: #b87718;
   font-weight: 700;
 }
 
@@ -864,148 +745,12 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 12px;
   }
-
-  .users-mobile-card {
-    padding: 16px;
-    border-radius: 20px;
-    background: #fffdf9;
-    border: 1px solid rgba(232, 211, 183, 0.9);
-    box-shadow: 0 10px 24px rgba(145, 109, 61, 0.06);
-  }
-
-  .users-mobile-card-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .users-mobile-identity {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .users-mobile-card.users-sortable-chosen,
-  .users-mobile-card.users-sortable-drag {
-    border-color: rgba(231, 179, 90, 0.9);
-    box-shadow: 0 14px 28px rgba(145, 109, 61, 0.14);
-  }
-
-  .users-mobile-title-wrap {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .users-mobile-title {
-    margin: 0;
-    color: #3a2b1a;
-    font-size: 18px;
-    line-height: 1.35;
-  }
-
-  .users-mobile-subtitle {
-    margin-top: 6px;
-    color: #8a6c4c;
-    font-size: 12px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-
-  .users-mobile-count-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: flex-end;
-  }
-
-  .users-mobile-count-chip {
-    flex: 0 0 auto;
-    padding: 8px 12px;
-    border-radius: 999px;
-    background: rgba(231, 179, 90, 0.16);
-    color: #b87718;
-    font-size: 12px;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  .users-mobile-count-chip.app-chip {
-    background: rgba(96, 165, 250, 0.16);
-    color: #2563eb;
-  }
-
-  .users-mobile-meta-grid {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .users-mobile-meta-item {
-    padding: 12px;
-    border-radius: 16px;
-    background: rgba(255, 248, 238, 0.9);
-    border: 1px solid rgba(232, 211, 183, 0.72);
-  }
-
-  .users-mobile-meta-label {
-    display: block;
-    color: #8a6c4c;
-    font-size: 11px;
-  }
-
-  .users-mobile-meta-value {
-    display: block;
-    margin-top: 6px;
-    color: #3a2b1a;
-    font-size: 13px;
-    line-height: 1.5;
-    word-break: break-all;
-  }
-
-  .users-mobile-actions {
-    margin-top: 14px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .users-mobile-actions-sort,
-  .users-mobile-actions-main {
-    display: inline-flex;
-    gap: 8px;
-  }
-
-  .users-mobile-actions-main {
-    flex: 1;
-  }
 }
 
 @media (max-width: 640px) {
   .users-hero-card,
   .users-list-card {
     border-radius: 20px;
-  }
-
-  .users-mobile-card-top {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .users-mobile-meta-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .users-mobile-actions-main {
-    flex: 1 1 100%;
-  }
-
-  .users-mobile-actions-main :deep(.el-button) {
-    flex: 1;
   }
 }
 </style>
