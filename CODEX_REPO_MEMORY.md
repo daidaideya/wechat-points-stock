@@ -9,12 +9,12 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`db06e05`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`aa2f0ea`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `27 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
-- CI：前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run format:check` → `npm run build` 执行；独立 `frontend-e2e` job 安装 Chromium 后执行 `npm run test:e2e`；secret scan 仍为独立 job
+- CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run format:check` → `npm run build` 执行；独立 `frontend-e2e` job 安装 Chromium 后执行 `npm run test:e2e`；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -420,6 +420,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 前端 Node 内置测试目前共 `27 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析和 Users 身份展示规则测试。
 - 2026-09-18 在临时 SQLite 数据库和随机本地 `INGEST_TOKEN` 上完成桌面浏览器 smoke：Dashboard、Programs、Apps、Users、Points、Stock、QingLong、Settings 均可加载主内容/空态；Users 新增用户空表单校验和 QingLong 未配置 OpenAPI 提示均符合预期，浏览器 console 无 error/warn。验证后服务已停止、临时数据库已删除；浏览器不支持 viewport 覆盖，因此移动端视口和 CI Playwright 自动化仍待补齐。
 - 2026-09-18 新增 `frontend/playwright.config.js` 与 `frontend/e2e/smoke.spec.js`：API mock 下覆盖上述八个主路由、Users 空表单校验和 390px 移动导航开关，监听 console error/warn 与 pageerror；本地干净 `npm ci` 后 `npm run test:e2e` 为 `3 passed`，CI 使用独立 job 安装 Chromium。真实后端数据、跨浏览器和生产鉴权流程仍未纳入该 smoke。
+- 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
 - `frontend/package.json` 提供 `npm test`、`npm run lint`、`npm run format:check` 和 `npm run build`；ESLint/Prettier 共享层格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
