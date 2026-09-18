@@ -1,3 +1,4 @@
+import { readonly, ref } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import api, { clearAccessSession } from './api'
 
@@ -6,11 +7,119 @@ const ProgramsPage = () => import('./views/ProgramsPage.vue')
 const ProgramDetailPage = () => import('./views/ProgramDetailPage.vue')
 const UsersPage = () => import('./views/UsersPage.vue')
 const PointsPage = () => import('./views/PointsPage.vue')
-const StockPage = () => import('./views/StockPage.vue')
 const SettingsPage = () => import('./views/SettingsPage.vue')
 const FavoritesPage = () => import('./views/FavoritesPage.vue')
 const QinglongCronsPage = () => import('./views/QinglongCronsPage.vue')
 const AccessGatePage = () => import('./views/AccessGatePage.vue')
+
+const NAVIGATION_LOADING_DELAY_MS = 120
+const NAVIGATION_LOADING_MIN_VISIBLE_MS = 180
+
+const navigationLoadingState = ref(false)
+export const isNavigationLoading = readonly(navigationLoadingState)
+
+let navigationLoadingTimer = null
+let navigationHideTimer = null
+let navigationVisibleAt = 0
+
+function startNavigationLoading() {
+  if (navigationHideTimer !== null) {
+    clearTimeout(navigationHideTimer)
+    navigationHideTimer = null
+  }
+
+  if (navigationLoadingState.value || navigationLoadingTimer !== null) {
+    return
+  }
+
+  navigationLoadingTimer = setTimeout(() => {
+    navigationLoadingTimer = null
+    navigationLoadingState.value = true
+    navigationVisibleAt = Date.now()
+  }, NAVIGATION_LOADING_DELAY_MS)
+}
+
+function finishNavigationLoading() {
+  if (navigationLoadingTimer !== null) {
+    clearTimeout(navigationLoadingTimer)
+    navigationLoadingTimer = null
+  }
+
+  if (!navigationLoadingState.value || navigationHideTimer !== null) {
+    return
+  }
+
+  const elapsed = Date.now() - navigationVisibleAt
+  const remaining = Math.max(0, NAVIGATION_LOADING_MIN_VISIBLE_MS - elapsed)
+  if (remaining === 0) {
+    navigationLoadingState.value = false
+    return
+  }
+
+  navigationHideTimer = setTimeout(() => {
+    navigationHideTimer = null
+    navigationLoadingState.value = false
+  }, remaining)
+}
+
+let stockPageChunkPromise = null
+let stockPagePreloadScheduled = false
+let stockPagePreloadHandle = null
+let stockPagePreloadUsesIdleCallback = false
+
+function cancelScheduledStockPagePreload() {
+  if (!stockPagePreloadScheduled) {
+    return
+  }
+
+  if (stockPagePreloadHandle !== null && typeof window !== 'undefined') {
+    if (stockPagePreloadUsesIdleCallback && typeof window.cancelIdleCallback === 'function') {
+      window.cancelIdleCallback(stockPagePreloadHandle)
+    } else {
+      window.clearTimeout(stockPagePreloadHandle)
+    }
+  }
+
+  stockPagePreloadScheduled = false
+  stockPagePreloadHandle = null
+  stockPagePreloadUsesIdleCallback = false
+}
+
+export function preloadStockPage() {
+  cancelScheduledStockPagePreload()
+
+  if (!stockPageChunkPromise) {
+    stockPageChunkPromise = import('./views/StockPage.vue').catch((error) => {
+      // Let the next navigation or intent retry a transient chunk failure.
+      stockPageChunkPromise = null
+      throw error
+    })
+  }
+  return stockPageChunkPromise
+}
+
+function runScheduledStockPagePreload() {
+  stockPagePreloadScheduled = false
+  stockPagePreloadHandle = null
+  stockPagePreloadUsesIdleCallback = false
+  void preloadStockPage().catch(() => {})
+}
+
+export function scheduleStockPagePreload() {
+  if (typeof window === 'undefined' || stockPageChunkPromise || stockPagePreloadScheduled) {
+    return
+  }
+
+  stockPagePreloadScheduled = true
+  if (typeof window.requestIdleCallback === 'function') {
+    stockPagePreloadUsesIdleCallback = true
+    stockPagePreloadHandle = window.requestIdleCallback(runScheduledStockPagePreload, { timeout: 1200 })
+  } else {
+    stockPagePreloadHandle = window.setTimeout(runScheduledStockPagePreload, 200)
+  }
+}
+
+const StockPage = () => preloadStockPage()
 
 const routes = [
   {
@@ -132,6 +241,8 @@ if (typeof window !== 'undefined') {
 }
 
 router.beforeEach(async (to) => {
+  startNavigationLoading()
+
   if (to.meta?.public) {
     return true
   }
@@ -182,7 +293,16 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
+  finishNavigationLoading()
   document.title = `${to.meta?.title || '库存监控'} - 库存监控`
+
+  if (to.name === 'dashboard') {
+    scheduleStockPagePreload()
+  }
+})
+
+router.onError(() => {
+  finishNavigationLoading()
 })
 
 export default router

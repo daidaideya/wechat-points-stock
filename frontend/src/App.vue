@@ -1,4 +1,8 @@
 <template>
+  <div v-if="isNavigationLoading" class="global-navigation-progress" role="status" aria-label="页面加载中">
+    <span class="global-navigation-progress-bar"></span>
+  </div>
+
   <router-view v-if="isPublicPage" />
 
   <div v-else class="app-layout">
@@ -79,7 +83,7 @@
             </a>
           </router-link>
         </el-menu-item>
-        <el-menu-item index="/stock" @mouseenter="preloadStockPage" @focusin="preloadStockPage">
+        <el-menu-item index="/stock" @mouseenter="preloadStockPageOnIntent" @focusin="preloadStockPageOnIntent">
           <router-link to="/stock" custom v-slot="{ href }">
             <a :href="href" class="menu-item-anchor" @click.prevent>
               <span class="menu-item-icon"><el-icon><Box /></el-icon></span>
@@ -203,7 +207,7 @@
               </a>
             </router-link>
           </el-menu-item>
-          <el-menu-item index="/stock" @mouseenter="preloadStockPage" @focusin="preloadStockPage">
+          <el-menu-item index="/stock" @mouseenter="preloadStockPageOnIntent" @focusin="preloadStockPageOnIntent">
             <router-link to="/stock" custom v-slot="{ href }">
               <a :href="href" class="menu-item-anchor" @click.prevent>
                 <span class="menu-item-icon"><el-icon><Box /></el-icon></span>
@@ -263,8 +267,29 @@
         </div>
       </header>
 
-      <main class="page-content">
-        <router-view />
+      <main class="page-content" :aria-busy="showNavigationSkeleton">
+        <div v-if="showNavigationSkeleton" class="route-navigation-skeleton" aria-hidden="true">
+          <div class="route-navigation-skeleton-heading">
+            <div class="route-navigation-skeleton-line route-navigation-skeleton-line-title"></div>
+            <div class="route-navigation-skeleton-line route-navigation-skeleton-line-subtitle"></div>
+          </div>
+          <div class="route-navigation-skeleton-grid">
+            <div v-for="item in 4" :key="item" class="route-navigation-skeleton-card">
+              <div class="route-navigation-skeleton-line route-navigation-skeleton-line-card-title"></div>
+              <div class="route-navigation-skeleton-line route-navigation-skeleton-line-card-text"></div>
+              <div class="route-navigation-skeleton-line route-navigation-skeleton-line-card-text short"></div>
+              <div class="route-navigation-skeleton-block"></div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="route-view-frame"
+          :class="{ 'route-view-frame-obscured': showNavigationSkeleton }"
+          :aria-hidden="showNavigationSkeleton ? 'true' : undefined"
+        >
+          <router-view />
+        </div>
       </main>
     </div>
   </div>
@@ -289,12 +314,14 @@ import {
   UserFilled,
 } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
+import { isNavigationLoading, preloadStockPage } from './router'
 
 const route = useRoute()
 const mobileNavVisible = ref(false)
 const MOBILE_LAYOUT_MAX = 900
 
 const isPublicPage = computed(() => Boolean(route.meta?.public))
+const showNavigationSkeleton = computed(() => !isPublicPage.value && isNavigationLoading.value)
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/programs/')) {
@@ -308,12 +335,8 @@ const activeMenu = computed(() => {
 
 const pageTitle = computed(() => route.meta?.title || '库存监控')
 
-let stockPageChunkPromise = null
-function preloadStockPage() {
-  if (!stockPageChunkPromise) {
-    stockPageChunkPromise = import('./views/StockPage.vue')
-  }
-  return stockPageChunkPromise
+function preloadStockPageOnIntent() {
+  void preloadStockPage().catch(() => {})
 }
 
 const pageDescription = computed(() => {
