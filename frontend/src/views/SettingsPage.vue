@@ -32,74 +32,15 @@
           <el-skeleton v-if="loading" :rows="8" animated />
 
           <template v-else>
-            <section v-if="activeSection === 'general'" class="settings-section-card">
-              <div class="settings-section-header">
-                <div>
-                  <h3 class="settings-section-title">基础设置</h3>
-                  <p class="settings-section-desc">日志清理策略与访问保护。</p>
-                </div>
-              </div>
-
-              <el-form label-width="140px" class="settings-form">
-                <div class="settings-block-title">日志清理设置</div>
-                <el-form-item label="最大日志条数">
-                  <el-input-number v-model="form.max_log_entries" :min="0" :step="100" />
-                </el-form-item>
-                <el-form-item label="保留天数">
-                  <el-input-number v-model="form.max_retention_days" :min="0" :step="1" />
-                </el-form-item>
-
-                <div class="settings-block-title settings-block-spacing">访问保护设置</div>
-                <el-form-item label="启用访问密钥">
-                  <div class="settings-inline-row">
-                    <el-switch v-model="form.access_protection_enabled" />
-                    <span class="settings-help-text">开启后，进入系统需先输入访问密钥</span>
-                  </div>
-                </el-form-item>
-
-                <el-form-item label="当前状态">
-                  <el-tag :type="form.access_protection_enabled ? 'warning' : 'info'" round effect="plain">
-                    {{ form.access_protection_enabled ? '已启用保护' : '未启用保护' }}
-                  </el-tag>
-                  <el-tag
-                    v-if="accessKeyConfigured"
-                    type="success"
-                    round
-                    effect="plain"
-                    style="margin-left: 8px"
-                  >
-                    已设置访问密钥
-                  </el-tag>
-                  <el-tag
-                    v-else
-                    type="danger"
-                    round
-                    effect="plain"
-                    style="margin-left: 8px"
-                  >
-                    未设置访问密钥
-                  </el-tag>
-                </el-form-item>
-
-                <el-form-item label="访问密钥">
-                  <el-input
-                    v-model="form.access_key"
-                    type="password"
-                    show-password
-                    maxlength="100"
-                    placeholder="留空表示不修改；首次设置可直接输入"
-                  />
-                </el-form-item>
-
-                <el-form-item label="最近更新时间">
-                  <span>{{ formatDate(updatedAt) }}</span>
-                </el-form-item>
-
-                <el-form-item>
-                  <el-button type="primary" @click="saveSettings" :loading="saving">保存设置</el-button>
-                </el-form-item>
-              </el-form>
-            </section>
+            <SettingsGeneralSection
+              v-if="activeSection === 'general'"
+              :form="form"
+              :access-key-configured="accessKeyConfigured"
+              :updated-at="formatDate(updatedAt)"
+              :saving="saving"
+              @update-field="updateGeneralField"
+              @save="saveSettings"
+            />
 
             <section v-else-if="activeSection === 'qinglong'" class="settings-section-card">
               <div class="settings-section-header">
@@ -272,6 +213,7 @@ import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import SettingsDatabaseSection from '../components/SettingsDatabaseSection.vue'
+import SettingsGeneralSection from '../components/SettingsGeneralSection.vue'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
@@ -432,6 +374,10 @@ async function loadAll() {
       request.finish()
     }
   }
+}
+
+function updateGeneralField(field, value) {
+  if (Object.prototype.hasOwnProperty.call(form, field)) form[field] = value
 }
 
 async function refreshCurrentSection() {
