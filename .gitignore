@@ -212,3 +212,5 @@ database.db
 # Runtime data (SQLite db, locks, logs)
 data/
 logs/
+frontend/test-results/
+frontend/playwright-report/

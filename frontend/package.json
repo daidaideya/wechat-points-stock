@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build && node scripts/gzip-assets.mjs",
     "test": "node --test",
+    "test:e2e": "playwright test",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check src/api.js \"src/components/**/*.vue\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
+    "format:check": "prettier --check src/api.js playwright.config.js \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
     "analyze": "vite build --mode analyze && node scripts/gzip-assets.mjs",
     "preview": "vite preview"
   },
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
     "@vitejs/plugin-vue": "^6.0.4",
     "eslint": "^9.39.4",
     "eslint-plugin-vue": "^10.11.0",

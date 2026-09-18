@@ -48,6 +48,24 @@ jobs:
       - run: npm run format:check
       - run: npm run build
 
+  frontend-e2e:
+    name: frontend Playwright smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
   secret-scan:
     name: secret scan
     runs-on: ubuntu-latest
