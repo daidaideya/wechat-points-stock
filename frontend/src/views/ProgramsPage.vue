@@ -1,126 +1,26 @@
 <template>
   <div class="page-stack programs-page programs-showcase-page">
-    <section class="toolbar-card programs-toolbar-card showcase-toolbar-card">
-      <div class="filter-shell">
-        <div class="filter-search-row">
-          <el-input
-            v-model="searchKeyword"
-            clearable
-            size="large"
-            class="showcase-search-input filter-search-input"
-            placeholder="搜索名称 / program_id / 拼音"
-            @keyup.enter="applyFilters"
-            @clear="applyFilters"
-          >
-            <template #prefix>
-              <el-icon class="filter-search-icon"><Search /></el-icon>
-            </template>
-            <template #append>
-              <el-button class="filter-search-btn" @click="applyFilters">搜索</el-button>
-            </template>
-          </el-input>
-
-          <div class="filter-search-side">
-            <div class="toolbar-status-chip compact warm-chip filter-count-chip">
-              <span class="toolbar-status-value">{{ programs.length }}</span>
-              <span class="toolbar-status-label">已加载</span>
-            </div>
-            <el-button
-              class="showcase-reset-button filter-reset-btn"
-              plain
-              :disabled="!hasActiveFilters"
-              @click="resetFilters"
-            >
-              重置
-            </el-button>
-          </div>
-        </div>
-
-        <div class="filter-control-row">
-          <div class="filter-group">
-            <span class="filter-group-label">状态</span>
-            <div class="segmented-group">
-              <button type="button" class="segmented-item" :class="{ active: statusFilter === 'active' }" @click="setStatusFilter('active')">活跃</button>
-              <button type="button" class="segmented-item" :class="{ active: statusFilter === 'archived' }" @click="setStatusFilter('archived')">归档</button>
-              <button type="button" class="segmented-item" :class="{ active: statusFilter === 'all' }" @click="setStatusFilter('all')">全部</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <span class="filter-group-label">收藏</span>
-            <div class="segmented-group">
-              <button type="button" class="segmented-item" :class="{ active: favoriteFilter === 'all' }" @click="setFavoriteFilter('all')">全部</button>
-              <button type="button" class="segmented-item" :class="{ active: favoriteFilter === 'favorite' }" @click="setFavoriteFilter('favorite')">收藏</button>
-              <button type="button" class="segmented-item" :class="{ active: favoriteFilter === 'unfavorite' }" @click="setFavoriteFilter('unfavorite')">未藏</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <span class="filter-group-label">青龙</span>
-            <div class="segmented-group">
-              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'all' }" @click="setQlStatusFilter('all')">全部</button>
-              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'enabled' }" @click="setQlStatusFilter('enabled')">启用</button>
-              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'disabled' }" @click="setQlStatusFilter('disabled')">禁用</button>
-              <button type="button" class="segmented-item" :class="{ active: qlStatusFilter === 'unknown' }" @click="setQlStatusFilter('unknown')">未关联</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <span class="filter-group-label">排序</span>
-            <div class="segmented-group">
-              <button type="button" class="segmented-item" :class="{ active: sortFilter === 'default' }" @click="setSortFilter('default')">默认</button>
-              <button type="button" class="segmented-item" :class="{ active: sortFilter === 'cron' }" @click="setSortFilter('cron')">定时</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="filter-tags-panel">
-          <div class="filter-tags-header">
-            <span class="filter-group-label">标签</span>
-            <span class="filter-tags-current">{{ currentTag || '全部标签' }}</span>
-            <span v-if="availableTags.length" class="filter-tags-count">{{ availableTags.length }}</span>
-          </div>
-
-          <div class="tag-list content filter-tag-list showcase compact">
-            <button
-              type="button"
-              class="filter-chip"
-              :class="{ active: currentTag === '' }"
-              @click="selectTag('')"
-            >
-              全部
-            </button>
-            <button
-              v-for="tag in availableTags"
-              :key="tag"
-              type="button"
-              class="filter-chip"
-              :class="{ active: currentTag === tag }"
-              @click="selectTag(tag)"
-            >
-              {{ tag }}
-            </button>
-            <span v-if="!availableTags.length" class="empty-text">暂无可筛选标签</span>
-          </div>
-        </div>
-
-        <div v-if="activeFilterChips.length" class="active-filter-bar">
-          <span class="active-filter-label">当前筛选</span>
-          <div class="active-filter-list">
-            <button
-              v-for="chip in activeFilterChips"
-              :key="chip.key"
-              type="button"
-              class="active-filter-chip"
-              @click="clearFilterChip(chip.key)"
-            >
-              {{ chip.label }}
-              <span class="active-filter-close">×</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
+    <ProgramFilterBar
+      :search-keyword="searchKeyword"
+      :status-filter="statusFilter"
+      :favorite-filter="favoriteFilter"
+      :ql-status-filter="qlStatusFilter"
+      :sort-filter="sortFilter"
+      :current-tag="currentTag"
+      :available-tags="availableTags"
+      :active-filter-chips="activeFilterChips"
+      :has-active-filters="hasActiveFilters"
+      :loaded-count="programs.length"
+      @update:search-keyword="searchKeyword = $event"
+      @search="applyFilters"
+      @reset="resetFilters"
+      @status="setStatusFilter"
+      @favorite="setFavoriteFilter"
+      @ql-status="setQlStatusFilter"
+      @sort="setSortFilter"
+      @tag="selectTag"
+      @clear-chip="clearFilterChip"
+    />
 
     <section v-if="loading && programs.length === 0" class="showcase-grid skeleton-grid compact">
       <el-card v-for="item in 6" :key="item" shadow="hover" class="program-card showcase-program-card skeleton-card compact">
@@ -813,9 +713,10 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, CircleCheck, CircleClose, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Search, Star, Wallet } from '@element-plus/icons-vue'
+import { ArrowRight, Box, CircleCheck, CircleClose, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Star, Wallet } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import api from '../api'
+import ProgramFilterBar from '../components/ProgramFilterBar.vue'
 import {
   formatMoney,
   formatProductPrice,
@@ -1613,237 +1514,6 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, #fffaf0 0%, #fff7eb 100%);
   background-size: 24px 24px, 24px 24px, 100% 100%;
   background-position: 0 0, 0 0, 0 0;
-}
-
-.showcase-toolbar-card {
-  border-radius: 26px;
-  border: 1px solid rgba(235, 220, 194, 0.88);
-  background: rgba(255, 252, 247, 0.9);
-  box-shadow: 0 10px 24px rgba(126, 98, 63, 0.04);
-  backdrop-filter: blur(2px);
-  padding: 16px 18px;
-}
-
-.filter-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.filter-search-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.filter-search-side {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-
-.warm-chip {
-  background: linear-gradient(135deg, rgba(255, 244, 221, 0.96), rgba(255, 237, 213, 0.9));
-  color: #8b5e34;
-}
-
-.filter-count-chip {
-  min-width: 78px;
-  justify-content: center;
-}
-
-.showcase-search-input :deep(.el-input__wrapper),
-.showcase-search-input :deep(.el-input-group__append) {
-  background: #fffaf3;
-  box-shadow: 0 0 0 1px rgba(232, 210, 184, 0.78) inset;
-}
-
-.showcase-search-input :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #d6a96b inset;
-}
-
-.filter-search-icon {
-  color: #b08958;
-}
-
-.filter-search-btn {
-  color: #8b5e34 !important;
-  font-weight: 700;
-}
-
-.showcase-reset-button,
-.filter-reset-btn {
-  flex: 0 0 auto;
-  min-width: 72px;
-  height: 40px;
-  padding: 0 14px;
-  border-color: rgba(219, 183, 141, 0.74);
-  color: #8b5e34;
-  background: #fff9f2;
-  font-size: 13px;
-}
-
-.filter-control-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  align-items: center;
-}
-
-.filter-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.filter-group-label {
-  flex: 0 0 auto;
-  color: #9b7e5c;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.segmented-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(255, 248, 236, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(231, 208, 176, 0.82);
-}
-
-.segmented-item {
-  border: 0;
-  background: transparent;
-  color: #8a6c4c;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 8px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  white-space: nowrap;
-}
-
-.segmented-item:hover {
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.segmented-item.active {
-  background: linear-gradient(135deg, #f5d8a8, #efc381);
-  color: #5b3b14;
-  box-shadow: 0 8px 16px rgba(225, 172, 88, 0.18);
-}
-
-.filter-tags-panel {
-  border-radius: 16px;
-  background: rgba(255, 250, 242, 0.8);
-  box-shadow: inset 0 0 0 1px rgba(232, 210, 184, 0.72);
-  padding: 10px 12px 12px;
-}
-
-.filter-tags-header {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  margin-bottom: 10px;
-}
-
-.filter-tags-current {
-  color: #6f5a44;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.filter-tags-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(245, 216, 168, 0.7);
-  color: #8b5e34;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.filter-tag-list.showcase {
-  gap: 8px;
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-
-.filter-chip {
-  border: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #fff8ef;
-  color: #8a6c4c;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(231, 208, 176, 0.86);
-  transition: all 0.2s ease;
-}
-
-.filter-chip:hover {
-  transform: translateY(-1px);
-  background: #fff3de;
-}
-
-.filter-chip.active {
-  background: linear-gradient(135deg, #f5d8a8, #efc381);
-  color: #5b3b14;
-  box-shadow: 0 10px 18px rgba(225, 172, 88, 0.18);
-}
-
-.active-filter-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-}
-
-.active-filter-label {
-  color: #9b7e5c;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.active-filter-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.active-filter-chip {
-  border: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255, 244, 221, 0.95);
-  color: #8b5e34;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.active-filter-close {
-  font-size: 14px;
-  line-height: 1;
-  opacity: 0.75;
 }
 
 /* Row-first grid so infinite-scroll order stays left→right, top→bottom
@@ -3255,34 +2925,9 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 960px) {
-  .filter-search-row {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-search-side {
-    justify-content: space-between;
-  }
-
-  .filter-control-row {
-    gap: 10px;
-  }
-}
-
 @media (max-width: 768px) {
-  .showcase-toolbar-card,
   .showcase-card {
     border-radius: 22px;
-  }
-
-  .filter-group {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .segmented-group {
-    flex: 1 1 auto;
-    justify-content: space-between;
   }
 
   .showcase-grid {
