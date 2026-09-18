@@ -29,10 +29,109 @@ _scheduler_lock = threading.Lock()
 _scheduler_thread: Optional[threading.Thread] = None
 _scheduler_stop_event: Optional[threading.Event] = None
 _SCHEDULER_JOIN_TIMEOUT = 10.0
+# ``requests.Session`` owns a connection pool but is not intended to be shared
+# concurrently between threads. Keep one Session per calling thread and track
+# them so application shutdown can close every pool deterministically.
+_http_session_local = threading.local()
+_http_sessions: Dict[int, requests.Session] = {}
+_http_sessions_lock = threading.Lock()
 # Cross-process lock so multi-worker uvicorn (Docker default used to be 2)
 # only runs one Bark scheduler instance.
 _process_lock_fh: Optional[TextIO] = None
 _PROCESS_LOCK_PATH = os.path.join("data", ".bark_scheduler.lock")
+
+
+def _new_bark_http_session() -> requests.Session:
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(
+        pool_connections=2,
+        pool_maxsize=2,
+        max_retries=0,
+        pool_block=True,
+    )
+    try:
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+    except BaseException:
+        session.close()
+        raise
+
+    with _http_sessions_lock:
+        _http_sessions[id(session)] = session
+    return session
+
+
+def _get_bark_http_session() -> requests.Session:
+    session = getattr(_http_session_local, "session", None)
+    if session is not None:
+        with _http_sessions_lock:
+            is_registered = _http_sessions.get(id(session)) is session
+        if is_registered:
+            return session
+        # A shutdown may have closed a Session created by another thread.
+        # Discard the stale thread-local reference before creating a fresh one.
+        try:
+            delattr(_http_session_local, "session")
+        except AttributeError:
+            pass
+
+    session = _new_bark_http_session()
+    _http_session_local.session = session
+    return session
+
+
+def _close_current_bark_http_session() -> None:
+    session = getattr(_http_session_local, "session", None)
+    if session is None:
+        return
+    with _http_sessions_lock:
+        _http_sessions.pop(id(session), None)
+    try:
+        session.close()
+    except Exception:
+        # A broken/partially closed adapter must not prevent the scheduler's
+        # process lock from being released during shutdown.
+        pass
+    finally:
+        try:
+            delattr(_http_session_local, "session")
+        except AttributeError:
+            pass
+
+
+def close_bark_http_sessions() -> None:
+    """Close all Bark connection pools owned by this process.
+
+    This is safe to call when the scheduler was never started: manual Bark
+    pushes create their own thread-local Session and are independent of the
+    scheduler lifecycle.
+    """
+    with _http_sessions_lock:
+        sessions = list(_http_sessions.values())
+        _http_sessions.clear()
+
+    current = getattr(_http_session_local, "session", None)
+    for session in sessions:
+        try:
+            session.close()
+        except Exception:
+            # Shutdown must not fail just because a pool was already closed.
+            pass
+
+    if current is not None:
+        try:
+            delattr(_http_session_local, "session")
+        except AttributeError:
+            pass
+
+
+def _redact_device_key(value: Any, device_key: str) -> str:
+    """Remove raw and URL-encoded Device Keys from messages before persistence."""
+    message = str(value)
+    for secret in (device_key, quote(device_key, safe="")):
+        if secret:
+            message = message.replace(secret, "[redacted]")
+    return message
 
 
 def normalize_push_time(value: Optional[str]) -> str:
@@ -127,12 +226,34 @@ def send_bark_push(
 
     # Official style: GET/POST https://api.day.app/{key}/{title}/{body}
     url = f"{base}/{quote(key, safe='')}/{quote(title or '通知', safe='')}/{quote(body or '', safe='')}"
-    resp = requests.get(
-        url,
-        params={"group": group, "isArchive": "1"},
-        timeout=15,
-    )
-    resp.raise_for_status()
+    try:
+        resp = _get_bark_http_session().get(
+            url,
+            params={"group": group, "isArchive": "1"},
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        # requests may include the complete URL in an exception. Keep the
+        # original exception category where possible, but never persist/log
+        # the Device Key from its message.
+        safe_message = _redact_device_key(str(exc), key) or "Bark 请求失败"
+        try:
+            safe_exc = exc.__class__(safe_message)
+        except Exception:
+            safe_exc = requests.RequestException(safe_message)
+        raise safe_exc from None
+
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError as exc:
+        # HTTPError.__str__ normally contains the full request URL. Retain the
+        # HTTPError return/exception semantics while replacing that detail.
+        safe_exc = requests.HTTPError(
+            f"Bark HTTP 响应异常: {getattr(resp, 'status_code', 'unknown')}"
+        )
+        safe_exc.response = getattr(exc, "response", resp)
+        safe_exc.request = getattr(exc, "request", None)
+        raise safe_exc from None
     try:
         data = resp.json()
     except Exception:
@@ -140,7 +261,10 @@ def send_bark_push(
     # Bark success usually code == 200
     code = data.get("code") if isinstance(data, dict) else None
     if code not in (None, 200, "200"):
-        raise RuntimeError(data.get("message") or f"Bark 返回异常: {data}")
+        message = data.get("message") if isinstance(data, dict) else None
+        raise RuntimeError(
+            _redact_device_key(message or f"Bark 返回异常: {data}", key)
+        )
     return data if isinstance(data, dict) else {"raw": data}
 
 
@@ -244,6 +368,7 @@ def _scheduler_loop(stop_event: threading.Event) -> None:
             if stop_event.wait(max(5, min(delay, 60))):
                 break
     finally:
+        _close_current_bark_http_session()
         _release_process_lock()
 
 
@@ -372,4 +497,6 @@ def stop_bark_scheduler(timeout: float = _SCHEDULER_JOIN_TIMEOUT) -> bool:
             _scheduler_stop_event = None
             _release_process_lock()
         _scheduler_started = False
-        return stopped
+    if stopped:
+        close_bark_http_sessions()
+    return stopped
