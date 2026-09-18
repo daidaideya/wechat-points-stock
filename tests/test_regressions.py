@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+import struct
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -516,3 +517,50 @@ def test_image_upload_rejects_wrong_type_and_oversize(tmp_path, monkeypatch):
         images.upload_image(oversized, None, None, None)
     assert size_error.value.status_code == 413
     assert list(tmp_path.iterdir()) == []
+
+    def png_with_dimensions(width, height):
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + struct.pack(">I", 13)
+            + b"IHDR"
+            + struct.pack(">II", width, height)
+            + b"\x08\x06\x00\x00\x00"
+            + b"x" * 16
+        )
+
+    monkeypatch.setattr(images, "MAX_UPLOAD_BYTES", 10 * 1024 * 1024)
+    monkeypatch.setattr(images, "MAX_IMAGE_PIXELS", 100)
+    pixel_oversized = images.UploadFile(
+        file=BytesIO(png_with_dimensions(11, 10)),
+        filename="large-dimensions.png",
+        headers={"content-type": "image/png"},
+    )
+    with pytest.raises(HTTPException) as pixel_error:
+        images.upload_image(pixel_oversized, None, None, None)
+    assert pixel_error.value.status_code == 413
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_image_dimension_parser_covers_supported_formats(tmp_path):
+    jpeg = (
+        b"\xff\xd8\xff\xc0"
+        + struct.pack(">H", 17)
+        + b"\x08"
+        + struct.pack(">HH", 40, 50)
+        + b"\x03"
+        + b"\x00" * 9
+        + b"\xff\xd9"
+    )
+    gif = b"GIF89a" + struct.pack("<HH", 60, 70) + b"\x00" * 4
+    webp_payload = b"\x00\x00\x00\x00" + (80 - 1).to_bytes(3, "little") + (90 - 1).to_bytes(3, "little")
+    webp = b"RIFF" + struct.pack("<I", 18) + b"WEBPVP8X" + struct.pack("<I", 10) + webp_payload
+
+    fixtures = {
+        "image.jpg": (jpeg, "image/jpeg", (50, 40)),
+        "image.gif": (gif, "image/gif", (60, 70)),
+        "image.webp": (webp, "image/webp", (80, 90)),
+    }
+    for filename, (payload, content_type, expected) in fixtures.items():
+        path = tmp_path / filename
+        path.write_bytes(payload)
+        assert images._image_dimensions(str(path), content_type) == expected

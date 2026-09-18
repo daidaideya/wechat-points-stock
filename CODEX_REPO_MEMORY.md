@@ -13,7 +13,7 @@
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `105 passed`；前端 `npm test` 为 `6 passed`
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `6 passed`
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -468,7 +468,7 @@ docker compose up -d --build
 7. **业务日期已收口，存储时间仍需持续审计。** `web.py` 的未上报、库存变化和积分变化路径已统一通过 `timeutil` 按 Asia/Shanghai 判断，历史 naive 值按 UTC 解释；模型/清理服务保留 `utcnow()` 作为 naive UTC 写入，API 时间字段和无时区上报输入仍需逐项审计。
 8. **库存中心与下架抽屉已改成服务端分页。** 首屏不再自动请求下架明细，抽屉默认每页 50 条并可继续加载；全局导航骨架、进度反馈和库存 chunk 预加载已补；SQLite 通过 `stock_center_revision` 及商品、积分历史、小程序、库存历史触发器支持 ETag/304，后续仍需真实 p95 基准和虚拟网格。revision 表/触发器目前兼容旧库按需建立，正式迁移器仍待统一。
 9. **健康检查已提供。** `/health/live` 只表示进程路由可用；`/health/ready` 执行 `SELECT 1`，Compose 已用它做容器 healthcheck。
-10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。上传像素限制、请求体/代理统一上限和校验审计仍待补。
+10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。图片上传还会校验 PNG/JPEG/GIF/WebP 尺寸，限制为 25 MP，并在尺寸校验失败时清理已写入文件；请求体/代理统一上限、批量配置化和校验审计仍待补。
 11. **SQLite 连接已开启外键约束。** `app/database.py` 对每个 SQLite 连接执行 `PRAGMA foreign_keys=ON`，现有 `PointsHistory` 账号/程序外键有回归测试；正式迁移、旧库孤儿清理、StockHistory 外键和级联策略仍待设计。
 12. **历史裁剪和积分摘要查询已避免大规模 Python 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；`web.py` 的账号/积分摘要用窗口查询取每个组合的最新记录和本地业务日前基线。程序排行和长期增长场景仍可评估当前余额快照表，并需要真实规模基准。
 13. **Bark/QingLong HTTP 连接治理已补。** 两个服务都按线程复用带连接池的 `requests.Session`，scheduler/shutdown 时释放；通知与 QingLong PUT 均关闭自动重试，避免重复副作用。仅对明确幂等的 QingLong GET 设计有限重试/退避仍是后续项。
