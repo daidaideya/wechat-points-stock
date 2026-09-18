@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`bba2bf1`（2026-09-18）
-- 工作区：OPT-017 已完成共享层 Prettier 门禁第二批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
+- 快照提交：`93615b1`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件第二批；OPT-017 已完成共享层 Prettier 门禁第二批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `24 passed`，`npm run lint` 通过
@@ -93,6 +93,7 @@
 | `frontend/src/composables/usePageStateCache.js` | 带 schema 版本和 TTL 的 sessionStorage 页面状态缓存 |
 | `frontend/src/composables/usePageStateCache.test.js` | 页面状态缓存版本、TTL 和失效行为的 Node 内置单元测试 |
 | `frontend/src/components/ProgramFilterBar.vue` | Programs/Apps 页筛选栏展示与筛选事件派发 |
+| `frontend/src/components/ProgramMetricStrip.vue` | Programs/Apps 卡片当前库存、最高积分/现金和库存变化指标展示；通过 `open-stock` 事件回到页面编排 |
 | `frontend/src/utils/apiError.js` | Axios/API 错误载荷归一化和取消请求识别 |
 | `frontend/src/utils/apiError.test.js` | API 错误消息与取消请求解析的 Node 内置单元测试 |
 | `frontend/eslint.config.js` | ESLint 9 + Vue flat config，覆盖前端 JS/Vue 源码 |
@@ -395,6 +396,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 前端 Node 内置测试目前共 `14 passed`，其中包含 Stock 筛选参数和状态切换测试。
 - `ProgramsPage.vue` 与 `/apps` 共用 `frontend/src/composables/useProgramFilters.js` 管理搜索、状态、收藏、青龙状态、排序和标签筛选；页面保留 API 请求、分页、sessionStorage 恢复和归档/删除等业务编排。
 - `ProgramFilterBar.vue` 负责 Programs/Apps 页筛选栏展示和事件派发；`ProgramsPage.vue` 保留筛选状态、请求、分页、缓存恢复和业务操作。
+- `ProgramMetricStrip.vue` 负责 Programs/Apps 卡片的库存、最高积分/现金和库存变化指标格式化、可见性判断与 scoped 样式；`ProgramsPage.vue` 保留列表状态、请求和库存弹窗编排，组件通过 `open-stock` 事件触发查看库存。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios 取消、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - 前端 Node 内置测试目前共 `24 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL 和 API 错误解析测试。
