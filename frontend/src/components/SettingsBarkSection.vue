@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <el-form label-width="140px" class="settings-form">
+    <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <p class="settings-help-block">
         填写 Bark 的 Device Key 后启用。服务会在每天设定时间检查活跃小程序是否已上报，并把未报名单推送到你的手机。
         可随时关闭。
@@ -60,8 +60,12 @@
         </div>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="props.saving" @click="emit('save')">保存 Bark 配置</el-button>
-        <el-button type="success" plain :loading="props.testing" @click="emit('test')">立即推送测试</el-button>
+        <el-button type="primary" :loading="props.saving" :disabled="props.disabled" @click="emit('save')">
+          保存 Bark 配置
+        </el-button>
+        <el-button type="success" plain :loading="props.testing" :disabled="props.disabled" @click="emit('test')">
+          立即推送测试
+        </el-button>
       </el-form-item>
     </el-form>
   </section>
@@ -90,6 +94,10 @@ const props = defineProps({
     default: false,
   },
   testing: {
+    type: Boolean,
+    default: false,
+  },
+  disabled: {
     type: Boolean,
     default: false,
   },

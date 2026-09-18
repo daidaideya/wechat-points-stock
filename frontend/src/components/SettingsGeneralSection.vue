@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <el-form label-width="140px" class="settings-form">
+    <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <div class="settings-block-title">日志清理设置</div>
       <el-form-item label="最大日志条数">
         <el-input-number
@@ -63,7 +63,9 @@
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" :loading="props.saving" @click="emit('save')">保存设置</el-button>
+        <el-button type="primary" :loading="props.saving" :disabled="props.disabled" @click="emit('save')">
+          保存设置
+        </el-button>
       </el-form-item>
     </el-form>
   </section>
@@ -84,6 +86,10 @@ const props = defineProps({
     default: '',
   },
   saving: {
+    type: Boolean,
+    default: false,
+  },
+  disabled: {
     type: Boolean,
     default: false,
   },

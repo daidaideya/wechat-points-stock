@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <el-form label-width="140px" class="settings-form">
+    <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <p class="settings-help-block">
         导出当前 SQLite 数据库作为备份；导入会完整替换现有数据。导入前请先导出一份备份。 导入成功后会在数据库旁保留
         <code>.pre_restore</code> 回滚副本。
@@ -22,9 +22,12 @@
             type="file"
             accept=".db,application/x-sqlite3,application/octet-stream"
             class="settings-file-input"
+            :disabled="props.disabled"
             @change="handleFileChange"
           />
-          <el-button type="danger" plain :loading="props.importing" @click="triggerImport"> 选择文件并导入 </el-button>
+          <el-button type="danger" plain :loading="props.importing" :disabled="props.disabled" @click="triggerImport">
+            选择文件并导入
+          </el-button>
         </div>
       </el-form-item>
     </el-form>
@@ -40,6 +43,10 @@ const props = defineProps({
     default: false,
   },
   importing: {
+    type: Boolean,
+    default: false,
+  },
+  disabled: {
     type: Boolean,
     default: false,
   },

@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <el-form label-width="140px" class="settings-form">
+    <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <p class="settings-help-block">
         使用青龙「应用设置」里的 Client ID / Client Secret。 匹配规则：优先按任务名称与小程序名称对齐。
         推荐「自动同步」：后台定时刷新，打开小程序列表不会等待青龙接口。
@@ -84,8 +84,12 @@
         </div>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="props.saving" @click="emit('save')">保存青龙配置</el-button>
-        <el-button type="success" plain :loading="props.syncing" @click="emit('sync')">立即同步</el-button>
+        <el-button type="primary" :loading="props.saving" :disabled="props.disabled" @click="emit('save')">
+          保存青龙配置
+        </el-button>
+        <el-button type="success" plain :loading="props.syncing" :disabled="props.disabled" @click="emit('sync')">
+          立即同步
+        </el-button>
       </el-form-item>
     </el-form>
   </section>
@@ -114,6 +118,10 @@ const props = defineProps({
     default: false,
   },
   syncing: {
+    type: Boolean,
+    default: false,
+  },
+  disabled: {
     type: Boolean,
     default: false,
   },

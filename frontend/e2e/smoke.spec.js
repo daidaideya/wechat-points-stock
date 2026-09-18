@@ -92,6 +92,27 @@ test('Users empty form keeps the dialog open and shows validation feedback', asy
   expect(issues).toEqual([])
 })
 
+test('settings mutations share one busy boundary', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.route('**/api/v1/settings/logs', async (route) => {
+    if (route.request().method() === 'POST') {
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+    await mockJson(route, {})
+  })
+
+  await page.goto('/app/settings')
+  const saveButton = page.getByRole('button', { name: '保存设置' })
+  await saveButton.click()
+  await expect(page.getByRole('button', { name: '刷新当前页' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '青龙联动' })).toBeDisabled()
+  await expect(saveButton).toBeDisabled()
+  await expect(saveButton).toBeEnabled({ timeout: 3000 })
+
+  expect(issues).toEqual([])
+})
+
 test('mobile navigation opens and closes at the responsive breakpoint', async ({ page }) => {
   const issues = collectBrowserIssues(page)
 

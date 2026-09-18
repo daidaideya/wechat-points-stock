@@ -6,7 +6,9 @@
           <h2 class="section-title">系统设置</h2>
           <p class="section-description">基础配置、青龙联动、Bark 推送与数据备份分栏管理。</p>
         </div>
-        <el-button text :loading="loading" @click="refreshCurrentSection">刷新当前页</el-button>
+        <el-button text :loading="loading" :disabled="settingsBusy" @click="refreshCurrentSection">
+          刷新当前页
+        </el-button>
       </div>
 
       <div class="settings-layout">
@@ -18,6 +20,7 @@
             type="button"
             class="settings-nav-item"
             :class="{ active: activeSection === item.key }"
+            :disabled="settingsBusy"
             @click="activeSection = item.key"
           >
             <span class="settings-nav-icon" aria-hidden="true">{{ item.icon }}</span>
@@ -38,6 +41,7 @@
               :access-key-configured="accessKeyConfigured"
               :updated-at="formatDate(updatedAt)"
               :saving="saving"
+              :disabled="settingsBusy"
               @update-field="updateGeneralField"
               @save="saveSettings"
             />
@@ -50,6 +54,7 @@
               :last-sync-status="qlLastSyncStatus"
               :saving="qlSaving"
               :syncing="qlSyncing"
+              :disabled="settingsBusy"
               @update-field="updateQinglongField"
               @save="saveQinglong"
               @sync="syncQinglong"
@@ -63,6 +68,7 @@
               :last-push-status="barkLastPushStatus"
               :saving="barkSaving"
               :testing="barkTesting"
+              :disabled="settingsBusy"
               @update-field="updateBarkField"
               @save="saveBark"
               @test="testBark"
@@ -72,6 +78,7 @@
               v-else
               :exporting="exporting"
               :importing="importing"
+              :disabled="settingsBusy"
               @export="exportDatabase"
               @import-file="onImportFileChange"
             />
@@ -83,7 +90,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
@@ -115,6 +122,17 @@ const barkSaving = ref(false)
 const barkTesting = ref(false)
 const exporting = ref(false)
 const importing = ref(false)
+const settingsBusy = computed(
+  () =>
+    loading.value ||
+    saving.value ||
+    qlSaving.value ||
+    qlSyncing.value ||
+    barkSaving.value ||
+    barkTesting.value ||
+    exporting.value ||
+    importing.value,
+)
 const updatedAt = ref('')
 const accessKeyConfigured = ref(false)
 const qlSecretConfigured = ref(false)
@@ -182,7 +200,9 @@ function formatDate(value) {
 }
 
 function normalizeSection(value) {
-  const key = String(value || '').trim().toLowerCase()
+  const key = String(value || '')
+    .trim()
+    .toLowerCase()
   if (navItems.some((item) => item.key === key)) return key
   return 'general'
 }
@@ -202,7 +222,9 @@ async function loadSettings(signal) {
 }
 
 function normalizeQlSyncMode(value) {
-  const mode = String(value || '').trim().toLowerCase()
+  const mode = String(value || '')
+    .trim()
+    .toLowerCase()
   if (mode === 'blocking' || mode === 'manual' || mode === 'auto') return mode
   return 'auto'
 }
@@ -236,11 +258,7 @@ async function loadAll() {
   const request = readRequestController.start()
   loading.value = true
   try {
-    await Promise.all([
-      loadSettings(request.signal),
-      loadQinglong(request.signal),
-      loadBark(request.signal),
-    ])
+    await Promise.all([loadSettings(request.signal), loadQinglong(request.signal), loadBark(request.signal)])
     if (!request.isCurrent()) return
   } catch (error) {
     if (!request.isCurrent() || isRequestCanceled(error)) return
@@ -602,7 +620,10 @@ onMounted(loadAll)
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
 .settings-nav-item:hover {
