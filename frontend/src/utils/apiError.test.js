@@ -1,0 +1,20 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { getApiErrorMessage, isRequestCanceled } from './apiError.js'
+
+test('normalizes string, message, and validation error payloads', () => {
+  assert.equal(getApiErrorMessage({ response: { data: { detail: '密钥错误' } } }, '失败'), '密钥错误')
+  assert.equal(getApiErrorMessage({ response: { data: { message: '同步失败' } } }, '失败'), '同步失败')
+  assert.equal(
+    getApiErrorMessage({ response: { data: { detail: [{ msg: '字段缺失' }, { message: '格式错误' }] } } }, '失败'),
+    '字段缺失；格式错误',
+  )
+})
+
+test('uses a fallback for unknown errors and hides cancellation messages', () => {
+  assert.equal(getApiErrorMessage(new Error('network'), '网络异常'), '网络异常')
+  assert.equal(getApiErrorMessage({ code: 'ERR_CANCELED' }, '网络异常'), '')
+  assert.equal(isRequestCanceled({ name: 'CanceledError' }), true)
+  assert.equal(isRequestCanceled({ code: 'ERR_NETWORK' }), false)
+})

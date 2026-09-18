@@ -378,6 +378,7 @@ import {
   parseDailyMinutes,
   parseTimeToMinute,
 } from '../utils/cron'
+import { getApiErrorMessage } from '../utils/apiError'
 import { useViewport } from '../composables/useViewport'
 
 const { isMobile } = useViewport({ mobileMax: 900 })
@@ -615,7 +616,7 @@ async function loadCrons() {
     const { data } = await api.get('/qinglong/crons')
     crons.value = data.items || []
   } catch (error) {
-    ElMessage.error(error?.response?.data?.detail || '拉取青龙任务失败')
+    ElMessage.error(getApiErrorMessage(error, '拉取青龙任务失败'))
   } finally {
     loading.value = false
   }
@@ -640,7 +641,7 @@ async function applyBatch(items, successText) {
     await loadCrons()
     return failed.length === 0
   } catch (error) {
-    ElMessage.error(error?.response?.data?.detail || '更新失败')
+    ElMessage.error(getApiErrorMessage(error, '更新失败'))
     return false
   } finally {
     applying.value = false
@@ -741,7 +742,7 @@ async function applySinglePlanItem(row) {
     row.oldSchedule = row.newSchedule
     await loadCrons()
   } catch (error) {
-    ElMessage.error(error?.response?.data?.detail || '应用失败')
+    ElMessage.error(getApiErrorMessage(error, '应用失败'))
   } finally {
     row.applying = false
   }

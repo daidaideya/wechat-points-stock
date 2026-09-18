@@ -50,6 +50,7 @@ import { useRouter } from 'vue-router'
 import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
 import { invalidateAccessStatusCache } from '../router'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const router = useRouter()
 const { clearAccessSession } = useAccessSession()
@@ -79,7 +80,7 @@ async function submitAccess() {
     router.replace('/dashboard')
   } catch (error) {
     console.error(error)
-    errorMessage.value = error?.response?.data?.detail || '访问密钥错误'
+    errorMessage.value = getApiErrorMessage(error, '访问密钥错误')
   } finally {
     submitting.value = false
   }

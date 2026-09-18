@@ -254,6 +254,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Rank } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import api from '../api'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -448,8 +449,7 @@ async function removeUser(row) {
     await loadUsersAndBindSort()
   } catch (error) {
     console.error(error)
-    const detail = error?.response?.data?.detail
-    ElMessage.error(detail || '删除用户失败')
+    ElMessage.error(getApiErrorMessage(error, '删除用户失败'))
   } finally {
     deletingWechatId.value = ''
   }

@@ -726,6 +726,7 @@ import {
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useProgramFilters } from '../composables/useProgramFilters'
 import { usePageStateCache } from '../composables/usePageStateCache'
+import { isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
 const pageSize = 20
@@ -1155,7 +1156,7 @@ async function fetchPrograms(nextPage = 1, append = false) {
     await nextTick()
     initInfiniteScroll()
   } catch (error) {
-    if (requestSequence !== programsRequestSequence || controller.signal.aborted || error?.code === 'ERR_CANCELED') return
+    if (requestSequence !== programsRequestSequence || controller.signal.aborted || isRequestCanceled(error)) return
     console.error(error)
     loadError.value = true
     if (!append) programs.value = []

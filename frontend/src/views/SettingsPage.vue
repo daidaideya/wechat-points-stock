@@ -293,6 +293,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import { useAccessSession } from '../composables/useAccessSession'
+import { getApiErrorMessage } from '../utils/apiError'
 
 const route = useRoute()
 const router = useRouter()
@@ -498,7 +499,7 @@ async function saveSettings() {
     await loadSettings()
   } catch (error) {
     console.error(error)
-    ElMessage.error(error?.response?.data?.detail || '保存设置失败')
+    ElMessage.error(getApiErrorMessage(error, '保存设置失败'))
   } finally {
     saving.value = false
   }
@@ -527,7 +528,7 @@ async function saveQinglong() {
     await loadQinglong()
   } catch (error) {
     console.error(error)
-    ElMessage.error(error?.response?.data?.detail || '保存青龙配置失败')
+    ElMessage.error(getApiErrorMessage(error, '保存青龙配置失败'))
   } finally {
     qlSaving.value = false
   }
@@ -547,8 +548,7 @@ async function syncQinglong() {
     await loadQinglong()
   } catch (error) {
     console.error(error)
-    const detail = error?.response?.data?.message || error?.response?.data?.detail || '同步青龙失败'
-    ElMessage.error(detail)
+    ElMessage.error(getApiErrorMessage(error, '同步青龙失败'))
     try {
       await loadQinglong()
     } catch (_) {
@@ -579,7 +579,7 @@ async function saveBark() {
     await loadBark()
   } catch (error) {
     console.error(error)
-    ElMessage.error(error?.response?.data?.detail || '保存 Bark 配置失败')
+    ElMessage.error(getApiErrorMessage(error, '保存 Bark 配置失败'))
   } finally {
     barkSaving.value = false
   }
@@ -599,8 +599,7 @@ async function testBark() {
     await loadBark()
   } catch (error) {
     console.error(error)
-    const detail = error?.response?.data?.message || error?.response?.data?.detail || '推送失败'
-    ElMessage.error(detail)
+    ElMessage.error(getApiErrorMessage(error, '推送失败'))
     try {
       await loadBark()
     } catch (_) {
@@ -701,7 +700,7 @@ async function onImportFileChange(event) {
     }, 800)
   } catch (error) {
     console.error(error)
-    ElMessage.error(error?.response?.data?.detail || '导入数据库失败')
+    ElMessage.error(getApiErrorMessage(error, '导入数据库失败'))
   } finally {
     importing.value = false
     if (importInputRef.value) importInputRef.value.value = ''
