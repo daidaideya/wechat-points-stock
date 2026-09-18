@@ -55,7 +55,7 @@
 |---|---|
 | `app/main.py` | FastAPI 组装、lifespan 启停、启动前校验兼容 schema/index、后台线程、健康检查、request ID/请求日志、GZip、静态资源、SPA fallback |
 | `app/config.py` | 从 `.env` 读取 `INGEST_TOKEN`（兼容旧 `API_TOKEN`）、`DATABASE_URL`、上传目录并校验启动配置 |
-| `app/database.py` | SQLAlchemy engine/session；SQLite 开启 WAL、busy timeout、NORMAL synchronous |
+| `app/database.py` | SQLAlchemy engine/session；SQLite 开启 foreign keys、WAL、busy timeout、NORMAL synchronous |
 | `app/models.py` | `SystemSettings`、`WechatAccount`、`MiniProgram`、`PointsHistory`、`Product`、`StockHistory` |
 | `app/schemas.py` | 外部积分/现金上报与库存上报的 Pydantic 请求模型；包含字符串、finite/非负数值和批量上限约束 |
 | `app/schemas_stock.py` | 库存管理 CRUD/分页响应模型及分页、排序、字段范围约束 |
@@ -68,7 +68,7 @@
 | `app/services/qinglong_service.py` | 账号解析、积分入库、库存快照 upsert/下架判断 |
 | `app/services/qinglong_open_service.py` | QingLong OpenAPI token、任务列表、匹配、同步和定时器 |
 | `app/services/bark_service.py` | 今日未上报小程序计算、Bark 推送和定时器 |
-| `app/services/cleanup_service.py` | 设置单例、懒迁移、积分/库存历史清理 |
+| `app/services/cleanup_service.py` | 设置单例、懒迁移、积分/库存历史清理；历史 max_entries 裁剪使用数据库子查询 |
 | `app/maintenance.py` | 数据库恢复期间的进程内维护态、跨进程旁路锁和在途数据库请求排空 |
 | `app/timeutil.py` | Asia/Shanghai 与 UTC 转换辅助函数；Windows 缺少 IANA tzdata 时回退到固定 UTC+08:00 |
 | `app/static_assets.py` | 优先返回 Vite 生成的 `.gz` 资源 |
@@ -455,10 +455,12 @@ docker compose up -d --build
 4. **数据库恢复已加跨进程保护。** `app/maintenance.py` 使用数据库路径旁路锁，维护期间新 API 返回 503，并等待当前进程的 API/Bark/QingLong 数据库任务退出；恢复前 `wal_checkpoint(TRUNCATE)` 忙则中止，其他 worker 的在途事务由 checkpoint 兜底。真实文件恢复/回滚集成测试和更完整的调度暂停仍待补齐，不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。
-7. **日期处理仍有历史混用。** `get_unreported_programs()` 等位置使用 `datetime.now()` 或固定 `+8h`，而其他位置使用 `timeutil`；部署环境改变时需要优先回归“今日未报”和设置时间显示。
+7. **业务日期已收口，存储时间仍需持续审计。** `web.py` 的未上报、库存变化和积分变化路径已统一通过 `timeutil` 按 Asia/Shanghai 判断，历史 naive 值按 UTC 解释；模型/清理服务保留 `utcnow()` 作为 naive UTC 写入，API 时间字段和无时区上报输入仍需逐项审计。
 8. **库存中心与下架抽屉已改成服务端分页。** 首屏不再自动请求下架明细，抽屉默认每页 50 条并可继续加载；全局导航骨架、进度反馈和库存 chunk 预加载已补，后续仍需补 revision/ETag、真实 p95 基准和虚拟网格。
 9. **健康检查已提供。** `/health/live` 只表示进程路由可用；`/health/ready` 执行 `SELECT 1`，Compose 已用它做容器 healthcheck。
 10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。上传像素限制、请求体/代理统一上限和校验审计仍待补。
+11. **SQLite 连接已开启外键约束。** `app/database.py` 对每个 SQLite 连接执行 `PRAGMA foreign_keys=ON`，现有 `PointsHistory` 账号/程序外键有回归测试；正式迁移、旧库孤儿清理、StockHistory 外键和级联策略仍待设计。
+12. **历史裁剪已避免 Python 侧尾部 ID 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；列表接口仍有全历史加载和快照表优化空间。
 
 ## 13. 后续接手时的推荐阅读顺序
 
