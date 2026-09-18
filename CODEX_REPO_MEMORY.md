@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`cfe39b8`（2026-09-18）
+- 快照提交：待本轮库存筛选抽离提交后刷新（2026-09-18）
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `11 passed`
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `14 passed`
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -83,6 +83,8 @@
 | `frontend/src/utils/product.test.js` | 商品共享纯函数的 Node 内置单元测试 |
 | `frontend/src/composables/useInfiniteScroll.js` | 统一 IntersectionObserver 无限滚动观察、提前加载和卸载清理 |
 | `frontend/src/composables/useInfiniteScroll.test.js` | 无限滚动控制器的 Node 内置单元测试 |
+| `frontend/src/composables/useStockFilters.js` | Stock 页筛选状态、参数构造、现金上限和重置逻辑 |
+| `frontend/src/composables/useStockFilters.test.js` | Stock 页筛选 composable 的 Node 内置单元测试 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
 | `scripts/api_template.py` | 给青龙/自写脚本复用的 `PointsReporter`、`StockReporter` |
 | `scripts/init_db.py` | 新库执行 `Base.metadata.create_all()` |
@@ -372,6 +374,8 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 前端共享纯函数通过 `npm test` 执行 Node 内置单测，目前共 `9 passed`。
 - `ProgramsPage.vue` 与 `StockPage.vue` 共享 `frontend/src/composables/useInfiniteScroll.js` 的 IntersectionObserver 生命周期；页面仍分别控制分页参数、请求状态和加载回调。
 - 前端 Node 内置测试目前共 `11 passed`，其中包含无限滚动控制器的浏览器 API 模拟测试。
+- `StockPage.vue` 通过 `frontend/src/composables/useStockFilters.js` 管理关键词、库存状态、标签、价格模式和现金上限；页面保留筛选后请求、缓存和结果展示。
+- 前端 Node 内置测试目前共 `14 passed`，其中包含 Stock 筛选参数和状态切换测试。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。

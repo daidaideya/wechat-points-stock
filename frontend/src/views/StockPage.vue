@@ -510,6 +510,7 @@ import api from '../api'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
+import { CASH_CAP_PRESETS, useStockFilters } from '../composables/useStockFilters'
 
 const PAGE_SIZE = 20
 const STOCK_CACHE_TTL = 60 * 1000
@@ -521,15 +522,6 @@ const loadingMore = ref(false)
 const refreshing = ref(false)
 const loadError = ref(false)
 const loadedFromCache = ref(false)
-const keywordInput = ref('')
-const searchKeyword = ref('')
-const activeStatus = ref('all')
-const currentTag = ref('')
-// 价格类型：all | points_only | points_plus_cash
-const priceMode = ref('all')
-// 积分加钱购时的现金上限（元）；null = 不限
-const cashCapValue = ref(null)
-const cashCapInput = ref('')
 const availableTags = ref([])
 const allProducts = shallowRef([])
 const totalResults = ref(0)
@@ -562,7 +554,26 @@ const hidingProductId = ref(null)
 const restoringProductId = ref(null)
 const relistingId = ref(null)
 
-const CASH_CAP_PRESETS = [1, 5, 10, 20]
+const {
+  keywordInput,
+  searchKeyword,
+  activeStatus,
+  currentTag,
+  priceMode,
+  cashCapValue,
+  cashCapInput,
+  priceModeLabel,
+  buildStockParams,
+  applySearchInput,
+  setStatusFilter,
+  toggleTag,
+  setPriceMode,
+  applyCashCapInput,
+  setCashCapPreset,
+  clearCashCap: clearCashCapState,
+  isCashCapPresetActive,
+  resetFilters: resetFilterState,
+} = useStockFilters({ pageSize: PAGE_SIZE })
 
 let stockCenterRequest = null
 let stockCenterRequestKey = ''
@@ -570,15 +581,6 @@ let stockCenterAbortController = null
 let stockLoadSequence = 0
 
 const summary = computed(() => serverSummary.value)
-
-const priceModeLabel = computed(() => {
-  if (priceMode.value === 'points_only') return '纯积分'
-  if (priceMode.value === 'points_plus_cash') {
-    if (cashCapValue.value == null) return '积分加钱购 · 不限金额'
-    return `积分加钱购 · ≤ ¥${formatMoney(cashCapValue.value)}`
-  }
-  return '全部商品'
-})
 
 // Filtering now happens in SQL. These aliases keep the rendering code clear
 // while ensuring the browser only holds the pages it has requested.
@@ -631,18 +633,6 @@ function formatHiddenAt(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function buildStockParams(page = 1) {
-  const params = { page, size: PAGE_SIZE }
-  if (searchKeyword.value) params.q = searchKeyword.value
-  if (currentTag.value) params.tag = currentTag.value
-  if (activeStatus.value !== 'all') params.status = activeStatus.value
-  if (priceMode.value !== 'all') params.price_mode = priceMode.value
-  if (priceMode.value === 'points_plus_cash' && cashCapValue.value != null) {
-    params.cash_max = cashCapValue.value
-  }
-  return params
 }
 
 async function fetchStockCenter(params, forceRefresh = false) {
@@ -754,80 +744,45 @@ async function refreshStockCenter() {
 }
 
 function applySearch() {
-  searchKeyword.value = keywordInput.value.trim()
+  applySearchInput()
   void loadStockCenter({ forceRefresh: true })
 }
 
 function applyMetricFilter(status) {
-  activeStatus.value = status
+  setStatusFilter(status)
   void loadStockCenter({ forceRefresh: true })
 }
 
 function selectTag(tag) {
-  currentTag.value = currentTag.value === tag ? '' : tag
+  toggleTag(tag)
   void loadStockCenter({ forceRefresh: true })
 }
 
 function selectPriceMode(mode) {
-  if (priceMode.value === mode && mode !== 'all') {
-    // 再次点击已选项 → 回到全部
-    priceMode.value = 'all'
-  } else {
-    priceMode.value = mode
-  }
-  if (priceMode.value !== 'points_plus_cash') {
-    cashCapValue.value = null
-    cashCapInput.value = ''
-  }
+  setPriceMode(mode)
   void loadStockCenter({ forceRefresh: true })
 }
 
-function parseCashCapInput(raw) {
-  const text = String(raw ?? '').trim()
-  if (!text) return null
-  const amount = Number(text)
-  if (Number.isNaN(amount) || amount < 0) return undefined
-  return amount
-}
-
 function applyCashCap() {
-  const parsed = parseCashCapInput(cashCapInput.value)
-  if (parsed === undefined) {
+  if (!applyCashCapInput()) {
     ElMessage.warning('请输入有效的现金上限（≥ 0）')
     return
   }
-  cashCapValue.value = parsed
-  cashCapInput.value = parsed == null ? '' : formatMoney(parsed)
   void loadStockCenter({ forceRefresh: true })
 }
 
 function applyCashCapPreset(amount) {
-  cashCapValue.value = amount
-  cashCapInput.value = formatMoney(amount)
-  if (priceMode.value !== 'points_plus_cash') {
-    priceMode.value = 'points_plus_cash'
-  }
+  setCashCapPreset(amount)
   void loadStockCenter({ forceRefresh: true })
 }
 
 function clearCashCap() {
-  cashCapValue.value = null
-  cashCapInput.value = ''
+  clearCashCapState()
   void loadStockCenter({ forceRefresh: true })
 }
 
-function isCashCapPresetActive(amount) {
-  return cashCapValue.value != null && Number(cashCapValue.value) === Number(amount)
-}
-
 function resetFilters() {
-  keywordInput.value = ''
-  searchKeyword.value = ''
-  activeStatus.value = 'all'
-  currentTag.value = ''
-  priceMode.value = 'all'
-  cashCapValue.value = null
-  cashCapInput.value = ''
+  resetFilterState()
   void loadStockCenter({ forceRefresh: true })
 }
 
