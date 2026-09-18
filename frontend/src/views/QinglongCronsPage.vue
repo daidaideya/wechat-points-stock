@@ -76,6 +76,9 @@
               @click="copyNextSlot"
             >复制</el-button>
           </div>
+          <div v-if="nextSlotLastSchedule" class="ql-next-slot-hint">
+            基于最新脚本「{{ nextSlotLastName }}」{{ nextSlotLastSchedule }} +{{ planForm.intervalMinutes || 2 }} 分钟
+          </div>
         </article>
       </div>
 
@@ -593,42 +596,103 @@ const coverageText = computed(() => {
   return `${formatMinute(Math.min(...minutes))} ~ ${formatMinute(Math.max(...minutes))}`
 })
 
-// 新脚本一键复制：取时间线上最后一个（最晩）启用脚本的 cron，
-// 分钟数加间隔（默认 2 分钟），小时 / 日期字段保持不变。
-// 例：最后一个为 "46 13,20 * * *" → 建议 "48 13,20 * * *"。
+// 新脚本一键复制：以「最近创建」的脚本（青龙 ID 最大，跟随当前类型筛选）为基准，
+// 保留它的小时组，分钟数 + 间隔，同组已被占用的分钟自动跳过；
+// 分钟溢出 60 时整体小时后移一组（如 59 13,20 → 1 14,21）。
+// 例：最新 code 脚本为 "46 13,20 * * *" → 建议 "48 13,20 * * *"。
+function bumpHourField(hourField) {
+  const parts = String(hourField).split(',')
+  const bumped = parts.map((part) => {
+    const value = parseInt(part.trim(), 10)
+    if (Number.isNaN(value)) return null
+    return String((value + 1) % 24)
+  })
+  if (bumped.some((part) => part === null)) return null
+  return bumped.join(',')
+}
+
+function firstNumericHour(hourField) {
+  for (const part of String(hourField).split(',')) {
+    const value = parseInt(part.trim(), 10)
+    if (!Number.isNaN(value)) return value
+  }
+  return null
+}
+
 const nextSlotInfo = computed(() => {
-  const list = enabledCrons.value
-    .filter((cron) => cron.earliest_minute !== null && cron.earliest_minute < 24 * 60)
-    .slice()
-    .sort((a, b) => a.earliest_minute - b.earliest_minute)
-  if (!list.length) return { schedule: '', time: '', lastTime: '', overflow: false }
-
-  const interval = Math.max(1, planForm.intervalMinutes || 2)
-  const occupied = new Set(list.map((cron) => cron.earliest_minute))
-
-  // 从最后一个脚本之后开始找第一个未被占用的槽位（保持等间隔递增）
-  const last = list[list.length - 1]
-  let cursor = last.earliest_minute + interval
-  while (cursor < 24 * 60 && occupied.has(cursor)) {
-    cursor += interval
+  const empty = { schedule: '', time: '', lastName: '', lastSchedule: '' }
+  let pool = scriptCrons.value.filter(
+    (cron) =>
+      cron.is_disabled !== 1 &&
+      !isExcluded(cron) &&
+      cron.earliest_minute !== null &&
+      cron.earliest_minute < 24 * 60
+  )
+  if (commandTypeFilter.value === 'code') {
+    const filtered = pool.filter(isCodeCron)
+    if (filtered.length) pool = filtered
+  } else if (commandTypeFilter.value === 'other') {
+    const filtered = pool.filter((cron) => !isCodeCron(cron))
+    if (filtered.length) pool = filtered
   }
-  const overflow = cursor >= 24 * 60
+  if (!pool.length) return empty
 
-  const fields = String(last.schedule || '').trim().split(/\s+/)
-  if (fields.length < 5) return { schedule: '', time: '', lastTime: formatMinute(last.earliest_minute), overflow: true }
+  const numericId = (cron) => {
+    const value = Number(cron.id)
+    return Number.isFinite(value) ? value : -1
+  }
+  const anyNumericId = pool.some((cron) => numericId(cron) >= 0)
+  const base = pool.reduce((best, cron) => {
+    if (anyNumericId) return numericId(cron) > numericId(best) ? cron : best
+    return cron.earliest_minute > best.earliest_minute ? cron : best
+  })
 
-  const minute = overflow ? 59 : cursor % 60
-  const hour = overflow ? fields[1] : Math.floor(cursor / 60)
+  const fields = String(base.schedule || '').trim().split(/\s+/)
+  if (fields.length < 5) return { ...empty, lastName: base.name || '', lastSchedule: base.schedule || '' }
+
   const rest = fields.slice(2).join(' ')
-  const schedule = `${minute} ${hour} ${rest}`
-  return {
-    schedule,
-    time: overflow ? '' : formatMinute(cursor),
-    lastTime: formatMinute(last.earliest_minute),
-    lastName: last.name,
-    overflow,
+  const interval = Math.max(1, planForm.intervalMinutes || 2)
+  const occupiedMinutesFor = (hourField) =>
+    new Set(
+      pool
+        .filter((cron) => {
+          const parts = String(cron.schedule || '').trim().split(/\s+/)
+          return parts.length >= 5 && parts[1] === hourField
+        })
+        .map((cron) => parseInt(String(cron.schedule).trim().split(/\s+/)[0], 10))
+        .filter((value) => Number.isFinite(value))
+    )
+
+  let minute = parseInt(fields[0], 10)
+  if (Number.isNaN(minute)) minute = base.earliest_minute % 60
+  let hourField = fields[1]
+
+  for (let attempts = 0; attempts < 200; attempts += 1) {
+    minute += interval
+    if (minute >= 60) {
+      minute -= 60
+      const bumped = bumpHourField(hourField)
+      if (bumped === null) {
+        minute = (minute + interval) % 60
+        continue
+      }
+      hourField = bumped
+    }
+    if (!occupiedMinutesFor(hourField).has(minute)) {
+      const hour = firstNumericHour(hourField)
+      return {
+        schedule: `${minute} ${hourField} ${rest}`,
+        time: hour !== null ? `${pad2(hour)}:${pad2(minute)}` : '',
+        lastName: base.name || '',
+        lastSchedule: base.schedule || '',
+      }
+    }
   }
+  return { ...empty, lastName: base.name || '', lastSchedule: base.schedule || '' }
 })
+
+const nextSlotLastName = computed(() => nextSlotInfo.value.lastName)
+const nextSlotLastSchedule = computed(() => nextSlotInfo.value.lastSchedule)
 
 const nextSlotSchedule = computed(() => nextSlotInfo.value.schedule)
 const nextSlotTime = computed(() => nextSlotInfo.value.time)
@@ -944,6 +1008,12 @@ onMounted(() => {
   padding: 4px 8px;
   color: var(--el-text-color-regular);
   word-break: break-all;
+}
+
+.ql-next-slot-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 6px;
 }
 
 /* 搜索框放进 meta chip 里，保持胶囊形态 */
