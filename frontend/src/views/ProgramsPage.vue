@@ -814,7 +814,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowRight, Box, CircleCheck, CircleClose, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Search, Star, Wallet } from '@element-plus/icons-vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import api from '../api'
 import {
   formatMoney,
@@ -826,7 +826,6 @@ import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useProgramFilters } from '../composables/useProgramFilters'
 import { usePageStateCache } from '../composables/usePageStateCache'
 
-const router = useRouter()
 const route = useRoute()
 const pageSize = 20
 const loadMoreSentinel = ref(null)
@@ -1071,10 +1070,6 @@ async function restorePageState() {
   window.scrollTo({ top: Number(state.scrollY) || 0, behavior: 'auto' })
   restoringState = false
   return true
-}
-
-function goToProgramDetail(program) {
-  openDetailDialog(program)
 }
 
 async function openDetailDialog(program) {

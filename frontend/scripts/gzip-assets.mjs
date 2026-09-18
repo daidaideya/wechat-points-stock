@@ -28,7 +28,7 @@ async function main() {
   let files
   try {
     files = readdirSync(assetsDir)
-  } catch (err) {
+  } catch {
     console.error('[gzip-assets] dist/assets not found — run vite build first')
     process.exit(1)
   }

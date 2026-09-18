@@ -702,39 +702,42 @@ async function loadStockCenter(options = {}) {
   try {
     const page = append ? loadedPage.value + 1 : 1
     const data = await fetchStockCenter(buildStockParams(page), forceRefresh && page === 1)
-    if (loadSequence !== stockLoadSequence) return
-    const cacheHit = loadedFromCache.value
-    const normalizedItems = normalizeStockCenterResponse(data)
-    allProducts.value = append ? [...allProducts.value, ...normalizedItems] : normalizedItems
-    totalResults.value = Number(data.total || 0)
-    loadedPage.value = Number(data.page || page)
-    serverSummary.value = {
-      ...serverSummary.value,
-      ...(data.summary || {}),
-    }
-    hiddenTotal.value = Number(data.hidden_total || 0)
-    offShelfTotal.value = Number(data.off_shelf_total || 0)
+    if (loadSequence === stockLoadSequence) {
+      const cacheHit = loadedFromCache.value
+      const normalizedItems = normalizeStockCenterResponse(data)
+      allProducts.value = append ? [...allProducts.value, ...normalizedItems] : normalizedItems
+      totalResults.value = Number(data.total || 0)
+      loadedPage.value = Number(data.page || page)
+      serverSummary.value = {
+        ...serverSummary.value,
+        ...(data.summary || {}),
+      }
+      hiddenTotal.value = Number(data.hidden_total || 0)
+      offShelfTotal.value = Number(data.off_shelf_total || 0)
 
-    // Paint the cached first page immediately, then refresh it in the
-    // background so returning to the route never waits behind the network.
-    if (cacheHit && !append && !forceRefresh) {
-      loading.value = false
-      void loadStockCenter({ forceRefresh: true, silent: true })
+      // Paint the cached first page immediately, then refresh it in the
+      // background so returning to the route never waits behind the network.
+      if (cacheHit && !append && !forceRefresh) {
+        loading.value = false
+        void loadStockCenter({ forceRefresh: true, silent: true })
+      }
     }
   } catch (error) {
-    if (loadSequence !== stockLoadSequence) return
-    console.error(error)
-    if (!silent || !allProducts.value.length) {
-      loadError.value = true
-      ElMessage.error('加载库存中心失败')
+    if (loadSequence === stockLoadSequence) {
+      console.error(error)
+      if (!silent || !allProducts.value.length) {
+        loadError.value = true
+        ElMessage.error('加载库存中心失败')
+      }
     }
   } finally {
-    if (loadSequence !== stockLoadSequence) return
-    loading.value = false
-    refreshing.value = false
-    loadingMore.value = false
-    await nextTick()
-    initObserver()
+    if (loadSequence === stockLoadSequence) {
+      loading.value = false
+      refreshing.value = false
+      loadingMore.value = false
+      await nextTick()
+      initObserver()
+    }
   }
 }
 
@@ -784,11 +787,6 @@ function clearCashCap() {
 function resetFilters() {
   resetFilterState()
   void loadStockCenter({ forceRefresh: true })
-}
-
-function openDetailDrawer(product) {
-  detailProduct.value = product
-  detailDrawerVisible.value = true
 }
 
 async function loadMore() {

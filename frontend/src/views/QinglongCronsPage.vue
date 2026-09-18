@@ -361,7 +361,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   CircleCheck,
   CircleClose,
-  Clock,
   CopyDocument,
   Document,
   Files,
@@ -516,12 +515,6 @@ const filteredGroups = computed(() => {
   return groups
 })
 
-const coverageText = computed(() => {
-  if (!enabledCrons.value.length) return '-'
-  const minutes = enabledCrons.value.map((cron) => cron.earliest_minute)
-  return `${formatMinute(Math.min(...minutes))} ~ ${formatMinute(Math.max(...minutes))}`
-})
-
 const nextSlotInfo = computed(() => getNextCronSlot(scriptCrons.value, {
   commandType: commandTypeFilter.value,
   intervalMinutes: planForm.intervalMinutes,
@@ -560,18 +553,6 @@ async function copyNextSlot() {
 const organizeTargetCrons = computed(() =>
   planForm.codeOnly ? enabledCrons.value.filter(isCodeCron) : enabledCrons.value
 )
-
-// 计算两个任务在时间线上的「首个执行时间点间隔」
-// 现在 crowdMap 直接使用 sortMinute 计算，此函数保留用于其他场景（如需）
-function computeGap(cronA, cronB) {
-  if (!cronA || !cronB) return null
-  const timesA = parseDailyMinutes(cronA.schedule)
-  const timesB = parseDailyMinutes(cronB.schedule)
-  if (!timesA.length || !timesB.length) return null
-  const firstA = timesA[0]
-  const firstB = timesB[0]
-  return firstB > firstA ? firstB - firstA : null
-}
 
 // Crowding detection: 严格基于当前时间线上「可见列表的相邻位置」计算与上一项的分钟差
 const crowdMap = computed(() => {
@@ -706,7 +687,6 @@ function buildPlan() {
     const morningMinute = cursor % 60
     const afternoonCursor = afternoonStartMinute + (cursor - startMinute)
     const afternoonHour = Math.floor(afternoonCursor / 60)
-    const afternoonMinute = afternoonCursor % 60
     if (afternoonHour > 23) {
       overflow = true
       break
