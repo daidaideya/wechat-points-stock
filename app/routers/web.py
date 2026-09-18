@@ -63,6 +63,21 @@ def _local_business_date(value: Optional[datetime]) -> date:
     return timeutil.local_date(value) or timeutil.now_local().date()
 
 
+def _local_business_day_start_utc():
+    """Return today's local date and its naive-UTC database boundary.
+
+    ``PointsHistory.report_time`` is historically stored as a naive UTC
+    value.  Keeping the conversion here makes the summary query use the same
+    Asia/Shanghai business-day semantics as the Python diff calculation.
+    """
+    local_now = timeutil.now_local()
+    local_midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        local_now.date(),
+        local_midnight.astimezone(timezone.utc).replace(tzinfo=None),
+    )
+
+
 def _parse_datetime_value(value) -> Optional[datetime]:
     if isinstance(value, datetime):
         return value
@@ -253,6 +268,7 @@ def ensure_indexes(db: Session):
         ("ix_points_history_program_id", "CREATE INDEX IF NOT EXISTS ix_points_history_program_id ON points_history (program_id)"),
         ("ix_points_history_report_time", "CREATE INDEX IF NOT EXISTS ix_points_history_report_time ON points_history (report_time)"),
         ("ix_points_history_wechat_program", "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program ON points_history (wechat_id, program_id)"),
+        ("ix_points_history_wechat_program_time_id", "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program_time_id ON points_history (wechat_id, program_id, report_time DESC, id DESC)"),
         ("ix_points_history_program_wechat_time_id", "CREATE INDEX IF NOT EXISTS ix_points_history_program_wechat_time_id ON points_history (program_id, wechat_id, report_time DESC, id DESC)"),
         ("ix_stock_history_program_id", "CREATE INDEX IF NOT EXISTS ix_stock_history_program_id ON stock_history (program_id)"),
         ("ix_stock_history_change_time", "CREATE INDEX IF NOT EXISTS ix_stock_history_change_time ON stock_history (change_time)"),
@@ -331,6 +347,15 @@ def _latest_points_history_order():
     )
 
 
+def _points_history_sort_key(item):
+    report_time = timeutil.to_aware_utc(getattr(item, "report_time", None))
+    return (
+        report_time is not None,
+        report_time or datetime.min.replace(tzinfo=timezone.utc),
+        getattr(item, "id", 0) or 0,
+    )
+
+
 def _latest_points_history_subquery(
     db: Session,
     *,
@@ -392,6 +417,49 @@ def _query_latest_points_history(
             models.PointsHistory.id == latest_subquery.c.latest_id,
         ),
     )
+
+
+def _query_latest_points_history_rows(
+    db: Session,
+    wechat_ids,
+    before: Optional[datetime] = None,
+):
+    """Load at most one history row per account/program pair.
+
+    The old summary path pulled every history row into Python and then found
+    the latest row and the previous local-business-day baseline in memory.
+    This window query performs that reduction in SQLite (and other SQL
+    databases with window-function support) before ORM objects are created.
+    ``before`` is used for the second, baseline window and intentionally
+    excludes the current local business day.
+    """
+    if not wechat_ids:
+        return []
+
+    filters = [models.PointsHistory.wechat_id.in_(wechat_ids)]
+    if before is not None:
+        filters.append(models.PointsHistory.report_time < before)
+
+    ranked = db.query(
+        models.PointsHistory.id.label("history_id"),
+        func.row_number().over(
+            partition_by=(
+                models.PointsHistory.wechat_id,
+                models.PointsHistory.program_id,
+            ),
+            order_by=(
+                models.PointsHistory.report_time.desc(),
+                models.PointsHistory.id.desc(),
+            ),
+        ).label("history_rank"),
+    ).filter(*filters).subquery()
+
+    return db.query(models.PointsHistory).join(
+        ranked,
+        models.PointsHistory.id == ranked.c.history_id,
+    ).filter(
+        ranked.c.history_rank == 1,
+    ).order_by(*_latest_points_history_order()).all()
 
 
 def get_latest_points_records_for_program(db: Session, program_id: str):
@@ -718,17 +786,35 @@ def build_program_payload(
 
 
 def fetch_points_history_grouped(db: Session, wechat_ids):
-    """One-shot pull of all PointsHistory rows for a set of wechat_ids,
-    grouped per wechat_id, descending by report_time. Avoids the N+1
-    pattern where each account triggers its own history query."""
+    """Fetch only the latest and pre-today baseline row per pair.
+
+    The result keeps the old grouped-list contract used by the account and
+    points overview routes, but the number of ORM rows is bounded at two per
+    ``(wechat_id, program_id)`` pair instead of growing with retention.
+    """
     if not wechat_ids:
         return {}
-    rows = db.query(models.PointsHistory).filter(
-        models.PointsHistory.wechat_id.in_(wechat_ids)
-    ).order_by(*_latest_points_history_order()).all()
+
+    # Keep the input unique so a caller cannot accidentally enlarge the SQL
+    # IN list; the previous query returned the same rows for duplicates.
+    unique_wechat_ids = list(dict.fromkeys(wechat_ids))
+    _today_local, start_of_day_utc = _local_business_day_start_utc()
+    rows = _query_latest_points_history_rows(db, unique_wechat_ids)
+    baseline_rows = _query_latest_points_history_rows(
+        db,
+        unique_wechat_ids,
+        before=start_of_day_utc,
+    )
     grouped = defaultdict(list)
-    for row in rows:
+    seen = set()
+    for row in (*rows, *baseline_rows):
+        key = (row.wechat_id, row.program_id, row.id)
+        if key in seen:
+            continue
+        seen.add(key)
         grouped[row.wechat_id].append(row)
+    for rows_for_account in grouped.values():
+        rows_for_account.sort(key=_points_history_sort_key, reverse=True)
     return grouped
 
 
@@ -755,9 +841,10 @@ def build_account_points_summary(
         program_name_map = {p.program_id: p.program_name for p in all_programs}
 
     if user_points is None:
-        user_points = db.query(models.PointsHistory).filter(
-            models.PointsHistory.wechat_id == account.wechat_id
-        ).order_by(*_latest_points_history_order()).all()
+        user_points = fetch_points_history_grouped(
+            db,
+            [account.wechat_id],
+        ).get(account.wechat_id, [])
 
     latest_map = {}
     history_map = defaultdict(list)
@@ -782,13 +869,22 @@ def build_account_points_summary(
             return 0
 
         prev_value = None
+        has_previous_business_day = False
         for record in records[1:]:
             record_local_date = _local_business_date(record.report_time)
             if record_local_date < today_local:
                 prev_value = getattr(record, field_name, None)
+                has_previous_business_day = True
                 break
+
+        if not has_previous_business_day:
+            # A first report today has no comparable baseline, so it is not a
+            # reported change.  Keep the UI diff at zero until a prior local
+            # business-day value exists.
+            return 0
         if prev_value is None:
-            # First report today for this dimension: treat previous as 0 when current is numeric
+            # A baseline row may omit this dimension (points or cash).  The
+            # historical behavior treats that missing numeric dimension as 0.
             prev_value = 0
         try:
             return float(current_value) - float(prev_value)
