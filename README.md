@@ -66,12 +66,16 @@
 
 - `/dashboard`：仪表盘（微信号卡片跳转用户管理）
 - `/programs`：小程序列表（主工作台）
+- `/apps`：APP 列表（复用程序列表页面，筛选 `kind=app`）
 - `/favorites`：重点关注列表
 - `/programs/:programId`：小程序详情页（列表内也支持弹窗详情）
+- `/apps/:programId`：APP 详情页
 - `/users`：用户管理
 - `/points`：积分总览（含现金汇总）
 - `/stock`：库存管理
+- `/qinglong-crons`：青龙定时任务管理
 - `/settings`：系统设置（二级分区：基础 / 青龙 / Bark / 备份）
+- `/access-gate`：访问保护开启时的公开验证页
 
 ### 3.1 小程序列表重点能力
 
@@ -85,7 +89,7 @@
 ### 3.2 系统设置分区
 
 - 基础设置：日志清理、访问保护
-- 青龙联动：OpenAPI 凭证、可配置自动同步间隔（默认 5 分钟）、立即同步；打开列表过期时也会后台刷新
+- 青龙联动：OpenAPI 凭证、可配置自动同步间隔（默认 5 分钟）、立即同步；自动模式由后台 scheduler 刷新，打开列表只读取已同步的状态，不阻塞列表请求
 - Bark 推送：开关、Device Key、推送时间、立即测试
 - 数据备份：导出 `.db` / 导入恢复
 
@@ -100,6 +104,7 @@
 ### 小程序
 
 - `GET /api/v1/programs`（支持 `q` / `status` / `ql_status` / `sort=default|cron`）
+- `GET /api/v1/programs/{program_id}/rankings`（兼容别名）
 - `GET /api/v1/programs/favorites`
 - `GET /api/v1/programs/unreported`
 - `GET /api/v1/programs/{program_id}`
@@ -179,10 +184,16 @@
 
 ### 库存
 
+- `GET /api/v1/stock/center`（分页、筛选、汇总和 ETag）
 - `GET /api/v1/stock/programs`
 - `GET /api/v1/stock/programs/{program_id}/products`
 - `GET /api/v1/stock/search`
+- `GET /api/v1/stock/hidden`
+- `GET /api/v1/stock/off-shelf`
 - `POST /api/v1/stock/product`
+- `PUT /api/v1/stock/products/{product_id}/hide`
+- `PUT /api/v1/stock/products/{product_id}/restore`
+- `PUT /api/v1/stock/products/{product_id}/relist`
 - `POST /api/v1/stock-report`
 
 ## 5. 快速开始

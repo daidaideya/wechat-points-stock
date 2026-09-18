@@ -11,8 +11,8 @@ Group=root
 WorkingDirectory=/root/wechat-points-stock
 Environment="PATH=/root/wechat-points-stock/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
-# 启动命令
-ExecStart=/root/wechat-points-stock/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 5711 --workers 2
+# 启动命令；SQLite 默认单 worker，与 Docker Compose 保持一致
+ExecStart=/root/wechat-points-stock/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 5711 --workers 1
 
 # 自动重启配置
 Restart=always

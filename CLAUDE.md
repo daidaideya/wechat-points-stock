@@ -124,7 +124,7 @@ Stock and points history both call `cleanup_service.prune_*_history` after each 
 - **Auto-refresh** (no manual click required once configured):
   - Interval is user-configurable: `system_settings.ql_auto_sync_minutes` (default 5, range 1–1440) via Settings UI
   - Startup scheduler re-reads that interval each cycle (`start_qinglong_scheduler` from `main.py`)
-  - `GET /api/v1/programs` kicks a **non-blocking** background sync if last sync is older than the configured interval
+  - `GET /api/v1/programs` only reads the last scheduler-written `ql_*` fields; it does not kick a sync from the list request path
   - Multi-worker safe via file lock under `data/.qinglong_scheduler.lock` + in-process inflight guard
   - Manual「立即同步」 still available for instant refresh
 - Timezone: app treats display/schedules as **Asia/Shanghai**. Docker image sets `TZ` + `/etc/localtime`; API timestamps for settings use explicit `Z` (`app/timeutil.iso_for_api`) so browser local display is correct even if the container was once UTC.
@@ -150,7 +150,7 @@ Stock and points history both call `cleanup_service.prune_*_history` after each 
 
 `frontend/vite.config.js` matters for two reasons that affect how new code should be written:
 
-- `unplugin-auto-import` injects Vue and Vue Router APIs (`ref`, `computed`, `useRoute`, ...) globally. Do not add explicit `import { ref } from 'vue'`; auto-import generates `src/auto-imports.d.ts`.
+- `unplugin-auto-import` remains enabled for Vue/Vue Router APIs used by legacy SFC code, but the repository convention for new composables, utilities, and Node-tested modules is explicit imports so the module can run and be tested without Vite transforms. Do not mix both styles in the same new module.
 - `unplugin-vue-components` + `ElementPlusResolver` auto-registers Element Plus components and per-component CSS. Do not register Element Plus globally in `main.js` and do not import `element-plus/dist/index.css`. Icons from `@element-plus/icons-vue` still need explicit per-file imports.
 - `manualChunks` splits `element-plus`, `@element-plus/icons-vue`, `vue`, `vue-router`, `axios` into separate vendor chunks. Adding new heavy deps may warrant extending this list.
 - `npm run build` also runs `scripts/gzip-assets.mjs`, writing `*.js.gz` / `*.css.gz` next to hashed assets. `app/static_assets.py` + middleware in `main.py` serve those with `Content-Encoding: gzip` so Docker/Python does not re-gzip 800KB+ JS on every request.
