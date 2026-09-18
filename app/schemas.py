@@ -208,3 +208,25 @@ class StockReportRequest(SchemaBase):
     # Empty is meaningful: the service deliberately skips auto-unlisting for
     # an empty snapshot, so only the upper bound is constrained.
     products: List[ProductData] = Field(max_length=MAX_PRODUCTS_PER_STOCK_REPORT)
+
+
+# --- Access audit query schemas ---
+
+class AccessAuditEventItem(SchemaBase):
+    """Public, credential-free representation of one access audit event."""
+
+    event_type: str = Field(..., min_length=1, max_length=40)
+    client_id: Optional[str] = Field(default=None, max_length=128)
+    request_id: Optional[str] = Field(default=None, max_length=128)
+    # The database column is nullable for compatibility with legacy rows.
+    event_time: Optional[datetime] = None
+
+
+class AccessAuditEventPage(SchemaBase):
+    """Paginated access audit response metadata and safe event items."""
+
+    items: List[AccessAuditEventItem]
+    page: int = Field(..., ge=1)
+    size: int = Field(..., ge=1, le=100)
+    total: int = Field(..., ge=0)
+    has_more: bool

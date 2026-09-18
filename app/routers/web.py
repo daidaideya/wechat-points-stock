@@ -9,7 +9,7 @@ import tempfile
 from typing import List, Optional
 from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, Cookie, Depends, File, Header, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Cookie, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from pypinyin import Style, lazy_pinyin, pinyin
@@ -37,6 +37,7 @@ from app.maintenance import (
     database_maintenance,
     database_maintenance_lock_path,
 )
+from app.schemas import AccessAuditEventPage
 from app.security import hash_access_key
 from app.services import bark_service, cleanup_service
 from app.services import qinglong_open_service
@@ -1101,6 +1102,53 @@ def verify_access_key(
     response = JSONResponse(content={"status": "success"})
     set_ui_access_cookie(response, credential_secret, secure=request.url.scheme == "https")
     return response
+
+
+@router.get("/api/v1/access/audit-events", response_model=AccessAuditEventPage)
+def list_access_audit_events(
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    event_type: Optional[str] = Query(default=None, min_length=1, max_length=40),
+    client_id: Optional[str] = Query(default=None, min_length=1, max_length=128),
+    db: Session = Depends(get_db),
+):
+    """Return a protected, credential-free page of UI access audit events."""
+    query = db.query(models.AccessAuditEvent)
+    if event_type is not None:
+        query = query.filter(models.AccessAuditEvent.event_type == event_type.strip())
+    if client_id is not None:
+        query = query.filter(models.AccessAuditEvent.client_id == client_id.strip())
+
+    total = query.count()
+    offset = (page - 1) * size
+    events = (
+        query.order_by(
+            models.AccessAuditEvent.event_time.desc(),
+            models.AccessAuditEvent.id.desc(),
+        )
+        .offset(offset)
+        .limit(size)
+        .all()
+    )
+
+    # Explicit projection is intentional: the endpoint must not expose the
+    # database primary key or any credential material if the model grows.
+    items = [
+        {
+            "event_type": event.event_type,
+            "client_id": event.client_id,
+            "request_id": event.request_id,
+            "event_time": event.event_time,
+        }
+        for event in events
+    ]
+    return {
+        "items": items,
+        "page": page,
+        "size": size,
+        "total": total,
+        "has_more": offset + len(events) < total,
+    }
 
 
 @router.get("/api/v1/settings/logs")
