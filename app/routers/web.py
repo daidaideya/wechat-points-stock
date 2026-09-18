@@ -23,8 +23,11 @@ from app.database import get_db
 from app.dependencies import (
     ACCESS_SESSION_COOKIE,
     clear_ui_access_cookie,
+    clear_ui_access_failures,
+    enforce_ui_access_rate_limit,
     is_valid_ui_access_key,
     is_valid_ui_access_session,
+    record_ui_access_failure,
     require_ui_access,
     set_ui_access_cookie,
 )
@@ -1023,11 +1026,16 @@ def get_access_status(
     should_set_cookie = False
     if protection_on:
         authenticated = is_valid_ui_access_session(access_session, stored_key)
+        if authenticated:
+            clear_ui_access_failures(request)
         if not authenticated and x_access_key:
+            enforce_ui_access_rate_limit(request)
             if not is_valid_ui_access_key(x_access_key, stored_key):
+                record_ui_access_failure(request)
                 raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
             authenticated = True
             should_set_cookie = True
+            clear_ui_access_failures(request)
 
     response = JSONResponse(content={
         "enabled": protection_on,
@@ -1054,11 +1062,15 @@ def verify_access_key(
     if not enabled or not stored_key:
         response = JSONResponse(content={"status": "disabled"})
         clear_ui_access_cookie(response)
+        clear_ui_access_failures(request)
         return response
 
+    enforce_ui_access_rate_limit(request)
     if not is_valid_ui_access_key(payload.access_key, stored_key):
+        record_ui_access_failure(request)
         raise HTTPException(status_code=401, detail="访问密钥错误")
 
+    clear_ui_access_failures(request)
     response = JSONResponse(content={"status": "success"})
     set_ui_access_cookie(response, stored_key, secure=request.url.scheme == "https")
     return response

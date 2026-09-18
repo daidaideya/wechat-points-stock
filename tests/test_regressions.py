@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 
+from app.access_control import AccessAttemptLimiter
 from app import models
 from app.config import settings
 from app.database import Base
@@ -95,6 +96,19 @@ def test_ui_access_session_is_signed_short_lived_and_bound_to_key():
         "ui-secret",
         now=1000 + ACCESS_SESSION_TTL_SECONDS,
     )
+
+
+def test_ui_access_failure_limiter_blocks_and_can_be_cleared():
+    limiter = AccessAttemptLimiter(window_seconds=60, max_failures=3, lockout_seconds=120)
+
+    assert limiter.retry_after("test-client", now=1000) == 0
+    limiter.record_failure("test-client", now=1000)
+    limiter.record_failure("test-client", now=1001)
+    limiter.record_failure("test-client", now=1002)
+    assert limiter.retry_after("test-client", now=1003) == 119
+
+    limiter.clear("test-client")
+    assert limiter.retry_after("test-client", now=1003) == 0
 
 
 def test_ui_access_dependency_accepts_signed_session(monkeypatch):

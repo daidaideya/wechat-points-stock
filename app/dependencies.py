@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from app.access_control import get_access_client_id, ui_access_attempt_limiter
 from app.database import get_db
 from app.config import settings
 
@@ -89,6 +90,25 @@ def clear_ui_access_cookie(response):
     response.delete_cookie(ACCESS_SESSION_COOKIE, path="/")
 
 
+def enforce_ui_access_rate_limit(request: Request) -> None:
+    client_id = get_access_client_id(request)
+    retry_after = ui_access_attempt_limiter.retry_after(client_id)
+    if retry_after:
+        raise HTTPException(
+            status_code=429,
+            detail="访问密钥错误次数过多，请稍后重试",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def record_ui_access_failure(request: Request) -> None:
+    ui_access_attempt_limiter.record_failure(get_access_client_id(request))
+
+
+def clear_ui_access_failures(request: Request) -> None:
+    ui_access_attempt_limiter.clear(get_access_client_id(request))
+
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     configured_token = settings.INGEST_TOKEN
@@ -128,9 +148,17 @@ def require_ui_access(
     if not stored_key:
         raise HTTPException(status_code=403, detail="已开启访问保护，但尚未设置访问密钥")
     if is_valid_ui_access_session(access_session, stored_key):
+        clear_ui_access_failures(request)
         return
-    if not is_valid_ui_access_key(x_access_key, stored_key):
+    if x_access_key:
+        enforce_ui_access_rate_limit(request)
+    if is_valid_ui_access_key(x_access_key, stored_key):
+        clear_ui_access_failures(request)
+        return
+    if x_access_key:
+        record_ui_access_failure(request)
         raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
+    raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
 
 def get_db_session():
     return get_db()

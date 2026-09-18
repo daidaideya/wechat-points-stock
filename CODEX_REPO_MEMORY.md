@@ -13,7 +13,7 @@
 - 工作区：当前正在按 `docs/优化路线图.md` 实施第二批安全/性能/运行可靠性改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：`requirements-dev.txt` + `tests/`，当前 `20 passed`
+- 回归测试：`requirements-dev.txt` + `tests/`，当前 `21 passed`
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -60,6 +60,7 @@
 | `app/schemas.py` | 外部积分/现金上报与库存上报的 Pydantic 请求模型 |
 | `app/schemas_stock.py` | 库存管理 CRUD/分页响应模型 |
 | `app/dependencies.py` | Bearer 上报鉴权、UI `require_ui_access()` 统一访问保护、8 小时签名 HttpOnly Cookie 会话 |
+| `app/access_control.py` | UI access-key 失败尝试的单进程 IP 限流：60 秒最多 5 次，随后锁定 5 分钟 |
 | `app/routers/web.py` | 大部分 UI API：仪表盘、账号、积分、小程序、设置、备份、青龙定时；同步 I/O 路由使用普通 `def` 交给 FastAPI 线程池 |
 | `app/routers/qinglong.py` | 外部脚本上报积分/现金、库存 |
 | `app/routers/stock.py` | 库存中心、商品隐藏/恢复/下架恢复和商品 CRUD |
@@ -449,7 +450,7 @@ docker compose up -d --build
 
 1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
-3. **UI access 已完成第一阶段会话化。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；SQLite 明文、登录失败限流和审计仍待处理。
+3. **UI access 已完成第一阶段会话化和单进程限流。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；SQLite 明文和持久化审计仍待处理，多 worker 场景需依赖反向代理共享限流。
 4. **数据库恢复已加第一阶段保护。** 仍需跨进程维护锁、完整调度暂停和真实文件恢复集成测试；不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。
