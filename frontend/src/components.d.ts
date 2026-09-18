@@ -46,6 +46,7 @@ declare module 'vue' {
     ProgramFilterBar: typeof import('./components/ProgramFilterBar.vue')['default']
     ProgramMetricStrip: typeof import('./components/ProgramMetricStrip.vue')['default']
     ProgramStockDialog: typeof import('./components/ProgramStockDialog.vue')['default']
+    QinglongCronRow: typeof import('./components/QinglongCronRow.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StockProductCard: typeof import('./components/StockProductCard.vue')['default']
