@@ -41,7 +41,8 @@ docker compose up -d --build
 
 Docker notes for this project:
 
-- Default `UVICORN_WORKERS=1` (SQLite). Multi-worker works with WAL + Bark file lock but is not recommended.
+- Default `UVICORN_WORKERS=1` (SQLite). 当前生产 Docker 使用单 worker；多 worker 虽可借助 WAL + Bark 文件锁运行，但不是当前生产形态，也不建议为 SQLite 盲目扩容。
+- 本轮测试/工作区的代码和配置尚未自动迁移到生产 Docker；生产 `.env`、镜像和容器重建需按发布流程单独确认。
 - Compose adds `host.docker.internal:host-gateway` so QingLong on the host is reachable as `http://host.docker.internal:5700`.
 - Volumes: `data`, `logs`, `static/uploads`, plus read-only bind-mounted `app/` and `scripts/` for the existing local workflow. The image itself contains `frontend/dist`.
 - SQLite enables `PRAGMA journal_mode=WAL` and `busy_timeout=5000` on connect for safer concurrent readers.

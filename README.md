@@ -312,7 +312,8 @@ Dockerfile 会在 Node 构建阶段自动执行 `npm ci && npm run build`，不�
 `docker-compose.yml` 默认读取 `.env`，并设置：
 
 - `TZ=Asia/Shanghai`（Bark 推送时间、本地日期判断依赖时区）
-- `UVICORN_WORKERS` 默认 **1**（SQLite 推荐单进程；多 worker 已做 WAL + Bark 进程锁，但仍不建议）
+- `UVICORN_WORKERS` 默认 **1**（SQLite 推荐单进程；当前生产 Docker 使用单 worker。多 worker 已做 WAL + Bark 进程锁，但仍不建议）
+- 当前生产 Docker 与测试/工作区分开管理；测试/工作区的代码、`.env` 和镜像变更不会自动进入生产，发布时需要显式重建/重启容器。
 - `extra_hosts: host.docker.internal:host-gateway`：容器内访问宿主机青龙时，设置里填 `http://host.docker.internal:5700` 一类地址
 
 启动脚本还支持：
