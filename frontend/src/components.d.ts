@@ -48,5 +48,6 @@ declare module 'vue' {
     ProgramStockDialog: typeof import('./components/ProgramStockDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    StockProductCard: typeof import('./components/StockProductCard.vue')['default']
   }
 }

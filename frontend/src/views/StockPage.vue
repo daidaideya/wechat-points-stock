@@ -224,63 +224,13 @@
         </div>
 
         <div v-else class="stock-gallery-list">
-          <article v-for="item in visibleProducts" :key="`${item.program_id}-${item.product_id}`" class="stock-gallery-item">
-            <div class="stock-gallery-image-wrap">
-              <el-image
-                v-if="item.image_url || item.image_local_path"
-                :src="item.image_url || item.image_local_path"
-                class="stock-gallery-image"
-                fit="cover"
-                :preview-src-list="[item.image_url || item.image_local_path]"
-                preview-teleported
-                loading="lazy"
-              />
-              <div v-else class="stock-gallery-image stock-gallery-image-empty">暂无图片</div>
-              <div class="stock-gallery-image-mask">
-                <el-tag size="small" round effect="dark" :type="item.statusTagType">{{ item.statusLabel }}</el-tag>
-              </div>
-            </div>
-
-            <div class="stock-gallery-main">
-              <div class="stock-gallery-top-row">
-                <div class="stock-gallery-title-block">
-                  <h3 class="stock-gallery-title">{{ item.product_name || item.product_id }}</h3>
-                  <div class="stock-gallery-program-row merged-program-row">
-                    <div class="stock-gallery-program-name">{{ item.program_name || item.program_id }}</div>
-                    <div class="stock-gallery-chip-row inline-program-action-row">
-                      <el-tag size="small" round effect="plain" :type="item.redeemable ? 'success' : 'info'">
-                        {{ item.redeemable ? '可兑换' : '不可兑换' }}
-                      </el-tag>
-                      <el-button
-                        size="small"
-                        plain
-                        type="danger"
-                        :loading="hidingProductId === item.id"
-                        @click="hideProduct(item)"
-                      >
-                        不感兴趣
-                      </el-button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="stock-gallery-core-row three-col-core-row">
-                <div class="stock-gallery-core-item">
-                  <span class="stock-core-label">价格</span>
-                  <span class="stock-core-value accent stock-price-value">{{ formatProductPrice(item) }}</span>
-                </div>
-                <div class="stock-gallery-core-item">
-                  <span class="stock-core-label">库存</span>
-                  <span class="stock-core-value">{{ item.stock ?? 0 }}</span>
-                </div>
-                <div class="stock-gallery-core-item compact">
-                  <span class="stock-core-label">最高分</span>
-                  <span class="stock-core-value accent">{{ item.maxUserPoints }}</span>
-                </div>
-              </div>
-            </div>
-          </article>
+          <StockProductCard
+            v-for="item in visibleProducts"
+            :key="`${item.program_id}-${item.product_id}`"
+            :item="item"
+            :hiding="hidingProductId === item.id"
+            @hide="hideProduct"
+          />
         </div>
 
         <div v-if="totalResults" class="stock-pagination-row stock-infinite-row">
@@ -507,6 +457,7 @@
 import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
+import StockProductCard from '../components/StockProductCard.vue'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
 import { getApiErrorMessage } from '../utils/apiError'
@@ -1242,24 +1193,6 @@ onMounted(async () => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
-.stock-gallery-item {
-  display: grid;
-  grid-template-columns: 168px minmax(0, 1fr);
-  gap: 18px;
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
-  align-items: stretch;
-}
-.stock-gallery-image-wrap {
-  position: relative;
-  width: 168px;
-  height: 168px;
-  flex: 0 0 168px;
-}
-.stock-gallery-image,
-.stock-gallery-image-empty,
 .stock-detail-image,
 .stock-detail-image-empty,
 .hidden-product-thumb,
@@ -1269,7 +1202,6 @@ onMounted(async () => {
   border-radius: 18px;
   object-fit: cover;
 }
-.stock-gallery-image-empty,
 .stock-detail-image-empty,
 .hidden-product-thumb-empty {
   display: flex;
@@ -1278,119 +1210,6 @@ onMounted(async () => {
   background: rgba(250, 240, 224, 0.9);
   color: #9b7e5c;
   font-size: 13px;
-}
-.stock-gallery-image-mask {
-  position: absolute;
-  left: 8px;
-  bottom: 8px;
-}
-.stock-gallery-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.stock-gallery-top-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-}
-.stock-gallery-title-block {
-  min-width: 0;
-  flex: 1;
-}
-.stock-gallery-title {
-  margin: 0;
-  font-size: 18px;
-  line-height: 1.45;
-  color: #3a2a1d;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.stock-gallery-program-name {
-  color: #8f7658;
-  font-size: 13px;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.merged-program-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-}
-.inline-program-action-row {
-  margin-top: 0;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-}
-.stock-gallery-actions {
-  flex: 0 0 auto;
-}
-.stock-gallery-core-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-.two-col-core-row {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.three-col-core-row {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.stock-gallery-core-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: rgba(255, 252, 247, 0.9);
-  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
-}
-.stock-gallery-core-item.compact {
-  background: rgba(255, 245, 229, 0.78);
-}
-.stock-core-label {
-  color: #a08668;
-  font-size: 12px;
-  line-height: 1;
-}
-.stock-core-value {
-  color: #5f4932;
-  font-size: 20px;
-  line-height: 1.1;
-  font-weight: 800;
-}
-.stock-core-value.accent {
-  color: #a16207;
-}
-.stock-price-value {
-  font-size: 15px;
-  line-height: 1.25;
-  word-break: break-word;
-}
-.stock-gallery-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-top: 12px;
-}
-.simplified-chip-row {
-  margin-top: 12px;
-}
-.under-stock-row {
-  justify-content: flex-start;
-}
-.ordered-action-row {
-  gap: 10px;
 }
 .stock-pagination-row {
   margin-top: 18px;
@@ -1603,21 +1422,6 @@ onMounted(async () => {
 
   .stock-gallery-list {
     grid-template-columns: 1fr;
-  }
-
-  .stock-gallery-item {
-    grid-template-columns: 1fr;
-  }
-
-  .stock-gallery-image-wrap {
-    width: 100%;
-    height: 220px;
-    flex-basis: auto;
-  }
-
-  .stock-gallery-image,
-  .stock-gallery-image-empty {
-    height: 220px;
   }
 
   .stock-detail-grid {
