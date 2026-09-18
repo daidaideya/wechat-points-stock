@@ -824,11 +824,13 @@ import {
 } from '../utils/product'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useProgramFilters } from '../composables/useProgramFilters'
+import { usePageStateCache } from '../composables/usePageStateCache'
 
 const router = useRouter()
 const route = useRoute()
 const pageSize = 20
 const loadMoreSentinel = ref(null)
+const programsPageStateCache = usePageStateCache({ version: 2, ttlMs: 15 * 60 * 1000 })
 
 // Reuse this page for both 小程序列表 (kind=mini) and APP列表 (kind=app).
 const listKind = computed(() => (route.meta?.listKind === 'app' ? 'app' : 'mini'))
@@ -901,6 +903,8 @@ const customTagInput = ref('')
 const stockData = ref(null)
 
 let restoringState = false
+let programsRequestController = null
+let programsRequestSequence = 0
 
 const TOUCH_LAYOUT_MAX = 768
 const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -1037,24 +1041,13 @@ function savePageState() {
     qlStatusFilter: qlStatusFilter.value,
     sortFilter: sortFilter.value,
     currentTag: currentTag.value,
-    programs: programs.value,
-    availableTags: availableTags.value,
-    total: total.value,
-    page: page.value,
-    hasMore: hasMore.value,
     scrollY: window.scrollY || window.pageYOffset || 0,
   }
-  sessionStorage.setItem(PROGRAMS_PAGE_STATE_KEY.value, JSON.stringify(state))
+  programsPageStateCache.save(PROGRAMS_PAGE_STATE_KEY.value, state)
 }
 
 function readPageState() {
-  try {
-    const raw = sessionStorage.getItem(PROGRAMS_PAGE_STATE_KEY.value)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
+  return programsPageStateCache.read(PROGRAMS_PAGE_STATE_KEY.value)
 }
 
 async function restorePageState() {
@@ -1068,16 +1061,13 @@ async function restorePageState() {
   qlStatusFilter.value = state.qlStatusFilter || 'all'
   sortFilter.value = state.sortFilter || 'default'
   currentTag.value = state.currentTag || ''
-  programs.value = Array.isArray(state.programs) ? state.programs : []
-  availableTags.value = Array.isArray(state.availableTags) ? state.availableTags : []
-  total.value = Number(state.total) || 0
-  page.value = Number(state.page) || 1
-  hasMore.value = Boolean(state.hasMore)
-  loadError.value = false
-  loading.value = false
-  loadingMore.value = false
+  programs.value = []
+  availableTags.value = []
+  total.value = 0
+  page.value = 1
+  hasMore.value = false
+  await fetchPrograms(1, false)
   await nextTick()
-  initInfiniteScroll()
   window.scrollTo({ top: Number(state.scrollY) || 0, behavior: 'auto' })
   restoringState = false
   return true
@@ -1248,9 +1238,18 @@ async function fetchPrograms(nextPage = 1, append = false) {
     loading.value = true
   }
 
+  const requestSequence = ++programsRequestSequence
+  if (!append) programsRequestController?.abort()
+  const controller = new AbortController()
+  programsRequestController = controller
+
   try {
     loadError.value = false
-    const { data } = await api.get('/programs', { params: buildProgramParams(nextPage) })
+    const { data } = await api.get('/programs', {
+      params: buildProgramParams(nextPage),
+      signal: controller.signal,
+    })
+    if (requestSequence !== programsRequestSequence) return
     total.value = data.total || 0
     hasMore.value = Boolean(data.has_more)
     page.value = data.page || nextPage
@@ -1260,13 +1259,17 @@ async function fetchPrograms(nextPage = 1, append = false) {
     await nextTick()
     initInfiniteScroll()
   } catch (error) {
+    if (requestSequence !== programsRequestSequence || controller.signal.aborted || error?.code === 'ERR_CANCELED') return
     console.error(error)
     loadError.value = true
     if (!append) programs.value = []
     ElMessage.error(isAppList.value ? '加载 APP 列表失败' : '加载小程序列表失败')
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    if (requestSequence === programsRequestSequence) {
+      loading.value = false
+      loadingMore.value = false
+      programsRequestController = null
+    }
   }
 }
 
@@ -1589,6 +1592,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (!restoringState) savePageState()
+  programsRequestSequence += 1
+  programsRequestController?.abort()
   window.removeEventListener('resize', handleViewportResize)
 })
 </script>
