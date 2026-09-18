@@ -52,6 +52,131 @@ _PROCESS_LOCK_PATH = os.path.join("data", ".qinglong_scheduler.lock")
 # Prevent concurrent syncs (list trigger + scheduler + manual).
 _sync_inflight = False
 _sync_inflight_lock = threading.Lock()
+# ``requests.Session`` owns a connection pool but is not intended to be shared
+# concurrently between threads. Keep one Session per calling thread and track
+# them so application shutdown can close every pool deterministically.
+_http_session_local = threading.local()
+_http_sessions: Dict[int, requests.Session] = {}
+_http_sessions_lock = threading.Lock()
+
+
+def _new_qinglong_http_session() -> requests.Session:
+    """Create a no-retry connection pool for QingLong OpenAPI calls."""
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(
+        pool_connections=2,
+        pool_maxsize=2,
+        max_retries=0,
+        pool_block=True,
+    )
+    try:
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+    except BaseException:
+        session.close()
+        raise
+
+    with _http_sessions_lock:
+        _http_sessions[id(session)] = session
+    return session
+
+
+def _get_qinglong_http_session() -> requests.Session:
+    """Return the calling thread's reusable QingLong HTTP session."""
+    session = getattr(_http_session_local, "session", None)
+    if session is not None:
+        with _http_sessions_lock:
+            is_registered = _http_sessions.get(id(session)) is session
+        if is_registered:
+            return session
+        # A shutdown may have closed a Session created by another thread.
+        # Discard the stale thread-local reference before creating a fresh one.
+        try:
+            delattr(_http_session_local, "session")
+        except AttributeError:
+            pass
+
+    session = _new_qinglong_http_session()
+    _http_session_local.session = session
+    return session
+
+
+def _close_current_qinglong_http_session() -> None:
+    """Close the current thread's Session and forget its thread-local handle."""
+    session = getattr(_http_session_local, "session", None)
+    if session is None:
+        return
+    with _http_sessions_lock:
+        _http_sessions.pop(id(session), None)
+    try:
+        session.close()
+    except Exception:
+        # A broken/partially closed adapter must not prevent scheduler shutdown.
+        pass
+    finally:
+        try:
+            delattr(_http_session_local, "session")
+        except AttributeError:
+            pass
+
+
+def close_qinglong_http_sessions() -> None:
+    """Close all QingLong connection pools owned by this process.
+
+    Manual sync calls create a thread-local Session on demand and do not depend
+    on the scheduler being started. Clearing the registry also makes a later
+    manual call create a fresh Session instead of reusing a closed pool.
+    """
+    with _http_sessions_lock:
+        sessions = list(_http_sessions.values())
+        _http_sessions.clear()
+
+    current = getattr(_http_session_local, "session", None)
+    for session in sessions:
+        try:
+            session.close()
+        except Exception:
+            # Shutdown must not fail just because a pool was already closed.
+            pass
+
+    if current is not None:
+        try:
+            delattr(_http_session_local, "session")
+        except AttributeError:
+            pass
+
+
+def _redact_sensitive_text(value: Any, sensitive_values: Tuple[Optional[str], ...]) -> str:
+    """Return an exception-safe string without QingLong credentials."""
+    text = str(value)
+    for sensitive in sensitive_values:
+        if sensitive:
+            text = text.replace(str(sensitive), "[REDACTED]")
+    return text
+
+
+def _redacted_request_exception(
+    exc: requests.RequestException,
+    sensitive_values: Tuple[Optional[str], ...],
+) -> requests.RequestException:
+    """Preserve the requests exception type while removing secret text."""
+    message = _redact_sensitive_text(exc, sensitive_values)
+    try:
+        return exc.__class__(message)
+    except Exception:
+        return requests.RequestException(message)
+
+
+def _raise_for_status_without_secrets(
+    response: requests.Response,
+    sensitive_values: Tuple[Optional[str], ...],
+) -> None:
+    try:
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        # Do not re-attach the original response/request: their URL or headers
+        # can contain the client secret or bearer token.
+        raise _redacted_request_exception(exc, sensitive_values) from exc
 
 
 def normalize_auto_sync_minutes(value: Optional[int]) -> int:
@@ -169,15 +294,19 @@ def get_token(base_url: str, client_id: str, client_secret: str, force_refresh: 
             return token
 
     url = f"{base}/open/auth/token"
-    resp = requests.get(
-        url,
-        params={"client_id": client_id, "client_secret": client_secret},
-        timeout=15,
-    )
-    resp.raise_for_status()
+    try:
+        resp = _get_qinglong_http_session().get(
+            url,
+            params={"client_id": client_id, "client_secret": client_secret},
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        raise _redacted_request_exception(exc, (client_secret,)) from exc
+    _raise_for_status_without_secrets(resp, (client_secret,))
     body = resp.json()
     if body.get("code") != 200:
-        raise RuntimeError(body.get("message") or f"QingLong auth failed: {body}")
+        message = body.get("message") or "QingLong auth failed"
+        raise RuntimeError(_redact_sensitive_text(message, (client_secret,)))
     data = body.get("data") or {}
     token = data.get("token")
     if not token:
@@ -215,16 +344,22 @@ def update_cron_schedule(
         name = name if name is not None else cron.get("name")
         command = command if command is not None else cron.get("command")
     payload: Dict[str, Any] = {"id": cron_id, "name": name, "command": command, "schedule": schedule}
-    resp = requests.put(
-        url,
-        headers=headers,
-        json=payload,
-        timeout=20,
-    )
-    resp.raise_for_status()
+    try:
+        # The Session adapter is deliberately configured with max_retries=0:
+        # retrying this PUT could apply the schedule update more than once.
+        resp = _get_qinglong_http_session().put(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        raise _redacted_request_exception(exc, (token,)) from exc
+    _raise_for_status_without_secrets(resp, (token,))
     body = resp.json()
     if body.get("code") != 200:
-        raise RuntimeError(body.get("message") or f"QingLong update cron failed: {body}")
+        message = body.get("message") or "QingLong update cron failed"
+        raise RuntimeError(_redact_sensitive_text(message, (token,)))
 
 
 def list_crons(base_url: str, token: str) -> List[Dict[str, Any]]:
@@ -232,11 +367,20 @@ def list_crons(base_url: str, token: str) -> List[Dict[str, Any]]:
     url = f"{base}/open/crons"
     headers = {"Authorization": f"Bearer {token}"}
     # page/size 0 → full list in current QL versions
-    resp = requests.get(url, headers=headers, params={"page": 0, "size": 0}, timeout=30)
-    resp.raise_for_status()
+    try:
+        resp = _get_qinglong_http_session().get(
+            url,
+            headers=headers,
+            params={"page": 0, "size": 0},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        raise _redacted_request_exception(exc, (token,)) from exc
+    _raise_for_status_without_secrets(resp, (token,))
     body = resp.json()
     if body.get("code") != 200:
-        raise RuntimeError(body.get("message") or f"QingLong list crons failed: {body}")
+        message = body.get("message") or "QingLong list crons failed"
+        raise RuntimeError(_redact_sensitive_text(message, (token,)))
     data = body.get("data")
     if isinstance(data, dict):
         rows = data.get("data") or []
@@ -626,6 +770,7 @@ def _scheduler_loop(stop_event: threading.Event) -> None:
             if stop_event.wait(max(60, interval * 60)):
                 break
     finally:
+        _close_current_qinglong_http_session()
         _release_process_lock()
 
 
@@ -679,4 +824,6 @@ def stop_qinglong_scheduler(timeout: float = _SCHEDULER_JOIN_TIMEOUT) -> bool:
             _scheduler_stop_event = None
             _release_process_lock()
         _scheduler_started = False
-        return stopped
+    if stopped:
+        close_qinglong_http_sessions()
+    return stopped
