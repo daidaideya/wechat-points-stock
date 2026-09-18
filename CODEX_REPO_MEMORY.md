@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`8448007`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批和 Users 积分详情弹窗第七批；OPT-017 已完成共享层 Prettier 门禁第二批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
+- 快照提交：`5e290f1`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批和移动卡片第八批；OPT-017 已完成共享层 Prettier 门禁第二批和 Users 展示规则测试第三批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `24 passed`，`npm run lint` 通过
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `27 passed`，`npm run lint` 通过
 - CI：前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run build` 执行；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -82,6 +82,8 @@
 | `frontend/src/utils/cron.test.js` | QingLong cron 纯函数的 Node 内置单元测试 |
 | `frontend/src/utils/product.js` | 商品金额/价格格式化、可兑换判断和阻断文案等共享纯函数 |
 | `frontend/src/utils/product.test.js` | 商品共享纯函数的 Node 内置单元测试 |
+| `frontend/src/utils/user.js` | 用户手机号兼容判断、微信号/昵称主标识和确定性头像展示函数 |
+| `frontend/src/utils/user.test.js` | 用户身份展示规则和头像函数的 Node 内置单元测试 |
 | `frontend/src/composables/useInfiniteScroll.js` | 统一 IntersectionObserver 无限滚动观察、提前加载和卸载清理 |
 | `frontend/src/composables/useInfiniteScroll.test.js` | 无限滚动控制器的 Node 内置单元测试 |
 | `frontend/src/composables/useStockFilters.js` | Stock 页筛选状态、参数构造、现金上限和重置逻辑 |
@@ -99,6 +101,7 @@
 | `frontend/src/components/StockProductCard.vue` | Stock 页主库存列表的商品卡片展示；通过 `hide` 事件回到页面执行隐藏操作 |
 | `frontend/src/components/QinglongCronRow.vue` | QingLong 时间线单行的状态标签、执行时间、cron 表达式和编辑/排除操作展示；通过 `edit`、`toggle-exclude` 事件回到页面编排 |
 | `frontend/src/components/UserPointsDialog.vue` | Users 页积分详情的加载/空态、桌面表格、移动卡片和展示格式化；通过 `v-model` 接收弹窗状态 |
+| `frontend/src/components/UserMobileCard.vue` | Users 页移动端用户卡片展示；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
 | `frontend/src/utils/apiError.js` | Axios/API 错误载荷归一化和取消请求识别 |
 | `frontend/src/utils/apiError.test.js` | API 错误消息与取消请求解析的 Node 内置单元测试 |
 | `frontend/eslint.config.js` | ESLint 9 + Vue flat config，覆盖前端 JS/Vue 源码 |
@@ -407,9 +410,10 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `StockProductCard.vue` 负责 Stock 页标准化商品对象的图片、状态、价格、库存、最高积分和隐藏操作展示；`StockPage.vue` 保留请求、筛选、分页、商品标准化和隐藏 API，卡片通过 `hide` 事件回传。
 - `QinglongCronRow.vue` 负责 QingLong 时间线单行的禁用/排除/间隔状态、执行时间、cron 表达式和操作按钮展示；`QinglongCronsPage.vue` 保留 API、筛选、排除名单、新脚本时间建议和批量整理编排，组件通过 `edit`、`toggle-exclude` 事件回传。
 - `UserPointsDialog.vue` 负责 Users 页积分详情的加载态、空态、桌面/移动展示和积分/现金/日期格式化；`UsersPage.vue` 保留用户与积分详情 API、当前用户标题和弹窗状态编排，组件通过 `v-model` 接收可见性。
+- `frontend/src/utils/user.js` 统一处理 Users 页手机号兼容、微信号/昵称主标识和确定性头像展示；`UserMobileCard.vue` 负责移动卡片展示与操作事件，`UsersPage.vue` 继续持有列表容器、桌面表格和 Sortable 拖拽保存。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios 取消、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
-- 前端 Node 内置测试目前共 `24 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL 和 API 错误解析测试。
+- 前端 Node 内置测试目前共 `27 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析和 Users 身份展示规则测试。
 - `frontend/package.json` 提供 `npm test`、`npm run lint`、`npm run format:check` 和 `npm run build`；ESLint/Prettier 共享层格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
