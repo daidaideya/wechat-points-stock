@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`5623987`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批和 Settings 数据库备份/恢复区第十三批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批和 Settings 导入/刷新 pending 第七批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，设置其他写操作统一边界、复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`75b21ee`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批和基础设置区第十四批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批和 Settings 导入/刷新 pending 第七批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，设置其他写操作统一边界、复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
@@ -418,6 +418,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `UserDesktopTable.vue` 负责 Users 页桌面列、头像、排序句柄和操作按钮展示；`UsersPage.vue` 通过组件 ref 继续取得表格 DOM 给 Sortable 使用，并保留顺序持久化、失败回滚和移动端列表生命周期。
 - `UserEditDialog.vue` 负责 Users 页新增/编辑表单展示和字段更新事件；`UsersPage.vue` 保留表单初始化、字段白名单更新、微信号非空校验、保存 API、刷新和错误提示。
 - `SettingsDatabaseSection.vue` 负责 Settings 页数据库备份/恢复区段、导出按钮和文件选择器；文件选择器在派发文件事件后立即重置，`SettingsPage.vue` 保留确认、上传、pending、错误提示和成功刷新编排。
+- `SettingsGeneralSection.vue` 负责 Settings 页日志清理、访问保护状态、访问密钥输入和保存按钮展示；字段变更通过白名单 `update-field` 事件回传，`SettingsPage.vue` 保留校验、保存 API、会话轮换和成功刷新编排。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios/native abort、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - `frontend/src/composables/useAbortableRequest.js` 为 Dashboard、Favorites、Points、Users 列表/积分详情、ProgramDetail 和 Settings 读取提供“新请求取消旧请求、卸载取消、过期响应不写状态”的控制器；取消不会弹出错误，也不会由旧请求覆盖 loading 状态，Settings 的写操作仍保持显式 pending。
