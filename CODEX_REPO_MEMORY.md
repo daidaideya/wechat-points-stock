@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`189e5e1`（2026-09-18）
+- 快照提交：`39862ab`（2026-09-18）
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `17 passed`
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `21 passed`，`npm run lint` 通过
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
 - 部署：Dockerfile 使用 Node 构建前端、Python 运行阶段，镜像自带 `frontend/dist`，运行用户为非 root
@@ -87,6 +87,11 @@
 | `frontend/src/composables/useStockFilters.test.js` | Stock 页筛选 composable 的 Node 内置单元测试 |
 | `frontend/src/composables/useProgramFilters.js` | Programs/Apps 页筛选状态、参数构造、活动筛选标签和重置逻辑 |
 | `frontend/src/composables/useProgramFilters.test.js` | Programs/Apps 页筛选 composable 的 Node 内置单元测试 |
+| `frontend/src/composables/useAccessSession.js` | 旧版 localStorage access key 的安全读取与清理边界 |
+| `frontend/src/composables/useAccessSession.test.js` | 访问会话迁移边界的 Node 内置单元测试 |
+| `frontend/src/composables/usePageStateCache.js` | 带 schema 版本和 TTL 的 sessionStorage 页面状态缓存 |
+| `frontend/src/composables/usePageStateCache.test.js` | 页面状态缓存版本、TTL 和失效行为的 Node 内置单元测试 |
+| `frontend/eslint.config.js` | ESLint 9 + Vue flat config，覆盖前端 JS/Vue 源码 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
 | `scripts/api_template.py` | 给青龙/自写脚本复用的 `PointsReporter`、`StockReporter` |
 | `scripts/init_db.py` | 新库执行 `Base.metadata.create_all()` |
@@ -367,7 +372,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 
 - `api.js` 的 Axios baseURL 是 `/api/v1`；新登录流程依赖后端 HttpOnly Cookie，不把原始 access key 写入 localStorage。若旧版本残留 `site_access_key`，会暂时自动加 `X-Access-Key`，服务端成功迁移后前端清理它。
 - `router.js` 对页面导航做 access-status 检查，缓存 30 秒；`api.js` 对受保护 API 的 401 清理会话并触发跳转；保护开启且密钥无效时跳 `/access-gate`。
-- `ProgramsPage` 每页 20 条，用 `IntersectionObserver` 无限加载，并分别用 `sessionStorage` 保存小程序/APP 页面状态。
+- `ProgramsPage` 每页 20 条，用 `IntersectionObserver` 无限加载；离开页面时分别保存小程序/APP 的筛选条件和滚动位置，`usePageStateCache` 以 schema 版本和 15 分钟 TTL 约束缓存，返回时重新请求列表。
 - `useViewport()` 统一管理需要响应式更新的移动断点；青龙页使用 900px 断点，积分抽屉使用 768px 断点，组件卸载时会移除 resize 监听。
 - `QinglongCronsPage` 的排除名单保存在 `localStorage` 的 `ql_crons_excluded_names`，只影响前端一键整理，不写后端。
 - QingLong 新脚本时间建议由 `frontend/src/utils/cron.js` 计算：按当前脚本类型筛选，优先使用数字 ID 最大的启用任务作为基准，跳过排除名单和已占用分钟，并正确处理超过 60 分钟的小时进位；页面只负责 Vue 状态和交互编排。
@@ -379,7 +384,10 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `StockPage.vue` 通过 `frontend/src/composables/useStockFilters.js` 管理关键词、库存状态、标签、价格模式和现金上限；页面保留筛选后请求、缓存和结果展示。
 - 前端 Node 内置测试目前共 `14 passed`，其中包含 Stock 筛选参数和状态切换测试。
 - `ProgramsPage.vue` 与 `/apps` 共用 `frontend/src/composables/useProgramFilters.js` 管理搜索、状态、收藏、青龙状态、排序和标签筛选；页面保留 API 请求、分页、sessionStorage 恢复和归档/删除等业务编排。
-- 前端 Node 内置测试目前共 `17 passed`，其中包含 Programs/Apps 筛选参数、活动标签和重置测试。
+- `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
+- 前端 Node 内置测试目前共 `21 passed`，其中包含 Programs/Apps 筛选参数、访问会话和页面状态缓存版本/TTL 测试。
+- `frontend/package.json` 提供 `npm test`、`npm run lint` 和 `npm run build`；ESLint 已接入 CI 可复用命令，现有代码基线通过 lint。
+- 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
