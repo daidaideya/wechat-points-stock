@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`6ab9683`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批和 ProgramDetail/Settings 读取取消第五批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，设置写操作 pending、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`1eb9423`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批和移动导航可访问性第六批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，设置写操作 pending、复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
@@ -431,6 +431,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
+- `App.vue` 移动导航按钮带 `aria-expanded`/`aria-controls`，面板带 dialog label；打开后首焦点进入导航，Tab/Shift+Tab 循环，Escape/关闭后焦点回到打开按钮，相关行为由 Playwright smoke 断言。
 - Vite 自动导入 Vue/Vue Router API 和 Element Plus 组件及样式；图标仍需从 `@element-plus/icons-vue` 显式导入。
 
 ## 9. 时间、鉴权与并发
