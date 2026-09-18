@@ -51,6 +51,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SettingsDatabaseSection: typeof import('./components/SettingsDatabaseSection.vue')['default']
     SettingsGeneralSection: typeof import('./components/SettingsGeneralSection.vue')['default']
+    SettingsQinglongSection: typeof import('./components/SettingsQinglongSection.vue')['default']
     StockProductCard: typeof import('./components/StockProductCard.vue')['default']
     UserDesktopTable: typeof import('./components/UserDesktopTable.vue')['default']
     UserEditDialog: typeof import('./components/UserEditDialog.vue')['default']
