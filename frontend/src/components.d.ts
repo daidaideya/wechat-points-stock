@@ -43,6 +43,7 @@ declare module 'vue' {
     ElTimeSelect: typeof import('element-plus/es')['ElTimeSelect']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ProgramFilterBar: typeof import('./components/ProgramFilterBar.vue')['default']
+    ProgramMetricStrip: typeof import('./components/ProgramMetricStrip.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

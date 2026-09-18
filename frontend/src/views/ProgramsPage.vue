@@ -23,7 +23,12 @@
     />
 
     <section v-if="loading && programs.length === 0" class="showcase-grid skeleton-grid compact">
-      <el-card v-for="item in 6" :key="item" shadow="hover" class="program-card showcase-program-card skeleton-card compact">
+      <el-card
+        v-for="item in 6"
+        :key="item"
+        shadow="hover"
+        class="program-card showcase-program-card skeleton-card compact"
+      >
         <el-skeleton animated>
           <template #template>
             <el-skeleton-item variant="circle" style="width: 52px; height: 52px; margin-bottom: 18px" />
@@ -107,7 +112,10 @@
                 </el-tooltip>
               </div>
               <div class="showcase-card-meta-row compact-meta-row">
-                <span class="showcase-card-dot stock-dot" :class="{ active: isUpdatedToday(program.last_update_time) }"></span>
+                <span
+                  class="showcase-card-dot stock-dot"
+                  :class="{ active: isUpdatedToday(program.last_update_time) }"
+                ></span>
                 <span
                   class="showcase-card-id is-copyable"
                   :title="`${program.program_id}（点击复制 program_id）`"
@@ -117,11 +125,7 @@
                   @keydown.enter.prevent="copyProgramId(program)"
                   @keydown.space.prevent="copyProgramId(program)"
                 >{{ program.program_id }}</span>
-                <el-tooltip
-                  v-if="program.ql_schedule"
-                  :content="formatQlScheduleTooltip(program)"
-                  placement="top"
-                >
+                <el-tooltip v-if="program.ql_schedule" :content="formatQlScheduleTooltip(program)" placement="top">
                   <span class="ql-schedule-chip" :class="`is-${program.ql_status || 'unknown'}`">
                     <span class="ql-schedule-label">定时</span>
                     <code class="ql-schedule-code">{{ program.ql_schedule }}</code>
@@ -141,54 +145,7 @@
                 </span>
                 <span v-else class="showcase-chip warning inline-tag-chip">标签：未设置标签</span>
               </div>
-              <div v-if="hasStockMetric(program) || hasPointsMetric(program) || hasCashMetric(program) || hasStockChange(program)" class="showcase-card-stock-row">
-                <button
-                  v-if="hasStockMetric(program)"
-                  type="button"
-                  class="stock-count-display stock-count-button"
-                  :title="'查看库存'"
-                  @click="openStockDialog(program)"
-                >
-                  <span class="stock-count-icon">
-                    <el-icon><PriceTag /></el-icon>
-                  </span>
-                  <span class="stock-count-value">{{ formatProductCount(program) }}</span>
-                </button>
-                <span
-                  v-if="hasStockMetric(program) && (hasPointsMetric(program) || hasCashMetric(program))"
-                  class="stock-row-divider"
-                  aria-hidden="true"
-                ></span>
-                <div
-                  v-if="hasPointsMetric(program)"
-                  class="points-count-display"
-                  :title="`当前账号最高积分：${program.max_user_points}`"
-                >
-                  <span class="points-count-icon">
-                    <el-icon><Coin /></el-icon>
-                  </span>
-                  <span class="points-count-value">{{ formatMaxPoints(program) }}</span>
-                </div>
-                <span
-                  v-if="hasPointsMetric(program) && hasCashMetric(program)"
-                  class="stock-row-divider"
-                  aria-hidden="true"
-                ></span>
-                <div
-                  v-if="hasCashMetric(program)"
-                  class="points-count-display cash-count-display"
-                  :title="`当前账号最高现金：¥${program.max_user_cash}`"
-                >
-                  <span class="points-count-icon cash-count-icon">
-                    <el-icon><Wallet /></el-icon>
-                  </span>
-                  <span class="points-count-value">{{ formatMaxCash(program) }}</span>
-                </div>
-                <div v-if="hasStockChange(program)" class="showcase-card-change-row inline-change-row">
-                  <span v-if="program.stock_change?.added_count" class="showcase-chip success stock-change-chip">+{{ program.stock_change.added_count }}</span>
-                  <span v-if="program.stock_change?.removed_count" class="showcase-chip warning stock-change-chip">-{{ program.stock_change.removed_count }}</span>
-                </div>
-              </div>
+              <ProgramMetricStrip :program="program" @open-stock="openStockDialog(program)" />
             </div>
           </div>
         </div>
@@ -215,11 +172,7 @@
               <el-icon><Box /></el-icon>
               <span>库存</span>
             </button>
-            <button
-              type="button"
-              class="mobile-text-action detail-action"
-              @click="openDetailDialog(program)"
-            >
+            <button type="button" class="mobile-text-action detail-action" @click="openDetailDialog(program)">
               <el-icon><ArrowRight /></el-icon>
               <span>详情</span>
             </button>
@@ -227,13 +180,22 @@
 
           <div class="showcase-card-actions footer-actions ref-action-group">
             <el-tooltip content="编辑备注" placement="top" :disabled="isTouchLayout">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" title="编辑备注" @click="openNoteDialog(program)">
+              <button
+                type="button"
+                class="showcase-icon-button ref-action-button icon-plain-button"
+                title="编辑备注"
+                @click="openNoteDialog(program)"
+              >
                 <el-icon><EditPen /></el-icon>
               </button>
             </el-tooltip>
 
             <!-- Desktop-only icon for stock; mobile uses labeled button above -->
-            <el-tooltip :content="program.has_stock ? '查看库存' : '暂无库存可查看'" placement="top" :disabled="isTouchLayout">
+            <el-tooltip
+              :content="program.has_stock ? '查看库存' : '暂无库存可查看'"
+              placement="top"
+              :disabled="isTouchLayout"
+            >
               <span class="action-tooltip-wrap desktop-only-action">
                 <button
                   type="button"
@@ -248,7 +210,11 @@
               </span>
             </el-tooltip>
 
-            <el-tooltip :content="program.is_favorite ? '取消收藏' : '加入收藏'" placement="top" :disabled="isTouchLayout">
+            <el-tooltip
+              :content="program.is_favorite ? '取消收藏' : '加入收藏'"
+              placement="top"
+              :disabled="isTouchLayout"
+            >
               <button
                 type="button"
                 class="showcase-icon-button ref-action-button favorite-toggle ref-action-button-favorite icon-plain-button"
@@ -261,8 +227,17 @@
               </button>
             </el-tooltip>
 
-            <el-tooltip :content="(program.tags || []).length ? '编辑标签' : '添加标签'" placement="top" :disabled="isTouchLayout">
-              <button type="button" class="showcase-icon-button ref-action-button icon-plain-button" title="编辑标签" @click="openTagsDialog(program)">
+            <el-tooltip
+              :content="(program.tags || []).length ? '编辑标签' : '添加标签'"
+              placement="top"
+              :disabled="isTouchLayout"
+            >
+              <button
+                type="button"
+                class="showcase-icon-button ref-action-button icon-plain-button"
+                title="编辑标签"
+                @click="openTagsDialog(program)"
+              >
                 <el-icon><CollectionTag /></el-icon>
               </button>
             </el-tooltip>
@@ -328,7 +303,9 @@
             <div class="showcase-dialog-title">维护小程序备注</div>
             <div class="showcase-dialog-subtitle">为当前小程序补充说明，便于后续识别、分类和管理。</div>
           </div>
-          <div class="showcase-dialog-badge">{{ currentProgram?.program_name || currentProgram?.program_id || '当前小程序' }}</div>
+          <div class="showcase-dialog-badge">
+            {{ currentProgram?.program_name || currentProgram?.program_id || '当前小程序' }}
+          </div>
         </div>
 
         <div class="dialog-panel">
@@ -522,13 +499,7 @@
       </div>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button
-          v-if="detailData?.has_stock"
-          type="primary"
-          @click="openStockFromDetail"
-        >
-          查看库存
-        </el-button>
+        <el-button v-if="detailData?.has_stock" type="primary" @click="openStockFromDetail"> 查看库存 </el-button>
       </template>
     </el-dialog>
 
@@ -559,8 +530,12 @@
               最高现金 ¥{{ formatMoney(stockData.max_user_cash) }}
             </div>
             <div class="showcase-dialog-badge stock-badge success-badge">可兑换 {{ redeemableProductCount }}</div>
-            <div v-if="stockData?.stock_change?.added_count" class="showcase-dialog-badge stock-badge success-badge">+{{ stockData.stock_change.added_count }}</div>
-            <div v-if="stockData?.stock_change?.removed_count" class="showcase-dialog-badge stock-badge warning-badge">-{{ stockData.stock_change.removed_count }}</div>
+            <div v-if="stockData?.stock_change?.added_count" class="showcase-dialog-badge stock-badge success-badge">
+              +{{ stockData.stock_change.added_count }}
+            </div>
+            <div v-if="stockData?.stock_change?.removed_count" class="showcase-dialog-badge stock-badge warning-badge">
+              -{{ stockData.stock_change.removed_count }}
+            </div>
           </div>
         </div>
 
@@ -580,7 +555,11 @@
             <div class="stock-summary-card dialog-panel">
               <div class="stock-summary-label">当前最高用户现金</div>
               <div class="stock-summary-value">
-                {{ stockData?.max_user_cash == null || stockData?.max_user_cash === '' ? '—' : `¥${formatMoney(stockData.max_user_cash)}` }}
+                {{
+                  stockData?.max_user_cash == null || stockData?.max_user_cash === ''
+                    ? '—'
+                    : `¥${formatMoney(stockData.max_user_cash)}`
+                }}
               </div>
             </div>
             <div class="stock-summary-card dialog-panel">
@@ -618,7 +597,11 @@
             </button>
 
             <div v-show="stockChangeExpanded" class="stock-change-list">
-              <div v-for="item in stockData.changed_products" :key="`${item.change_type}-${item.product_id}`" class="stock-change-item">
+              <div
+                v-for="item in stockData.changed_products"
+                :key="`${item.change_type}-${item.product_id}`"
+                class="stock-change-item"
+              >
                 <div class="stock-change-main">
                   <span class="stock-change-name">{{ item.product_name }}</span>
                   <span class="stock-change-meta">{{ formatProductPrice(item) }}</span>
@@ -636,7 +619,11 @@
             <div class="stock-section-title-row">
               <div class="stock-section-title">当前在架商品</div>
               <div class="stock-section-hint">
-                按最高积分 {{ stockMaxUserPoints }}{{ stockMaxUserCash != null ? ` / 现金 ¥${formatMoney(stockMaxUserCash)}` : '' }} 判断：可兑换优先，不可兑换靠后
+                按最高积分 {{ stockMaxUserPoints
+                }}{{
+                  stockMaxUserCash != null ? ` / 现金 ¥${formatMoney(stockMaxUserCash)}` : ''
+                }}
+                判断：可兑换优先，不可兑换靠后
               </div>
             </div>
             <el-table
@@ -662,22 +649,10 @@
                 <template #default="scope">
                   <div class="stock-product-name-cell">
                     <span>{{ scope.row.product_name || '未命名商品' }}</span>
-                    <el-tag
-                      v-if="isProductRedeemable(scope.row)"
-                      size="small"
-                      type="success"
-                      effect="light"
-                      round
-                    >
+                    <el-tag v-if="isProductRedeemable(scope.row)" size="small" type="success" effect="light" round>
                       可兑换
                     </el-tag>
-                    <el-tag
-                      v-else
-                      size="small"
-                      type="info"
-                      effect="plain"
-                      round
-                    >
+                    <el-tag v-else size="small" type="info" effect="plain" round>
                       {{ getRedeemBlockedLabel(scope.row) }}
                     </el-tag>
                   </div>
@@ -695,10 +670,7 @@
               </el-table-column>
               <el-table-column label="差额" width="140">
                 <template #default="scope">
-                  <span
-                    class="stock-points-gap"
-                    :class="isProductRedeemable(scope.row) ? 'is-ok' : 'is-short'"
-                  >
+                  <span class="stock-points-gap" :class="isProductRedeemable(scope.row) ? 'is-ok' : 'is-short'">
                     {{ formatPointsGap(scope.row) }}
                   </span>
                 </template>
@@ -713,10 +685,21 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Box, CircleCheck, CircleClose, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Star, Wallet } from '@element-plus/icons-vue'
+import {
+  ArrowRight,
+  Box,
+  CircleCheck,
+  CircleClose,
+  Delete,
+  EditPen,
+  CollectionTag,
+  MoreFilled,
+  Star,
+} from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import api from '../api'
 import ProgramFilterBar from '../components/ProgramFilterBar.vue'
+import ProgramMetricStrip from '../components/ProgramMetricStrip.vue'
 import {
   formatMoney,
   formatProductPrice,
@@ -737,9 +720,7 @@ const programsPageStateCache = usePageStateCache({ version: 2, ttlMs: 15 * 60 * 
 const listKind = computed(() => (route.meta?.listKind === 'app' ? 'app' : 'mini'))
 const isAppList = computed(() => listKind.value === 'app')
 const entityLabel = computed(() => (isAppList.value ? 'APP' : '小程序'))
-const PROGRAMS_PAGE_STATE_KEY = computed(() =>
-  isAppList.value ? 'apps-page-state' : 'programs-page-state',
-)
+const PROGRAMS_PAGE_STATE_KEY = computed(() => (isAppList.value ? 'apps-page-state' : 'programs-page-state'))
 
 function isPhoneLike(value) {
   return /^1[3-9]\d{9}$/.test(String(value || '').trim())
@@ -880,7 +861,7 @@ const sortedStockProducts = computed(() => {
     // 可兑换优先
     if (aRedeemable !== bRedeemable) return aRedeemable ? -1 : 1
     // 有货优先于无货
-    if ((aStock > 0) !== (bStock > 0)) return aStock > 0 ? -1 : 1
+    if (aStock > 0 !== bStock > 0) return aStock > 0 ? -1 : 1
     // 可兑换：积分高的更“值钱”靠前；同积分时现金高的靠前
     if (aRedeemable && bRedeemable) {
       if (bPoints !== aPoints) return bPoints - aPoints
@@ -910,11 +891,14 @@ const quickTags = computed(() => {
 function normalizeTags(input) {
   const source = Array.isArray(input) ? input : String(input || '').split(',')
   const seen = new Set()
-  return source.map((item) => String(item || '').trim()).filter((item) => {
-    if (!item || seen.has(item)) return false
-    seen.add(item)
-    return true
-  }).slice(0, 20)
+  return source
+    .map((item) => String(item || '').trim())
+    .filter((item) => {
+      if (!item || seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+    .slice(0, 20)
 }
 
 function mergeTagsByUsage(...tagGroups) {
@@ -1018,50 +1002,11 @@ function formatDate(value) {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
-function formatProductCount(program) {
-  const count = Number(program?.product_count) || 0
-  return `${count}`
-}
-
-function formatMaxPoints(program) {
-  const value = Number(program?.max_user_points) || 0
-  if (value <= 0) return '0'
-  if (value >= 10000) return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}w`
-  if (value >= 1000) return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`
-  return `${value}`
-}
-
-function formatMaxCash(program) {
-  if (program?.max_user_cash == null || program?.max_user_cash === '') return '—'
-  const value = Number(program.max_user_cash)
-  if (Number.isNaN(value)) return '—'
-  if (value === 0) return '¥0'
-  return `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}`
-}
-
-function hasStockMetric(program) {
-  return Boolean(program?.has_stock) || Number(program?.product_count) > 0
-}
-
-function hasPointsMetric(program) {
-  const value = Number(program?.max_user_points)
-  return Number.isFinite(value) && value > 0
-}
-
-function hasCashMetric(program) {
-  if (program?.max_user_cash == null || program?.max_user_cash === '') return false
-  const value = Number(program.max_user_cash)
-  return Number.isFinite(value)
-}
-
 function formatQlScheduleTooltip(program) {
   const schedule = program?.ql_schedule || ''
   const name = program?.ql_cron_name
-  const statusText = program?.ql_status === 'disabled'
-    ? '已禁用'
-    : program?.ql_status === 'enabled'
-      ? '已启用'
-      : '未关联'
+  const statusText =
+    program?.ql_status === 'disabled' ? '已禁用' : program?.ql_status === 'enabled' ? '已启用' : '未关联'
   if (name) return `青龙定时（${statusText}）${name}：${schedule}`
   return `青龙定时（${statusText}）：${schedule}`
 }
@@ -1112,19 +1057,15 @@ function copyProgramId(program) {
   return copyText(program?.program_id, `已复制 program_id：${program?.program_id}`)
 }
 
-function hasStockChange(program) {
-  return Boolean((Number(program?.stock_change?.added_count) || 0) > 0 || (Number(program?.stock_change?.removed_count) || 0) > 0)
-}
-
 function isUpdatedToday(value) {
   if (!value) return false
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return false
 
   const now = new Date()
-  return date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate()
+  return (
+    date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+  )
 }
 
 async function fetchPrograms(nextPage = 1, append = false) {
@@ -1221,10 +1162,7 @@ async function loadMore() {
   await fetchPrograms(page.value + 1, true)
 }
 
-const {
-  observe: initInfiniteScroll,
-  disconnect: destroyInfiniteScroll,
-} = useInfiniteScroll({
+const { observe: initInfiniteScroll, disconnect: destroyInfiniteScroll } = useInfiniteScroll({
   target: loadMoreSentinel,
   canLoadMore: () => hasMore.value && !loadError.value,
   onLoadMore: loadMore,
@@ -1280,7 +1218,9 @@ async function promptCustomTag() {
       inputPattern: /\S+/,
       inputErrorMessage: '标签不能为空',
     })
-    const normalized = String(value || '').trim().slice(0, 20)
+    const normalized = String(value || '')
+      .trim()
+      .slice(0, 20)
     if (normalized) appendTag(normalized)
   } catch {
     // ignore
@@ -1288,7 +1228,9 @@ async function promptCustomTag() {
 }
 
 function addCustomTagFromInput() {
-  const normalized = String(customTagInput.value || '').trim().slice(0, 20)
+  const normalized = String(customTagInput.value || '')
+    .trim()
+    .slice(0, 20)
   if (!normalized) return
   appendTag(normalized)
   customTagInput.value = ''
@@ -1451,11 +1393,14 @@ function handleProgramCommand(command, program) {
   }
 }
 
-watch(() => programs.value.length, async (value) => {
-  if (!value || loadError.value) return
-  await nextTick()
-  initInfiniteScroll()
-})
+watch(
+  () => programs.value.length,
+  async (value) => {
+    if (!value || loadError.value) return
+    await nextTick()
+    initInfiniteScroll()
+  },
+)
 
 // Same component for /programs and /apps — reload when kind switches.
 watch(
@@ -1478,8 +1423,9 @@ onMounted(async () => {
   const queryStatus = typeof route.query.status === 'string' ? route.query.status : ''
   const hasExplicitStatusQuery = validStatus.has(queryStatus)
   const hasSavedState = Boolean(readPageState())
-  const shouldRestore = !hasExplicitStatusQuery && (route.query.restore === '1' || route.query.fromDetail === '1' || hasSavedState)
-  if (shouldRestore && await restorePageState()) {
+  const shouldRestore =
+    !hasExplicitStatusQuery && (route.query.restore === '1' || route.query.fromDetail === '1' || hasSavedState)
+  if (shouldRestore && (await restorePageState())) {
     return
   }
   if (hasExplicitStatusQuery) {
@@ -1513,8 +1459,14 @@ onBeforeUnmount(() => {
     linear-gradient(rgba(229, 209, 176, 0.16) 1px, transparent 1px),
     linear-gradient(90deg, rgba(229, 209, 176, 0.16) 1px, transparent 1px),
     linear-gradient(180deg, #fffaf0 0%, #fff7eb 100%);
-  background-size: 24px 24px, 24px 24px, 100% 100%;
-  background-position: 0 0, 0 0, 0 0;
+  background-size:
+    24px 24px,
+    24px 24px,
+    100% 100%;
+  background-position:
+    0 0,
+    0 0,
+    0 0;
 }
 
 /* Row-first grid so infinite-scroll order stays left→right, top→bottom
@@ -1543,7 +1495,10 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(239, 226, 208, 0.95);
   box-shadow: 0 8px 18px rgba(126, 98, 63, 0.05);
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .masonry-card:nth-child(3n) {
@@ -1733,82 +1688,12 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.showcase-card-stock-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
 .showcase-card-tag-row {
   display: flex;
   justify-content: flex-start;
   margin-top: 6px;
   min-width: 0;
   cursor: pointer;
-}
-
-.showcase-card-change-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.inline-change-row {
-  margin-top: 0;
-}
-
-.stock-count-display {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: #7c5833;
-}
-
-.stock-count-button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  transition: transform 0.18s ease, opacity 0.18s ease;
-}
-
-.stock-count-button:hover {
-  transform: translateY(-1px);
-}
-
-.stock-count-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.stock-count-button:focus-visible {
-  outline: 2px solid rgba(223, 159, 80, 0.45);
-  outline-offset: 4px;
-  border-radius: 12px;
-}
-
-.stock-count-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(255, 244, 221, 0.96), rgba(255, 237, 213, 0.9));
-  color: #b7791f;
-  box-shadow: inset 0 0 0 1px rgba(231, 202, 163, 0.72);
-}
-
-.stock-count-value {
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 800;
-  color: #a16207;
 }
 
 .ql-status-badge {
@@ -1883,61 +1768,6 @@ onBeforeUnmount(() => {
   color: inherit;
 }
 
-.cash-count-icon {
-  background: linear-gradient(135deg, rgba(236, 253, 245, 0.96), rgba(209, 250, 229, 0.9)) !important;
-  color: #047857 !important;
-  box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.72) !important;
-}
-
-.cash-count-display .points-count-value {
-  color: #047857;
-}
-
-/* 最高积分指标，紧挨商品数量按钮，配色用蓝绿调与橙色商品块区分 */
-.points-count-display {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: #1d6f6c;
-}
-
-.points-count-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(214, 240, 230, 0.96), rgba(189, 226, 220, 0.9));
-  color: #0f766e;
-  box-shadow: inset 0 0 0 1px rgba(155, 209, 198, 0.78);
-}
-
-.points-count-value {
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 800;
-  color: #0f766e;
-  font-variant-numeric: tabular-nums;
-}
-
-.points-count-display.is-empty {
-  opacity: 0.45;
-}
-
-.points-count-display.is-empty .points-count-value {
-  color: #6b7280;
-}
-
-.stock-row-divider {
-  width: 1px;
-  height: 22px;
-  background: linear-gradient(180deg, transparent, rgba(199, 169, 130, 0.45), transparent);
-  margin: 0 4px;
-  flex: 0 0 auto;
-}
-
 .showcase-card-tag-inline {
   display: flex;
   justify-content: flex-end;
@@ -1961,15 +1791,6 @@ onBeforeUnmount(() => {
   font-size: 12px;
   line-height: 1.35;
   font-weight: 600;
-}
-
-.stock-count-chip {
-  font-weight: 700;
-}
-
-.stock-change-chip {
-  min-width: 40px;
-  justify-content: center;
 }
 
 .showcase-card-id {
@@ -2626,7 +2447,11 @@ onBeforeUnmount(() => {
   color: #8a6c4c;
   box-shadow: none;
   cursor: pointer;
-  transition: color 0.18s ease, transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    color 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
