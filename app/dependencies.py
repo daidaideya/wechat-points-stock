@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.access_control import get_access_client_id, ui_access_attempt_limiter
 from app.database import get_db
 from app.config import settings
+from app.security import verify_access_key_hash
 
 security = HTTPBearer()
 
@@ -67,7 +68,20 @@ def is_valid_ui_access_session(
     return hmac.compare_digest(parts[2], expected_signature)
 
 
-def is_valid_ui_access_key(provided_key: Optional[str], stored_key: Optional[str]) -> bool:
+def get_ui_access_credentials(settings_row):
+    """Return legacy key, hashed key, and the session-signing credential."""
+    stored_key = (getattr(settings_row, "access_key", None) or "").strip()
+    stored_key_hash = (getattr(settings_row, "access_key_hash", None) or "").strip()
+    return stored_key, stored_key_hash, stored_key_hash or stored_key
+
+
+def is_valid_ui_access_key(
+    provided_key: Optional[str],
+    stored_key: Optional[str] = None,
+    stored_key_hash: Optional[str] = None,
+) -> bool:
+    if stored_key_hash:
+        return verify_access_key_hash(provided_key, stored_key_hash)
     normalized_stored_key = (stored_key or "").strip()
     if not normalized_stored_key:
         return False
@@ -90,10 +104,19 @@ def clear_ui_access_cookie(response):
     response.delete_cookie(ACCESS_SESSION_COOKIE, path="/")
 
 
-def enforce_ui_access_rate_limit(request: Request) -> None:
+def _record_ui_access_audit(db: Optional[Session], request: Request, event_type: str):
+    if db is None:
+        return
+    from app.services import cleanup_service
+
+    cleanup_service.record_access_audit(db, request, event_type)
+
+
+def enforce_ui_access_rate_limit(request: Request, db: Optional[Session] = None) -> None:
     client_id = get_access_client_id(request)
     retry_after = ui_access_attempt_limiter.retry_after(client_id)
     if retry_after:
+        _record_ui_access_audit(db, request, "access_rate_limited")
         raise HTTPException(
             status_code=429,
             detail="访问密钥错误次数过多，请稍后重试",
@@ -101,8 +124,9 @@ def enforce_ui_access_rate_limit(request: Request) -> None:
         )
 
 
-def record_ui_access_failure(request: Request) -> None:
+def record_ui_access_failure(request: Request, db: Optional[Session] = None) -> None:
     ui_access_attempt_limiter.record_failure(get_access_client_id(request))
+    _record_ui_access_audit(db, request, "access_failed")
 
 
 def clear_ui_access_failures(request: Request) -> None:
@@ -144,19 +168,20 @@ def require_ui_access(
     if settings_row.access_protection_enabled != 1:
         return
 
-    stored_key = (settings_row.access_key or "").strip()
-    if not stored_key:
+    stored_key, stored_key_hash, credential_secret = get_ui_access_credentials(settings_row)
+    if not credential_secret:
         raise HTTPException(status_code=403, detail="已开启访问保护，但尚未设置访问密钥")
-    if is_valid_ui_access_session(access_session, stored_key):
+    if is_valid_ui_access_session(access_session, credential_secret):
         clear_ui_access_failures(request)
         return
     if x_access_key:
-        enforce_ui_access_rate_limit(request)
-    if is_valid_ui_access_key(x_access_key, stored_key):
+        enforce_ui_access_rate_limit(request, db)
+    if is_valid_ui_access_key(x_access_key, stored_key, stored_key_hash):
         clear_ui_access_failures(request)
+        _record_ui_access_audit(db, request, "access_header_accepted")
         return
     if x_access_key:
-        record_ui_access_failure(request)
+        record_ui_access_failure(request, db)
         raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
     raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
 

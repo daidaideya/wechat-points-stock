@@ -24,6 +24,7 @@ from app.dependencies import (
 from app.main import health_live, health_ready, resolve_frontend_asset
 from app.routers import stock, web
 from app.routers import images
+from app.security import hash_access_key, verify_access_key_hash
 from app.services import cleanup_service
 
 
@@ -98,6 +99,50 @@ def test_ui_access_session_is_signed_short_lived_and_bound_to_key():
     )
 
 
+def test_access_key_migration_hashes_and_clears_legacy_plaintext():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    db.add(models.SystemSettings(
+        access_protection_enabled=1,
+        access_key="legacy-secret",
+    ))
+    db.commit()
+
+    cleanup_service.ensure_system_settings_columns(db)
+    migrated = db.query(models.SystemSettings).first()
+
+    assert migrated.access_key is None
+    assert migrated.access_key_hash.startswith("pbkdf2_sha256$")
+    assert verify_access_key_hash("legacy-secret", migrated.access_key_hash)
+    assert not verify_access_key_hash("wrong-secret", migrated.access_key_hash)
+    assert db.query(models.AccessAuditEvent).count() == 0
+
+    db.close()
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+def test_hashed_ui_access_key_is_accepted_and_signed_session_uses_hash(monkeypatch):
+    stored_hash = hash_access_key("ui-secret")
+    access_settings = SimpleNamespace(
+        access_protection_enabled=1,
+        access_key=None,
+        access_key_hash=stored_hash,
+    )
+    monkeypatch.setattr(cleanup_service, "get_or_create_settings", lambda _db: access_settings)
+    request = make_request("/api/v1/accounts")
+
+    assert require_ui_access(request, "ui-secret", object()) is None
+    session = create_ui_access_session(stored_hash, now=1000)
+    assert is_valid_ui_access_session(session, stored_hash, now=1000)
+
+
 def test_ui_access_failure_limiter_blocks_and_can_be_cleared():
     limiter = AccessAttemptLimiter(window_seconds=60, max_failures=3, lockout_seconds=120)
 
@@ -162,6 +207,66 @@ def test_log_settings_does_not_clear_existing_access_key_on_empty_field(monkeypa
     )
 
     assert access_settings.access_key == "ui-secret"
+
+
+def test_log_settings_stores_new_access_key_as_hash(monkeypatch):
+    access_settings = SimpleNamespace(
+        max_log_entries=100,
+        max_retention_days=30,
+        access_protection_enabled=1,
+        access_key="old-secret",
+        access_key_hash=None,
+        updated_at=None,
+    )
+
+    class FakeDB:
+        def add(self, _value):
+            return None
+
+        def commit(self):
+            return None
+
+    monkeypatch.setattr(cleanup_service, "get_or_create_settings", lambda _db: access_settings)
+    monkeypatch.setattr(cleanup_service, "prune_points_history", lambda *args: None)
+    monkeypatch.setattr(cleanup_service, "prune_stock_history", lambda *args: None)
+
+    web.update_log_settings(
+        web.LogSettingsUpdate(
+            max_log_entries=200,
+            max_retention_days=60,
+            access_protection_enabled=True,
+            access_key="new-secret",
+        ),
+        FakeDB(),
+    )
+
+    assert access_settings.access_key is None
+    assert verify_access_key_hash("new-secret", access_settings.access_key_hash)
+
+
+def test_access_audit_persists_without_credential_material():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    request = make_request("/api/v1/access/verify")
+    request.state.request_id = "request-123"
+
+    cleanup_service.record_access_audit(db, request, "access_verified")
+    event = db.query(models.AccessAuditEvent).one()
+
+    assert event.event_type == "access_verified"
+    assert event.client_id == "testclient"
+    assert event.request_id == "request-123"
+    assert not hasattr(event, "access_key")
+
+    db.close()
+    Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
 def test_frontend_asset_resolution_blocks_traversal():

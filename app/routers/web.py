@@ -25,6 +25,7 @@ from app.dependencies import (
     clear_ui_access_cookie,
     clear_ui_access_failures,
     enforce_ui_access_rate_limit,
+    get_ui_access_credentials,
     is_valid_ui_access_key,
     is_valid_ui_access_session,
     record_ui_access_failure,
@@ -32,6 +33,7 @@ from app.dependencies import (
     set_ui_access_cookie,
 )
 from app.maintenance import database_maintenance
+from app.security import hash_access_key
 from app.services import bark_service, cleanup_service
 from app.services import qinglong_open_service
 
@@ -1018,24 +1020,25 @@ def get_access_status(
     """
     settings = cleanup_service.get_or_create_settings(db)
     enabled = settings.access_protection_enabled == 1
-    has_access_key = bool((settings.access_key or "").strip())
+    stored_key, stored_key_hash, credential_secret = get_ui_access_credentials(settings)
+    has_access_key = bool(credential_secret)
     protection_on = enabled and has_access_key
-    stored_key = (settings.access_key or "").strip()
 
     authenticated = False
     should_set_cookie = False
     if protection_on:
-        authenticated = is_valid_ui_access_session(access_session, stored_key)
+        authenticated = is_valid_ui_access_session(access_session, credential_secret)
         if authenticated:
             clear_ui_access_failures(request)
         if not authenticated and x_access_key:
-            enforce_ui_access_rate_limit(request)
-            if not is_valid_ui_access_key(x_access_key, stored_key):
-                record_ui_access_failure(request)
+            enforce_ui_access_rate_limit(request, db)
+            if not is_valid_ui_access_key(x_access_key, stored_key, stored_key_hash):
+                record_ui_access_failure(request, db)
                 raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
             authenticated = True
             should_set_cookie = True
             clear_ui_access_failures(request)
+            cleanup_service.record_access_audit(db, request, "access_header_accepted")
 
     response = JSONResponse(content={
         "enabled": protection_on,
@@ -1043,7 +1046,7 @@ def get_access_status(
         "authenticated": authenticated if protection_on else True,
     })
     if protection_on and authenticated and should_set_cookie:
-        set_ui_access_cookie(response, stored_key, secure=request.url.scheme == "https")
+        set_ui_access_cookie(response, credential_secret, secure=request.url.scheme == "https")
     elif not protection_on:
         clear_ui_access_cookie(response)
     return response
@@ -1057,22 +1060,23 @@ def verify_access_key(
 ):
     settings = cleanup_service.get_or_create_settings(db)
     enabled = settings.access_protection_enabled == 1
-    stored_key = (settings.access_key or "").strip()
+    stored_key, stored_key_hash, credential_secret = get_ui_access_credentials(settings)
 
-    if not enabled or not stored_key:
+    if not enabled or not credential_secret:
         response = JSONResponse(content={"status": "disabled"})
         clear_ui_access_cookie(response)
         clear_ui_access_failures(request)
         return response
 
-    enforce_ui_access_rate_limit(request)
-    if not is_valid_ui_access_key(payload.access_key, stored_key):
-        record_ui_access_failure(request)
+    enforce_ui_access_rate_limit(request, db)
+    if not is_valid_ui_access_key(payload.access_key, stored_key, stored_key_hash):
+        record_ui_access_failure(request, db)
         raise HTTPException(status_code=401, detail="访问密钥错误")
 
     clear_ui_access_failures(request)
+    cleanup_service.record_access_audit(db, request, "access_verified")
     response = JSONResponse(content={"status": "success"})
-    set_ui_access_cookie(response, stored_key, secure=request.url.scheme == "https")
+    set_ui_access_cookie(response, credential_secret, secure=request.url.scheme == "https")
     return response
 
 
@@ -1081,11 +1085,12 @@ def get_log_settings(
     db: Session = Depends(get_db),
 ):
     settings = cleanup_service.get_or_create_settings(db)
+    _stored_key, stored_key_hash, credential_secret = get_ui_access_credentials(settings)
     return {
         "max_log_entries": settings.max_log_entries,
         "max_retention_days": settings.max_retention_days,
         "access_protection_enabled": settings.access_protection_enabled == 1,
-        "access_key_configured": bool((settings.access_key or "").strip()),
+        "access_key_configured": bool(credential_secret or stored_key_hash),
         "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
     }
 
@@ -1106,7 +1111,8 @@ def update_log_settings(
         # rotating the key. Preserve the current key instead of silently
         # disabling protection during an unrelated settings save.
         if normalized_key:
-            settings.access_key = normalized_key
+            settings.access_key_hash = hash_access_key(normalized_key)
+            settings.access_key = None
 
     settings.updated_at = datetime.utcnow()
     db.add(settings)

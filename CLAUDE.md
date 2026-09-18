@@ -68,7 +68,7 @@ Backend regression tests live in `tests/` and run with `python -m pytest -q`; CI
 These do different things and should not be confused:
 
 1. **Bearer token** (`INGEST_TOKEN` from `.env`, with one-release `API_TOKEN` compatibility, checked by `app/dependencies.py:verify_token`). Protects QingLong ingest and image upload routers only: `/api/v1/qinglong/*`, `/api/v1/stock-report`, `/api/v1/upload/image`. Missing/default/short credentials fail startup. Used by external scripts (see `scripts/api_template.py`).
-2. **Access session** (signed `HttpOnly`/`SameSite=Lax` cookie bound to the key in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. `web` and `stock` routers use `require_ui_access` uniformly; only `/access/status` and `/access/verify` are public. A legacy `X-Access-Key` header is accepted only for migration, and the frontend redirects to `/access-gate` on a protected API 401.
+2. **Access session** (signed `HttpOnly`/`SameSite=Lax` cookie bound to the credential hash in `system_settings.access_key_hash`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. `web` and `stock` routers use `require_ui_access` uniformly; only `/access/status` and `/access/verify` are public. A legacy `X-Access-Key` header is accepted only for migration, and the frontend redirects to `/access-gate` on a protected API 401. Existing plaintext `access_key` values are one-way migrated and cleared at startup.
 
 When adding a new UI API router, attach `Depends(require_ui_access)` unless it is deliberately public. Do not rely only on the Vue route guard.
 

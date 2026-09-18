@@ -376,9 +376,9 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 ### 9.2 两套不同鉴权
 
 1. Bearer `INGEST_TOKEN`：仅保护外部写入路由（积分/库存上报）和图片上传；暂时读取旧 `.env` 的 `API_TOKEN` 作为兼容别名。缺少、仍为 `default_token` 或少于 32 个字符时，应用启动失败。
-2. UI access session：人类用户界面锁的原始密钥保存在 `system_settings.access_key`，登录后签发 8 小时签名 HttpOnly Cookie。`web` 和 `stock` router 当前统一挂 `require_ui_access()`，只豁免 `/access/status`、`/access/verify`；旧 `X-Access-Key` 仅用于迁移，前端收到受保护 API 的 401 会清理会话并回到访问页。
+2. UI access session：人类用户界面锁现在只在 `system_settings.access_key_hash` 保存 PBKDF2-HMAC-SHA256 哈希；旧数据库中的 `system_settings.access_key` 会在启动时一次性哈希并清空。登录后签发绑定该哈希的 8 小时签名 HttpOnly Cookie。`web` 和 `stock` router 当前统一挂 `require_ui_access()`，只豁免 `/access/status`、`/access/verify`；旧 `X-Access-Key` 仅用于迁移，前端收到受保护 API 的 401 会清理会话并回到访问页。访问成功/失败/限流事件写入 `access_audit_events`，不保存提交的密钥。
 
-重要：当前仍把 access key 明文放在 SQLite；登录失败限流、审计日志和数据库内密钥哈希化仍是后续事项，不要把它当作长期安全边界。
+重要：数据库内 access key 已改为单向哈希，旧明文仅作为兼容迁移字段存在且启动迁移后清空；Cookie 会话使用哈希作为签名绑定材料。单进程失败限流已落地，多 worker/多实例仍需反向代理共享限流，审计保留策略和后台查看接口也仍可继续完善。
 
 ## 10. 运行与部署
 

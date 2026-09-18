@@ -10,7 +10,10 @@ class SystemSettings(Base):
     max_log_entries = Column(Integer, default=10000)
     max_retention_days = Column(Integer, default=30)
     access_protection_enabled = Column(Integer, default=0)
+    # Legacy plaintext field is retained only for one-way migration of old
+    # databases. New writes use access_key_hash and clear this field.
     access_key = Column(String(255), nullable=True)
+    access_key_hash = Column(String(255), nullable=True)
     # QingLong OpenAPI credentials (display-only cron enable/disable sync)
     ql_base_url = Column(String(255), nullable=True)
     ql_client_id = Column(String(100), nullable=True)
@@ -32,6 +35,23 @@ class SystemSettings(Base):
     bark_last_push_at = Column(DateTime, nullable=True)
     bark_last_push_status = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AccessAuditEvent(Base):
+    """Minimal persistent audit trail for UI access events.
+
+    Never store the submitted access key. ``client_id`` is currently the
+    requester's IP address and is intentionally kept separate from payload or
+    credential data so the audit trail stays low-cardinality and reviewable.
+    """
+
+    __tablename__ = "access_audit_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(40), nullable=False, index=True)
+    client_id = Column(String(128), nullable=True, index=True)
+    request_id = Column(String(128), nullable=True)
+    event_time = Column(DateTime, default=datetime.utcnow, index=True)
 
 class WechatAccount(Base):
     __tablename__ = "wechat_accounts"

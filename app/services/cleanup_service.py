@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app import models
+from app.security import hash_access_key
 from datetime import datetime, timedelta
 
 
@@ -8,6 +9,7 @@ def ensure_system_settings_columns(db: Session):
     expected_columns = {
         "access_protection_enabled": "ALTER TABLE system_settings ADD COLUMN access_protection_enabled INTEGER DEFAULT 0",
         "access_key": "ALTER TABLE system_settings ADD COLUMN access_key VARCHAR(255)",
+        "access_key_hash": "ALTER TABLE system_settings ADD COLUMN access_key_hash VARCHAR(255)",
         "ql_base_url": "ALTER TABLE system_settings ADD COLUMN ql_base_url VARCHAR(255)",
         "ql_client_id": "ALTER TABLE system_settings ADD COLUMN ql_client_id VARCHAR(100)",
         "ql_client_secret": "ALTER TABLE system_settings ADD COLUMN ql_client_secret VARCHAR(255)",
@@ -36,12 +38,64 @@ def ensure_system_settings_columns(db: Session):
         if column_name not in column_names
     ]
 
-    if not missing_statements:
-        return
+    if missing_statements:
+        for statement in missing_statements:
+            db.execute(text(statement))
+        db.commit()
 
-    for statement in missing_statements:
-        db.execute(text(statement))
-    db.commit()
+    _migrate_plaintext_access_keys(db)
+    ensure_access_audit_table(db)
+
+
+def ensure_access_audit_table(db: Session):
+    """Create the audit table for databases initialized before this model."""
+    models.AccessAuditEvent.__table__.create(bind=db.bind, checkfirst=True)
+
+
+def _migrate_plaintext_access_keys(db: Session):
+    """Convert legacy access keys to hashes and remove the plaintext copy."""
+    settings_rows = db.query(models.SystemSettings).all()
+    changed = False
+    for settings in settings_rows:
+        legacy_key = (getattr(settings, "access_key", None) or "").strip()
+        stored_hash = (getattr(settings, "access_key_hash", None) or "").strip()
+
+        if legacy_key and not stored_hash:
+            settings.access_key_hash = hash_access_key(legacy_key)
+            settings.access_key = None
+            changed = True
+        elif stored_hash and legacy_key:
+            # A partially completed deployment may have both fields. The hash
+            # is authoritative, so discard the redundant plaintext value.
+            settings.access_key = None
+            changed = True
+
+    if changed:
+        db.commit()
+
+
+def record_access_audit(db: Session, request, event_type: str):
+    """Persist a low-cardinality access event without ever storing a key."""
+    client = getattr(request, "client", None)
+    client_id = getattr(client, "host", None) or "unknown"
+    request_state = getattr(request, "state", None)
+    request_id = getattr(request_state, "request_id", None)
+    event = models.AccessAuditEvent(
+        event_type=str(event_type)[:40],
+        client_id=str(client_id)[:128],
+        request_id=str(request_id)[:128] if request_id else None,
+    )
+
+    try:
+        db.add(event)
+        db.commit()
+    except Exception:
+        # Authentication must remain available even if an audit write is
+        # temporarily unavailable. The failure is intentionally not logged
+        # with request data or credential material.
+        rollback = getattr(db, "rollback", None)
+        if rollback:
+            rollback()
 
 
 def ensure_points_history_columns(db: Session):
