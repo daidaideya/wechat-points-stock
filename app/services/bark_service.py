@@ -35,8 +35,8 @@ _SCHEDULER_JOIN_TIMEOUT = 10.0
 _http_session_local = threading.local()
 _http_sessions: Dict[int, requests.Session] = {}
 _http_sessions_lock = threading.Lock()
-# Cross-process lock so multi-worker uvicorn (Docker default used to be 2)
-# only runs one Bark scheduler instance.
+# Cross-process lock so explicitly configured multi-worker uvicorn processes
+# still run only one Bark scheduler instance.
 _process_lock_fh: Optional[TextIO] = None
 _PROCESS_LOCK_PATH = os.path.join("data", ".bark_scheduler.lock")
 

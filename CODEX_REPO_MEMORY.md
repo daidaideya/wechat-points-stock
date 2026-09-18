@@ -238,6 +238,7 @@ Authorization: Bearer <INGEST_TOKEN>
 |---|---|---|
 | `GET` | `/access/status` | 返回访问保护是否开启、是否已认证 |
 | `POST` | `/access/verify` | 验证访问密钥 |
+| `GET` | `/access/audit-events` | 受 UI 鉴权保护的访问审计分页查询；支持事件类型/IP 过滤，不返回密钥 |
 | `GET/POST` | `/settings/logs` | 日志数量/天数、访问保护和密钥 |
 | `GET/POST` | `/settings/qinglong` | QingLong URL、Client ID、Secret、同步模式/间隔 |
 | `POST` | `/settings/qinglong/sync` | 立即同步任务状态 |
@@ -328,6 +329,7 @@ Authorization: Bearer <INGEST_TOKEN>
 - 推送成功后写入 `bark_last_push_at/status`，同一当地日期不会重复自动推送
 - 手动测试可在自动推送关闭时执行，但仍需要 Device Key
 - 多 worker 使用 `data/.bark_scheduler.lock` 保证只有一个调度进程
+- Bark 外部请求按线程复用 `requests.Session` 连接池，超时 15 秒；明确关闭自动重试，避免重复通知，scheduler/shutdown 时释放连接池。
 
 ## 8. 前端页面与状态
 
@@ -379,7 +381,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 1. Bearer `INGEST_TOKEN`：仅保护外部写入路由（积分/库存上报）和图片上传；暂时读取旧 `.env` 的 `API_TOKEN` 作为兼容别名。缺少、仍为 `default_token` 或少于 32 个字符时，应用启动失败。
 2. UI access session：人类用户界面锁现在只在 `system_settings.access_key_hash` 保存 PBKDF2-HMAC-SHA256 哈希；旧数据库中的 `system_settings.access_key` 会在启动时一次性哈希并清空。登录后签发绑定该哈希的 8 小时签名 HttpOnly Cookie。`web` 和 `stock` router 当前统一挂 `require_ui_access()`，只豁免 `/access/status`、`/access/verify`；旧 `X-Access-Key` 仅用于迁移，前端收到受保护 API 的 401 会清理会话并回到访问页。访问成功/失败/限流事件写入 `access_audit_events`，不保存提交的密钥。
 
-重要：数据库内 access key 已改为单向哈希，旧明文仅作为兼容迁移字段存在且启动迁移后清空；Cookie 会话使用哈希作为签名绑定材料。生产 Docker 当前是单 worker，单进程失败限流覆盖当前实例；只有未来启用多 worker/多实例时才需要反向代理共享限流，审计保留策略和后台查看接口仍可继续完善。
+重要：数据库内 access key 已改为单向哈希，旧明文仅作为兼容迁移字段存在且启动迁移后清空；Cookie 会话使用哈希作为签名绑定材料。生产 Docker 当前是单 worker，单进程失败限流覆盖当前实例；UI 审计已支持低频保留和受保护分页查询，只有未来启用多 worker/多实例时才需要反向代理共享限流，高风险操作审计和指标仍可继续完善。
 
 ## 10. 运行与部署
 
@@ -451,7 +453,7 @@ docker compose up -d --build
 
 1. **`API_TOKEN` 曾随 Git 跟踪的 `.env` 出现。** 当前 `main` 已不再跟踪 `.env`，且可达历史中的 `.env`、运行时数据库和 `venv/` 已清理；本机旧凭据已轮换为 `INGEST_TOKEN`，记忆文档不复述任何 token。其他已部署环境仍需按各自发布流程确认轮换。
 2. **`INGEST_TOKEN` 仍保留旧 `API_TOKEN` 兼容读取。** 这是迁移窗口，不是永久双配置；后续文档、脚本统一后再删除别名。
-3. **UI access 已完成第一阶段会话化和单进程限流。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；SQLite 明文和审计保留/查询仍待处理。当前生产 Docker 是单 worker，不存在跨 worker 限流分散问题；未来扩容才需依赖反向代理共享限流。
+3. **UI access 已完成第一阶段会话化、单进程限流和基础审计治理。** 当前使用 8 小时签名 HttpOnly Cookie，旧 header 只用于迁移；UI 审计按默认 90 天/10,000 条低频清理，并由受保护 API 分页查询。当前生产 Docker 是单 worker，不存在跨 worker 限流分散问题；未来扩容才需依赖反向代理共享限流，高风险操作审计仍待补。
 4. **数据库恢复已加跨进程保护。** `app/maintenance.py` 使用数据库路径旁路锁，维护期间新 API 返回 503，并等待当前进程的 API/Bark/QingLong 数据库任务退出；恢复前 `wal_checkpoint(TRUNCATE)` 忙则中止，其他 worker 的在途事务由 checkpoint 兜底。真实文件恢复/回滚集成测试和更完整的调度暂停仍待补齐，不要把 `os.replace` 视作已完成全部恢复治理。
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。
@@ -461,6 +463,7 @@ docker compose up -d --build
 10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。上传像素限制、请求体/代理统一上限和校验审计仍待补。
 11. **SQLite 连接已开启外键约束。** `app/database.py` 对每个 SQLite 连接执行 `PRAGMA foreign_keys=ON`，现有 `PointsHistory` 账号/程序外键有回归测试；正式迁移、旧库孤儿清理、StockHistory 外键和级联策略仍待设计。
 12. **历史裁剪已避免 Python 侧尾部 ID 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；列表接口仍有全历史加载和快照表优化空间。
+13. **Bark HTTP 连接治理已补。** `bark_service.py` 按线程复用连接池，关闭自动重试并在 scheduler/shutdown 时释放；QingLong 外部 HTTP 连接复用、有限重试和退避仍待处理。
 
 ## 13. 后续接手时的推荐阅读顺序
 

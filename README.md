@@ -175,6 +175,7 @@
 - `POST /api/v1/settings/database/import`
 - `GET /api/v1/access/status`
 - `POST /api/v1/access/verify`
+- `GET /api/v1/access/audit-events`（受 UI 鉴权保护，支持分页和事件/IP 筛选）
 
 ### 库存
 
