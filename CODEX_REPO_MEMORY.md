@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`921528f`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批和 Bark 推送区第十六批，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批和 Settings 导入/刷新 pending 第七批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板和前端静态资源引用门禁第三批；OPT-016 当前余额快照第一批已落地，设置其他写操作统一边界、复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`b1149a1`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批和 Bark 推送区第十六批，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批和 Settings 页面级写操作 busy 边界第八批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板和前端静态资源引用门禁第三批；OPT-016 当前余额快照第一批已落地，复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `4 passed`，`npm run lint`、`npm run format:check`、`npm run check:resources` 和 `npm run build` 通过
 - CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run format:check` → `npm run build` 执行；独立 `frontend-e2e` job 安装 Chromium 后执行 `npm run test:e2e`；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -424,9 +424,10 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios/native abort、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - `frontend/src/composables/useAbortableRequest.js` 为 Dashboard、Favorites、Points、Users 列表/积分详情、ProgramDetail 和 Settings 读取提供“新请求取消旧请求、卸载取消、过期响应不写状态”的控制器；取消不会弹出错误，也不会由旧请求覆盖 loading 状态，Settings 的写操作仍保持显式 pending。
+- `SettingsPage.vue` 通过 `settingsBusy` 汇总读取、保存、同步、推送、导出和导入状态，并传给四个 Settings 区段；busy 期间锁定分区导航、刷新、表单控件和操作按钮，避免副作用请求并发覆盖状态。Playwright 有延迟保存 smoke 覆盖该边界。
 - 前端 Node 内置测试目前共 `30 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析、AbortError 和 Users 身份展示规则测试。
 - 2026-09-18 在临时 SQLite 数据库和随机本地 `INGEST_TOKEN` 上完成桌面浏览器 smoke：Dashboard、Programs、Apps、Users、Points、Stock、QingLong、Settings 均可加载主内容/空态；Users 新增用户空表单校验和 QingLong 未配置 OpenAPI 提示均符合预期，浏览器 console 无 error/warn。验证后服务已停止、临时数据库已删除。
-- 2026-09-18 新增 `frontend/playwright.config.js` 与 `frontend/e2e/smoke.spec.js`：API mock 下覆盖上述八个主路由、Users 空表单校验和 390px 移动导航开关，监听 console error/warn 与 pageerror；本地干净 `npm ci` 后 `npm run test:e2e` 为 `3 passed`，CI 使用独立 job 安装 Chromium。真实后端数据、跨浏览器和生产鉴权流程仍未纳入该 smoke。
+- 2026-09-18 新增 `frontend/playwright.config.js` 与 `frontend/e2e/smoke.spec.js`：API mock 下覆盖上述八个主路由、Settings 四个查询分区、Users 空表单校验、Settings 写操作 busy 边界和 390px 移动导航开关，监听 console error/warn 与 pageerror；本地干净 `npm ci` 后 `npm run test:e2e` 为 `4 passed`，CI 使用独立 job 安装 Chromium。真实后端数据、跨浏览器和生产鉴权流程仍未纳入该 smoke。
 - 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
 - `frontend/package.json` 提供 `npm test`、`npm run test:e2e`、`npm run lint`、`npm run format:check` 和 `npm run build`；ESLint/Prettier/Playwright 配置与用例格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
