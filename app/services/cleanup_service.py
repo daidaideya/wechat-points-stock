@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import select, text
 from app import models
 from app.security import hash_access_key
 from datetime import datetime, timedelta
@@ -140,32 +140,53 @@ def get_or_create_settings(db: Session) -> models.SystemSettings:
         db.refresh(settings)
     return settings
 
+def _prune_history_by_max_entries(
+    db: Session,
+    model,
+    timestamp_column,
+    max_entries: int,
+):
+    """Delete rows beyond the newest ``max_entries`` in the database.
+
+    Keep the tail selection as a SQL subquery instead of materializing every
+    ID after the offset in Python.  The primary-key tie-breaker makes the
+    result deterministic when multiple history rows share a timestamp.
+    ``Query.delete`` deliberately does not commit so callers retain the
+    existing transaction boundary.
+    """
+    if max_entries is None or max_entries <= 0:
+        return
+
+    ids_to_delete = (
+        select(model.id)
+        .order_by(timestamp_column.desc(), model.id.desc())
+        .offset(max_entries)
+    )
+    db.query(model).filter(model.id.in_(ids_to_delete)).delete(
+        synchronize_session=False
+    )
+
+
 def prune_points_history(db: Session, max_entries: int, max_days: int):
     if max_days is not None and max_days > 0:
         threshold = datetime.utcnow() - timedelta(days=max_days)
         db.query(models.PointsHistory).filter(models.PointsHistory.report_time < threshold).delete()
     if max_entries is not None and max_entries > 0:
-        # Check current count first to avoid expensive query if not needed
-        # But count() is also a query.
-        # The subquery approach is: get IDs beyond limit.
-        # If total < max_entries, offset returns empty.
-        ids_to_delete = [
-            r.id for r in db.query(models.PointsHistory.id)
-            .order_by(models.PointsHistory.report_time.desc())
-            .offset(max_entries).all()
-        ]
-        if ids_to_delete:
-            db.query(models.PointsHistory).filter(models.PointsHistory.id.in_(ids_to_delete)).delete(synchronize_session=False)
+        _prune_history_by_max_entries(
+            db,
+            models.PointsHistory,
+            models.PointsHistory.report_time,
+            max_entries,
+        )
 
 def prune_stock_history(db: Session, max_entries: int, max_days: int):
     if max_days is not None and max_days > 0:
         threshold = datetime.utcnow() - timedelta(days=max_days)
         db.query(models.StockHistory).filter(models.StockHistory.change_time < threshold).delete()
     if max_entries is not None and max_entries > 0:
-        ids_to_delete = [
-            r.id for r in db.query(models.StockHistory.id)
-            .order_by(models.StockHistory.change_time.desc())
-            .offset(max_entries).all()
-        ]
-        if ids_to_delete:
-            db.query(models.StockHistory).filter(models.StockHistory.id.in_(ids_to_delete)).delete(synchronize_session=False)
+        _prune_history_by_max_entries(
+            db,
+            models.StockHistory,
+            models.StockHistory.change_time,
+            max_entries,
+        )
