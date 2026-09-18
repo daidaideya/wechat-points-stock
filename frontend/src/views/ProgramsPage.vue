@@ -656,7 +656,7 @@
               v-if="stockData?.max_user_cash != null && stockData?.max_user_cash !== ''"
               class="showcase-dialog-badge stock-badge"
             >
-              最高现金 ¥{{ formatCashNumber(stockData.max_user_cash) }}
+              最高现金 ¥{{ formatMoney(stockData.max_user_cash) }}
             </div>
             <div class="showcase-dialog-badge stock-badge success-badge">可兑换 {{ redeemableProductCount }}</div>
             <div v-if="stockData?.stock_change?.added_count" class="showcase-dialog-badge stock-badge success-badge">+{{ stockData.stock_change.added_count }}</div>
@@ -680,7 +680,7 @@
             <div class="stock-summary-card dialog-panel">
               <div class="stock-summary-label">当前最高用户现金</div>
               <div class="stock-summary-value">
-                {{ stockData?.max_user_cash == null || stockData?.max_user_cash === '' ? '—' : `¥${formatCashNumber(stockData.max_user_cash)}` }}
+                {{ stockData?.max_user_cash == null || stockData?.max_user_cash === '' ? '—' : `¥${formatMoney(stockData.max_user_cash)}` }}
               </div>
             </div>
             <div class="stock-summary-card dialog-panel">
@@ -736,7 +736,7 @@
             <div class="stock-section-title-row">
               <div class="stock-section-title">当前在架商品</div>
               <div class="stock-section-hint">
-                按最高积分 {{ stockMaxUserPoints }}{{ stockMaxUserCash != null ? ` / 现金 ¥${formatCashNumber(stockMaxUserCash)}` : '' }} 判断：可兑换优先，不可兑换靠后
+                按最高积分 {{ stockMaxUserPoints }}{{ stockMaxUserCash != null ? ` / 现金 ¥${formatMoney(stockMaxUserCash)}` : '' }} 判断：可兑换优先，不可兑换靠后
               </div>
             </div>
             <el-table
@@ -816,6 +816,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowRight, Box, CircleCheck, CircleClose, Coin, Delete, EditPen, CollectionTag, MoreFilled, PriceTag, Search, Star, Wallet } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
+import {
+  formatMoney,
+  formatProductPrice,
+  getRedeemBlockedLabel as getProductRedeemBlockedLabel,
+  isRedeemable,
+} from '../utils/product'
 
 const router = useRouter()
 const route = useRoute()
@@ -930,45 +936,12 @@ const stockMaxUserCash = computed(() => {
   return Number.isNaN(num) ? null : num
 })
 
-function formatCashNumber(value) {
-  const amount = Number(value)
-  if (Number.isNaN(amount)) return '0'
-  return amount.toFixed(2).replace(/\.?0+$/, '')
-}
-
-function formatProductPrice(product) {
-  const points = Number(product?.points) || 0
-  const cash = Number(product?.cash) || 0
-  if (cash > 0 && points > 0) return `${points} 积分 + ¥${formatCashNumber(cash)}`
-  if (cash > 0) return `¥${formatCashNumber(cash)}`
-  return `${points} 积分`
-}
-
 function isProductRedeemable(product, maxPoints = stockMaxUserPoints.value, maxCash = stockMaxUserCash.value) {
-  const needPoints = Number(product?.points) || 0
-  const needCash = Number(product?.cash) || 0
-  const stock = Number(product?.stock) || 0
-  if (stock <= 0) return false
-  if (needPoints > maxPoints) return false
-  // 积分加钱购：现金维度也要够；没有上报过现金时，需要钱的商品视为不可兑。
-  if (needCash > 0) {
-    if (maxCash == null) return false
-    if (needCash > maxCash) return false
-  }
-  return true
+  return isRedeemable(product, maxPoints, maxCash)
 }
 
 function getRedeemBlockedLabel(product, maxPoints = stockMaxUserPoints.value, maxCash = stockMaxUserCash.value) {
-  const stock = Number(product?.stock) || 0
-  if (stock <= 0) return '无货'
-  const needPoints = Number(product?.points) || 0
-  const needCash = Number(product?.cash) || 0
-  const pointsShort = needPoints > maxPoints
-  const cashShort = needCash > 0 && (maxCash == null || needCash > maxCash)
-  if (pointsShort && cashShort) return '积分/现金不足'
-  if (cashShort) return '现金不足'
-  if (pointsShort) return '积分不足'
-  return '不可兑换'
+  return getProductRedeemBlockedLabel(product, maxPoints, maxCash)
 }
 
 const sortedStockProducts = computed(() => {
@@ -1537,8 +1510,8 @@ function formatPointsGap(product) {
   const parts = []
   if (needPoints > maxPoints) parts.push(`积分差 ${needPoints - maxPoints}`)
   if (needCash > 0) {
-    if (maxCash == null) parts.push(`需现金 ¥${formatCashNumber(needCash)}`)
-    else if (needCash > maxCash) parts.push(`现金差 ¥${formatCashNumber(needCash - maxCash)}`)
+    if (maxCash == null) parts.push(`需现金 ¥${formatMoney(needCash)}`)
+    else if (needCash > maxCash) parts.push(`现金差 ¥${formatMoney(needCash - maxCash)}`)
   }
   return parts.length ? parts.join(' / ') : '不可兑'
 }

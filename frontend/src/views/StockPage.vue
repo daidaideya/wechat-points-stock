@@ -122,7 +122,7 @@
                       :class="{ active: isCashCapPresetActive(preset) }"
                       @click="applyCashCapPreset(preset)"
                     >
-                      ≤ ¥{{ formatCashNumber(preset) }}
+                      ≤ ¥{{ formatMoney(preset) }}
                     </button>
                     <button
                       type="button"
@@ -508,6 +508,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
+import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
 
 const PAGE_SIZE = 20
 const STOCK_CACHE_TTL = 60 * 1000
@@ -568,19 +569,13 @@ let stockCenterRequestKey = ''
 let stockCenterAbortController = null
 let stockLoadSequence = 0
 
-function formatCashNumber(value) {
-  const amount = Number(value)
-  if (Number.isNaN(amount)) return '0'
-  return amount.toFixed(2).replace(/\.?0+$/, '')
-}
-
 const summary = computed(() => serverSummary.value)
 
 const priceModeLabel = computed(() => {
   if (priceMode.value === 'points_only') return '纯积分'
   if (priceMode.value === 'points_plus_cash') {
     if (cashCapValue.value == null) return '积分加钱购 · 不限金额'
-    return `积分加钱购 · ≤ ¥${formatCashNumber(cashCapValue.value)}`
+    return `积分加钱购 · ≤ ¥${formatMoney(cashCapValue.value)}`
   }
   return '全部商品'
 })
@@ -599,21 +594,6 @@ function buildStatus(stock) {
   return { inStock: false, statusKey: 'out_of_stock', statusLabel: '无库存', statusTagType: 'danger' }
 }
 
-function formatCashAmount(value) {
-  if (value == null || value === '') return '—'
-  const amount = Number(value)
-  if (Number.isNaN(amount)) return '—'
-  return `¥${formatCashNumber(amount)}`
-}
-
-function formatProductPrice(product) {
-  const points = Number(product?.points || 0)
-  const cash = Number(product?.cash || 0)
-  if (cash > 0 && points > 0) return `${points} 积分 + ${formatCashAmount(cash)}`
-  if (cash > 0) return formatCashAmount(cash)
-  return `${points} 积分`
-}
-
 function normalizeProduct(item) {
   const status = buildStatus(item.stock)
   const maxUserPoints = Number(item.max_user_points ?? item.maxUserPoints ?? 0)
@@ -621,10 +601,7 @@ function normalizeProduct(item) {
   const maxUserCash = rawMaxCash == null || rawMaxCash === '' ? null : Number(rawMaxCash)
   const points = Number(item.points || 0)
   const cash = Number(item.cash || 0)
-  // 积分加钱购：积分与现金都要够（无现金上报时按 0 处理）。
-  const pointsOk = maxUserPoints >= points
-  const cashOk = cash <= 0 || (maxUserCash != null && !Number.isNaN(maxUserCash) && maxUserCash >= cash)
-  const redeemable = status.inStock && pointsOk && cashOk
+  const redeemable = isRedeemable(item, maxUserPoints, maxUserCash)
 
   return {
     ...item,
@@ -820,13 +797,13 @@ function applyCashCap() {
     return
   }
   cashCapValue.value = parsed
-  cashCapInput.value = parsed == null ? '' : formatCashNumber(parsed)
+  cashCapInput.value = parsed == null ? '' : formatMoney(parsed)
   void loadStockCenter({ forceRefresh: true })
 }
 
 function applyCashCapPreset(amount) {
   cashCapValue.value = amount
-  cashCapInput.value = formatCashNumber(amount)
+  cashCapInput.value = formatMoney(amount)
   if (priceMode.value !== 'points_plus_cash') {
     priceMode.value = 'points_plus_cash'
   }
