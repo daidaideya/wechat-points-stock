@@ -20,9 +20,7 @@ function readResponseHeader(error, name) {
 }
 
 function readRequestId(error) {
-  return String(
-    error?.response?.data?.request_id || readResponseHeader(error, 'X-Request-ID') || '',
-  ).trim()
+  return String(error?.response?.data?.request_id || readResponseHeader(error, 'X-Request-ID') || '').trim()
 }
 
 function readErrorText(value) {
@@ -44,13 +42,9 @@ export function getApiErrorMessage(error, fallback = '请求失败') {
   const kind = getApiErrorKind(error)
   const data = error?.response?.data
   const detail = readErrorText(data?.message) || readErrorText(data?.detail) || readErrorText(data)
-  const message = detail || (
-    kind === 'timeout'
-      ? `${fallback}（请求超时）`
-      : kind === 'network'
-        ? `${fallback}（网络不可用）`
-        : fallback
-  )
+  const message =
+    detail ||
+    (kind === 'timeout' ? `${fallback}（请求超时）` : kind === 'network' ? `${fallback}（网络不可用）` : fallback)
   const requestId = readRequestId(error)
   return requestId ? `${message}（请求 ID: ${requestId}）` : message
 }

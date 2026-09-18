@@ -25,12 +25,14 @@ export function useProgramFilters({ listKind = 'mini', pageSize = 20 } = {}) {
   const sortFilter = ref('default')
 
   const hasActiveFilters = computed(() => {
-    return Boolean(searchKeyword.value.trim())
-      || favoriteFilter.value !== 'all'
-      || Boolean(currentTag.value)
-      || statusFilter.value !== 'active'
-      || qlStatusFilter.value !== 'all'
-      || sortFilter.value !== 'default'
+    return (
+      Boolean(searchKeyword.value.trim()) ||
+      favoriteFilter.value !== 'all' ||
+      Boolean(currentTag.value) ||
+      statusFilter.value !== 'active' ||
+      qlStatusFilter.value !== 'all' ||
+      sortFilter.value !== 'default'
+    )
   })
 
   const activeFilterChips = computed(() => {

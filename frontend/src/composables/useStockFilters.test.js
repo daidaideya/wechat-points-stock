@@ -1,10 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import {
-  parseCashCapInput,
-  useStockFilters,
-} from './useStockFilters.js'
+import { parseCashCapInput, useStockFilters } from './useStockFilters.js'
 
 test('parses valid, blank, and invalid cash caps', () => {
   assert.equal(parseCashCapInput(''), null)

@@ -25,21 +25,27 @@ test('classifies transport failures and includes the backend request id', () => 
   assert.equal(getApiErrorKind({ code: 'ERR_NETWORK' }), 'network')
   assert.equal(getApiErrorMessage({ code: 'ERR_NETWORK' }, '加载失败'), '加载失败（网络不可用）')
   assert.equal(
-    getApiErrorMessage({
-      response: {
-        data: { detail: '服务异常', request_id: 'req-123' },
-        headers: {},
+    getApiErrorMessage(
+      {
+        response: {
+          data: { detail: '服务异常', request_id: 'req-123' },
+          headers: {},
+        },
       },
-    }, '加载失败'),
+      '加载失败',
+    ),
     '服务异常（请求 ID: req-123）',
   )
   assert.equal(
-    getApiErrorMessage({
-      response: {
-        data: { detail: '服务异常' },
-        headers: { 'X-Request-ID': 'req-header' },
+    getApiErrorMessage(
+      {
+        response: {
+          data: { detail: '服务异常' },
+          headers: { 'X-Request-ID': 'req-header' },
+        },
       },
-    }, '加载失败'),
+      '加载失败',
+    ),
     '服务异常（请求 ID: req-header）',
   )
 })

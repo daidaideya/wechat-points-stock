@@ -40,36 +40,120 @@
         <div class="filter-group">
           <span class="filter-group-label">状态</span>
           <div class="segmented-group">
-            <button type="button" class="segmented-item" :class="{ active: props.statusFilter === 'active' }" @click="onStatus('active')">活跃</button>
-            <button type="button" class="segmented-item" :class="{ active: props.statusFilter === 'archived' }" @click="onStatus('archived')">归档</button>
-            <button type="button" class="segmented-item" :class="{ active: props.statusFilter === 'all' }" @click="onStatus('all')">全部</button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.statusFilter === 'active' }"
+              @click="onStatus('active')"
+            >
+              活跃
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.statusFilter === 'archived' }"
+              @click="onStatus('archived')"
+            >
+              归档
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.statusFilter === 'all' }"
+              @click="onStatus('all')"
+            >
+              全部
+            </button>
           </div>
         </div>
 
         <div class="filter-group">
           <span class="filter-group-label">收藏</span>
           <div class="segmented-group">
-            <button type="button" class="segmented-item" :class="{ active: props.favoriteFilter === 'all' }" @click="onFavorite('all')">全部</button>
-            <button type="button" class="segmented-item" :class="{ active: props.favoriteFilter === 'favorite' }" @click="onFavorite('favorite')">收藏</button>
-            <button type="button" class="segmented-item" :class="{ active: props.favoriteFilter === 'unfavorite' }" @click="onFavorite('unfavorite')">未藏</button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.favoriteFilter === 'all' }"
+              @click="onFavorite('all')"
+            >
+              全部
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.favoriteFilter === 'favorite' }"
+              @click="onFavorite('favorite')"
+            >
+              收藏
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.favoriteFilter === 'unfavorite' }"
+              @click="onFavorite('unfavorite')"
+            >
+              未藏
+            </button>
           </div>
         </div>
 
         <div class="filter-group">
           <span class="filter-group-label">青龙</span>
           <div class="segmented-group">
-            <button type="button" class="segmented-item" :class="{ active: props.qlStatusFilter === 'all' }" @click="onQlStatus('all')">全部</button>
-            <button type="button" class="segmented-item" :class="{ active: props.qlStatusFilter === 'enabled' }" @click="onQlStatus('enabled')">启用</button>
-            <button type="button" class="segmented-item" :class="{ active: props.qlStatusFilter === 'disabled' }" @click="onQlStatus('disabled')">禁用</button>
-            <button type="button" class="segmented-item" :class="{ active: props.qlStatusFilter === 'unknown' }" @click="onQlStatus('unknown')">未关联</button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.qlStatusFilter === 'all' }"
+              @click="onQlStatus('all')"
+            >
+              全部
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.qlStatusFilter === 'enabled' }"
+              @click="onQlStatus('enabled')"
+            >
+              启用
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.qlStatusFilter === 'disabled' }"
+              @click="onQlStatus('disabled')"
+            >
+              禁用
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.qlStatusFilter === 'unknown' }"
+              @click="onQlStatus('unknown')"
+            >
+              未关联
+            </button>
           </div>
         </div>
 
         <div class="filter-group">
           <span class="filter-group-label">排序</span>
           <div class="segmented-group">
-            <button type="button" class="segmented-item" :class="{ active: props.sortFilter === 'default' }" @click="onSort('default')">默认</button>
-            <button type="button" class="segmented-item" :class="{ active: props.sortFilter === 'cron' }" @click="onSort('cron')">定时</button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.sortFilter === 'default' }"
+              @click="onSort('default')"
+            >
+              默认
+            </button>
+            <button
+              type="button"
+              class="segmented-item"
+              :class="{ active: props.sortFilter === 'cron' }"
+              @click="onSort('cron')"
+            >
+              定时
+            </button>
           </div>
         </div>
       </div>
@@ -82,12 +166,7 @@
         </div>
 
         <div class="tag-list content filter-tag-list showcase compact">
-          <button
-            type="button"
-            class="filter-chip"
-            :class="{ active: props.currentTag === '' }"
-            @click="onTag('')"
-          >
+          <button type="button" class="filter-chip" :class="{ active: props.currentTag === '' }" @click="onTag('')">
             全部
           </button>
           <button

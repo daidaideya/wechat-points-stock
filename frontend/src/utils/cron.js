@@ -60,7 +60,9 @@ export function expandField(field, minimum, maximum) {
 }
 
 export function parseDailyMinutes(schedule) {
-  const parts = String(schedule || '').trim().split(/\s+/)
+  const parts = String(schedule || '')
+    .trim()
+    .split(/\s+/)
   if (parts.length < 2) return []
 
   const minutes = expandField(parts[0], 0, 59)
@@ -116,22 +118,10 @@ function firstNumericHour(hourField) {
  * The helper is deliberately independent from Vue state so it can be tested
  * with fixtures and reused when the page is split into smaller components.
  */
-export function getNextCronSlot(
-  crons,
-  {
-    commandType = 'code',
-    intervalMinutes = 2,
-    isExcluded = () => false,
-  } = {},
-) {
+export function getNextCronSlot(crons, { commandType = 'code', intervalMinutes = 2, isExcluded = () => false } = {}) {
   let pool = (Array.isArray(crons) ? crons : []).filter((cron) => {
     const earliestMinute = Number(cron?.earliest_minute)
-    return (
-      cron?.is_disabled !== 1 &&
-      !isExcluded(cron) &&
-      Number.isFinite(earliestMinute) &&
-      earliestMinute < 24 * 60
-    )
+    return cron?.is_disabled !== 1 && !isExcluded(cron) && Number.isFinite(earliestMinute) && earliestMinute < 24 * 60
   })
 
   if (commandType === 'code') {
@@ -154,7 +144,9 @@ export function getNextCronSlot(
     return Number(cron.earliest_minute) > Number(best.earliest_minute) ? cron : best
   })
 
-  const fields = String(base.schedule || '').trim().split(/\s+/)
+  const fields = String(base.schedule || '')
+    .trim()
+    .split(/\s+/)
   if (fields.length < 5) {
     return emptyNextSlot(base.name || '', base.schedule || '')
   }
@@ -165,7 +157,9 @@ export function getNextCronSlot(
     new Set(
       pool
         .filter((cron) => {
-          const parts = String(cron.schedule || '').trim().split(/\s+/)
+          const parts = String(cron.schedule || '')
+            .trim()
+            .split(/\s+/)
           return parts.length >= 5 && parts[1] === hourField
         })
         .map((cron) => parseInt(String(cron.schedule).trim().split(/\s+/)[0], 10))

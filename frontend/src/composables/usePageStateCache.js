@@ -21,11 +21,14 @@ export function usePageStateCache({ version = 1, ttlMs = DEFAULT_TTL_MS, storage
   function save(key, state) {
     if (!pageStateStorage) return false
     try {
-      pageStateStorage.setItem(key, JSON.stringify({
-        ...state,
-        [SCHEMA_VERSION_KEY]: version,
-        [SAVED_AT_KEY]: now(),
-      }))
+      pageStateStorage.setItem(
+        key,
+        JSON.stringify({
+          ...state,
+          [SCHEMA_VERSION_KEY]: version,
+          [SAVED_AT_KEY]: now(),
+        }),
+      )
       return true
     } catch {
       return false
@@ -40,12 +43,7 @@ export function usePageStateCache({ version = 1, ttlMs = DEFAULT_TTL_MS, storage
       const parsed = JSON.parse(raw)
       const savedAt = Number(parsed?.[SAVED_AT_KEY])
       const age = now() - savedAt
-      if (
-        parsed?.[SCHEMA_VERSION_KEY] !== version
-        || !Number.isFinite(savedAt)
-        || age < 0
-        || age > ttlMs
-      ) {
+      if (parsed?.[SCHEMA_VERSION_KEY] !== version || !Number.isFinite(savedAt) || age < 0 || age > ttlMs) {
         remove(key)
         return null
       }

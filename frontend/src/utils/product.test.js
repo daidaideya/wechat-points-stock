@@ -1,13 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import {
-  formatCashAmount,
-  formatMoney,
-  formatProductPrice,
-  getRedeemBlockedLabel,
-  isRedeemable,
-} from './product.js'
+import { formatCashAmount, formatMoney, formatProductPrice, getRedeemBlockedLabel, isRedeemable } from './product.js'
 
 test('formats money and product prices consistently', () => {
   assert.equal(formatMoney(12.5), '12.5')
