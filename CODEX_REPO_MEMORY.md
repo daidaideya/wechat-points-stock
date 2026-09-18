@@ -280,7 +280,7 @@ Authorization: Bearer <INGEST_TOKEN>
 |---|---|---|
 | `POST` | `/stock/product` | 手工创建/更新商品 |
 | `GET` | `/stock/programs` | 按小程序汇总可见商品数/库存 |
-| `GET` | `/stock/center` | 服务端分页库存中心；支持 `page/size/q/tag/status/price_mode/cash_max`，返回汇总和隐藏/下架数量 |
+| `GET` | `/stock/center` | 服务端分页库存中心；支持 `page/size/q/tag/status/price_mode/cash_max`，返回汇总和隐藏/下架数量；SQLite 使用触发器 revision 生成 ETag，支持 `If-None-Match` 304 |
 | `GET` | `/stock/programs/{program_id}/products` | 单程序分页商品 |
 | `GET` | `/stock/search` | 全局商品搜索 |
 | `GET` | `/stock/hidden` | 用户手动隐藏的商品 |
@@ -310,6 +310,8 @@ Authorization: Bearer <INGEST_TOKEN>
 2. `GET {base_url}/open/crons?page=0&size=0` 获取任务列表。
 3. 优先用 cron 名称与 `program_name` 规范化后精确匹配，再用 command basename，最后允许包含关系；匹配按分数从高到低贪心分配，一个 cron 不重复占用。
 4. 把 `ql_cron_id/name/is_disabled/matched_at/command/schedule` 写入小程序缓存字段。
+
+HTTP 连接治理：`get_token`、`list_crons`、`update_cron_schedule` 按调用线程复用带连接池的 `requests.Session`，超时分别保持 15/30/20 秒；adapter 设置 `max_retries=0`，不对会改变任务的 PUT 自动重试，避免副作用重复执行。scheduler 停止或应用 shutdown 时释放所有已登记的连接池，手动同步在关闭后会按需创建新 Session；异常信息会脱敏，不输出 Client Secret 或 Bearer token。
 
 同步模式：
 
@@ -458,12 +460,12 @@ docker compose up -d --build
 5. **文档与当前 QingLong 列表行为有偏差。** README/CLAUDE 的部分描述说 `GET /programs` 会在自动模式触发非阻塞后台同步；当前 `handle_programs_list_sync()` 在 `auto` 模式明确不在列表路径触发，实际由启动的 scheduler 负责，`trigger_background_sync()` 虽存在但当前没有调用点。
 6. **启动配置不完全统一。** Compose 推荐 1 worker；systemd 示例使用 2 worker，且绕过 `start.sh`/`entrypoint.sh` 的初始化和前端存在性检查。
 7. **业务日期已收口，存储时间仍需持续审计。** `web.py` 的未上报、库存变化和积分变化路径已统一通过 `timeutil` 按 Asia/Shanghai 判断，历史 naive 值按 UTC 解释；模型/清理服务保留 `utcnow()` 作为 naive UTC 写入，API 时间字段和无时区上报输入仍需逐项审计。
-8. **库存中心与下架抽屉已改成服务端分页。** 首屏不再自动请求下架明细，抽屉默认每页 50 条并可继续加载；全局导航骨架、进度反馈和库存 chunk 预加载已补，后续仍需补 revision/ETag、真实 p95 基准和虚拟网格。
+8. **库存中心与下架抽屉已改成服务端分页。** 首屏不再自动请求下架明细，抽屉默认每页 50 条并可继续加载；全局导航骨架、进度反馈和库存 chunk 预加载已补；SQLite 通过 `stock_center_revision` 及商品、积分历史、小程序、库存历史触发器支持 ETag/304，后续仍需真实 p95 基准和虚拟网格。revision 表/触发器目前兼容旧库按需建立，正式迁移器仍待统一。
 9. **健康检查已提供。** `/health/live` 只表示进程路由可用；`/health/ready` 执行 `SELECT 1`，Compose 已用它做容器 healthcheck。
 10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。上传像素限制、请求体/代理统一上限和校验审计仍待补。
 11. **SQLite 连接已开启外键约束。** `app/database.py` 对每个 SQLite 连接执行 `PRAGMA foreign_keys=ON`，现有 `PointsHistory` 账号/程序外键有回归测试；正式迁移、旧库孤儿清理、StockHistory 外键和级联策略仍待设计。
-12. **历史裁剪已避免 Python 侧尾部 ID 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；列表接口仍有全历史加载和快照表优化空间。
-13. **Bark HTTP 连接治理已补。** `bark_service.py` 按线程复用连接池，关闭自动重试并在 scheduler/shutdown 时释放；QingLong 外部 HTTP 连接复用、有限重试和退避仍待处理。
+12. **历史裁剪和积分摘要查询已避免大规模 Python 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；`web.py` 的账号/积分摘要用窗口查询取每个组合的最新记录和本地业务日前基线。程序排行和长期增长场景仍可评估当前余额快照表，并需要真实规模基准。
+13. **Bark/QingLong HTTP 连接治理已补。** 两个服务都按线程复用带连接池的 `requests.Session`，scheduler/shutdown 时释放；通知与 QingLong PUT 均关闭自动重试，避免重复副作用。仅对明确幂等的 QingLong GET 设计有限重试/退避仍是后续项。
 
 ## 13. 后续接手时的推荐阅读顺序
 
