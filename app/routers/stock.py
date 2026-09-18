@@ -2,15 +2,25 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, desc, func, or_, text
+from sqlalchemy import and_, case, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 from app import models, schemas_stock
 from app.database import get_db
-from app.routers.web import get_all_distinct_tags, get_program_tags
+from app.dependencies import require_ui_access
+from app.routers.web import (
+    ensure_indexes,
+    get_all_distinct_tags,
+    get_program_tags,
+    normalize_program_tags,
+)
 from app.services import cleanup_service
 
-router = APIRouter(prefix="/api/v1/stock", tags=["stock-management"])
+router = APIRouter(
+    prefix="/api/v1/stock",
+    tags=["stock-management"],
+    dependencies=[Depends(require_ui_access)],
+)
 
 
 def ensure_product_columns(db: Session):
@@ -187,9 +197,31 @@ def get_programs_stock_summary(db: Session = Depends(get_db)):
 
 
 @router.get("/center")
-def get_stock_center(db: Session = Depends(get_db)):
+def get_stock_center(
+    page: int = Query(default=1, ge=1, le=100000),
+    size: int = Query(default=20, ge=1, le=100),
+    q: Optional[str] = Query(default=None, max_length=100),
+    tag: Optional[str] = Query(default=None, max_length=50),
+    status: str = Query(default="all"),
+    price_mode: str = Query(default="all"),
+    cash_max: Optional[float] = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+):
+    """Return a filtered page of stock items instead of the whole catalog."""
     ensure_product_columns(db)
     cleanup_service.ensure_points_history_columns(db)
+    ensure_indexes(db)
+
+    allowed_statuses = {"all", "in_stock", "out_of_stock", "redeemable"}
+    allowed_price_modes = {"all", "points_only", "points_plus_cash"}
+    if status not in allowed_statuses:
+        raise HTTPException(status_code=422, detail=f"Invalid stock status: {status}")
+    if price_mode not in allowed_price_modes:
+        raise HTTPException(status_code=422, detail=f"Invalid price mode: {price_mode}")
+
+    keyword = (q or "").strip()
+    selected_tag = (tag or "").strip()
+
     latest_points_subquery = db.query(
         models.PointsHistory.program_id.label("program_id"),
         models.PointsHistory.wechat_id.label("wechat_id"),
@@ -199,21 +231,9 @@ def get_stock_center(db: Session = Depends(get_db)):
         models.PointsHistory.wechat_id,
     ).subquery()
 
-    max_points_rows = db.query(
+    max_points_subquery = db.query(
         models.PointsHistory.program_id,
         func.max(models.PointsHistory.points).label("max_user_points"),
-    ).join(
-        latest_points_subquery,
-        and_(
-            models.PointsHistory.program_id == latest_points_subquery.c.program_id,
-            models.PointsHistory.wechat_id == latest_points_subquery.c.wechat_id,
-            models.PointsHistory.report_time == latest_points_subquery.c.max_time,
-        ),
-    ).group_by(models.PointsHistory.program_id).all()
-    max_points_map = {row.program_id: float(row.max_user_points or 0) for row in max_points_rows}
-
-    max_cash_rows = db.query(
-        models.PointsHistory.program_id,
         func.max(models.PointsHistory.cash).label("max_user_cash"),
     ).join(
         latest_points_subquery,
@@ -222,46 +242,89 @@ def get_stock_center(db: Session = Depends(get_db)):
             models.PointsHistory.wechat_id == latest_points_subquery.c.wechat_id,
             models.PointsHistory.report_time == latest_points_subquery.c.max_time,
         ),
-    ).group_by(models.PointsHistory.program_id).all()
-    max_cash_map = {
-        row.program_id: float(row.max_user_cash)
-        for row in max_cash_rows
-        if row.max_user_cash is not None
-    }
+    ).group_by(models.PointsHistory.program_id).subquery()
 
-    program_rows = db.query(models.MiniProgram).order_by(
-        desc(models.MiniProgram.sort_order),
-        models.MiniProgram.id.asc(),
-    ).all()
-    program_map = {
-        row.program_id: {
-            "program_id": row.program_id,
-            "program_name": row.program_name or row.program_id,
-            "max_user_points": max_points_map.get(row.program_id, 0),
-            "max_user_cash": max_cash_map.get(row.program_id),
-            "tags": get_program_tags(row),
-        }
-        for row in program_rows
-    }
+    points_expr = func.coalesce(models.Product.points, 0)
+    cash_expr = func.coalesce(models.Product.cash, 0)
+    stock_expr = func.coalesce(models.Product.stock, 0)
+    max_points_expr = func.coalesce(max_points_subquery.c.max_user_points, 0)
+    max_cash_expr = max_points_subquery.c.max_user_cash
+    in_stock_expr = case((stock_expr > 0, 1), else_=0)
+    redeemable_expr = case(
+        (
+            and_(
+                stock_expr > 0,
+                max_points_expr >= points_expr,
+                or_(cash_expr <= 0, and_(max_cash_expr.isnot(None), max_cash_expr >= cash_expr)),
+            ),
+            1,
+        ),
+        else_=0,
+    )
 
-    products = db.query(models.Product).filter(visible_product_filter()).order_by(
-        models.Product.points.asc(),
+    tag_program_ids = None
+    if selected_tag:
+        tag_rows = db.query(models.MiniProgram).all()
+        tag_program_ids = [row.program_id for row in tag_rows if selected_tag in get_program_tags(row)]
+
+    def add_filters(query):
+        query = query.filter(visible_product_filter())
+        if keyword:
+            pattern = f"%{keyword}%"
+            query = query.filter(or_(
+                models.Product.product_name.ilike(pattern),
+                models.Product.product_id.ilike(pattern),
+                models.Product.program_id.ilike(pattern),
+                models.MiniProgram.program_name.ilike(pattern),
+            ))
+        if tag_program_ids is not None:
+            if tag_program_ids:
+                query = query.filter(models.Product.program_id.in_(tag_program_ids))
+            else:
+                query = query.filter(models.Product.id == -1)
+        if status == "in_stock":
+            query = query.filter(stock_expr > 0)
+        elif status == "out_of_stock":
+            query = query.filter(stock_expr <= 0)
+        elif status == "redeemable":
+            query = query.filter(redeemable_expr == 1)
+        if price_mode == "points_only":
+            query = query.filter(cash_expr <= 0)
+        elif price_mode == "points_plus_cash":
+            query = query.filter(cash_expr > 0)
+            if cash_max is not None:
+                query = query.filter(cash_expr <= cash_max)
+        return query
+
+    base_query = db.query(
+        models.Product,
+        models.MiniProgram.program_name.label("program_name"),
+        models.MiniProgram.tags.label("program_tags"),
+        max_points_expr.label("max_user_points"),
+        max_cash_expr.label("max_user_cash"),
+    ).select_from(models.Product).outerjoin(
+        models.MiniProgram,
+        models.MiniProgram.program_id == models.Product.program_id,
+    ).outerjoin(
+        max_points_subquery,
+        max_points_subquery.c.program_id == models.Product.program_id,
+    )
+    filtered_query = add_filters(base_query)
+    total = int(filtered_query.with_entities(func.count(models.Product.id)).scalar() or 0)
+
+    rows = filtered_query.order_by(
+        desc(redeemable_expr),
+        desc(in_stock_expr),
+        models.Product.product_name.asc(),
         models.Product.id.asc(),
-    ).all()
+    ).offset((page - 1) * size).limit(size).all()
 
     items = []
-    for product in products:
-        program_info = program_map.get(product.program_id, {
-            "program_id": product.program_id,
-            "program_name": product.program_id,
-            "max_user_points": max_points_map.get(product.program_id, 0),
-            "max_user_cash": max_cash_map.get(product.program_id),
-            "tags": [],
-        })
+    for product, program_name, raw_tags, max_user_points, max_user_cash in rows:
         items.append({
             "id": product.id,
             "program_id": product.program_id,
-            "program_name": program_info["program_name"],
+            "program_name": program_name or product.program_id,
             "product_id": product.product_id,
             "product_name": product.product_name,
             "image_local_path": product.image_local_path,
@@ -269,24 +332,44 @@ def get_stock_center(db: Session = Depends(get_db)):
             "points": product.points or 0,
             "cash": float(product.cash or 0),
             "stock": product.stock,
-            "max_user_points": program_info["max_user_points"],
-            "max_user_cash": program_info.get("max_user_cash"),
-            "tags": program_info["tags"],
+            "max_user_points": float(max_user_points or 0),
+            "max_user_cash": float(max_user_cash) if max_user_cash is not None else None,
+            "tags": normalize_program_tags(raw_tags),
         })
 
-    programs = []
-    for program in program_map.values():
-        products_for_program = [item for item in items if item["program_id"] == program["program_id"]]
-        programs.append({
-            **program,
-            "product_count": len(products_for_program),
-            "total_stock": sum(int(item["stock"] or 0) for item in products_for_program),
-        })
+    summary_query = db.query(
+        func.count(models.Product.id),
+        func.coalesce(func.sum(case((stock_expr > 0, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((stock_expr <= 0, 1), else_=0)), 0),
+        func.coalesce(func.sum(redeemable_expr), 0),
+        func.coalesce(func.sum(case((cash_expr <= 0, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((cash_expr > 0, 1), else_=0)), 0),
+    ).select_from(models.Product).outerjoin(
+        max_points_subquery,
+        max_points_subquery.c.program_id == models.Product.program_id,
+    ).filter(visible_product_filter()).one()
+
+    visibility_counts = db.query(
+        func.coalesce(func.sum(case((models.Product.is_hidden == 1, 1), else_=0)), 0),
+        func.coalesce(func.sum(case((models.Product.is_unlisted == 1, 1), else_=0)), 0),
+    ).select_from(models.Product).one()
 
     return {
-        "programs": programs,
+        "page": page,
+        "size": size,
+        "total": total,
         "items": items,
+        "summary": {
+            "totalProducts": int(summary_query[0] or 0),
+            "inStockProducts": int(summary_query[1] or 0),
+            "outOfStockProducts": int(summary_query[2] or 0),
+            "redeemableProducts": int(summary_query[3] or 0),
+            "pointsOnlyProducts": int(summary_query[4] or 0),
+            "mixedProducts": int(summary_query[5] or 0),
+        },
         "available_tags": get_all_distinct_tags(db),
+        "hidden_total": int(visibility_counts[0] or 0),
+        "off_shelf_total": int(visibility_counts[1] or 0),
     }
 
 
@@ -356,17 +439,40 @@ def get_hidden_products(
 
 @router.get("/off-shelf")
 def get_off_shelf_products(
-    q: Optional[str] = None,
+    page: int = Query(default=1, ge=1, le=100000),
+    size: int = Query(default=50, ge=1, le=100),
+    q: Optional[str] = Query(default=None, max_length=100),
     db: Session = Depends(get_db),
 ):
     """已下架（unlisted）商品 — 系统在处理 stock 上报时检测到老商品没出现在最新报告里，
     自动标记为 is_unlisted=1。和「已隐藏」（is_hidden，用户手动）完全独立。"""
     ensure_product_columns(db)
 
-    products = db.query(models.Product).filter(unlisted_product_filter()).order_by(
+    keyword = (q or "").strip()
+    query = db.query(models.Product).outerjoin(
+        models.MiniProgram,
+        models.MiniProgram.program_id == models.Product.program_id,
+    ).filter(unlisted_product_filter())
+    if keyword:
+        pattern = f"%{keyword}%"
+        query = query.filter(or_(
+            models.Product.product_name.ilike(pattern),
+            models.Product.product_id.ilike(pattern),
+            models.Product.program_id.ilike(pattern),
+            models.MiniProgram.program_name.ilike(pattern),
+        ))
+
+    total = int(query.with_entities(func.count(models.Product.id)).scalar() or 0)
+    group_count_rows = query.with_entities(
+        models.Product.program_id,
+        func.count(models.Product.id),
+    ).group_by(models.Product.program_id).all()
+    group_total_map = {row[0]: int(row[1] or 0) for row in group_count_rows}
+
+    products = query.with_entities(models.Product).order_by(
         models.Product.unlisted_at.desc(),
         models.Product.id.desc(),
-    ).all()
+    ).offset((page - 1) * size).limit(size).all()
 
     program_ids = {product.program_id for product in products if product.program_id}
     program_map = {}
@@ -377,14 +483,9 @@ def get_off_shelf_products(
         ).filter(models.MiniProgram.program_id.in_(program_ids)).all()
         program_map = {row.program_id: row.program_name for row in program_rows}
 
-    keyword = (q or "").strip()
     grouped = {}
     for product in products:
         program_name = program_map.get(product.program_id) or product.program_id
-        if keyword:
-            haystack = f"{product.product_name or ''}\n{product.product_id or ''}\n{program_name or ''}"
-            if keyword.lower() not in haystack.lower():
-                continue
         bucket = grouped.setdefault(product.program_id, {
             "program_id": product.program_id,
             "program_name": program_name,
@@ -404,11 +505,14 @@ def get_off_shelf_products(
     off_shelf_groups = []
     for program_id, group in grouped.items():
         group["count"] = len(group["products"])
+        group["total_count"] = group_total_map.get(program_id, group["count"])
         off_shelf_groups.append(group)
 
     off_shelf_groups.sort(key=lambda item: (-item["count"], item["program_name"] or item["program_id"]))
     return {
-        "total": sum(group["count"] for group in off_shelf_groups),
+        "page": page,
+        "size": size,
+        "total": total,
         "program_count": len(off_shelf_groups),
         "items": off_shelf_groups,
     }

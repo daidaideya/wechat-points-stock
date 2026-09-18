@@ -20,8 +20,8 @@ python scripts/init_db.py
 # Dev (port 8000, hot reload)
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Prod-style (port 5711 matches Docker)
-uvicorn app.main:app --host 0.0.0.0 --port 5711 --workers 2
+# Prod-style (port 5711 matches Docker; SQLite 推荐单 worker)
+uvicorn app.main:app --host 0.0.0.0 --port 5711 --workers 1
 ```
 
 Frontend (run from `frontend/`):
@@ -29,14 +29,13 @@ Frontend (run from `frontend/`):
 ```bash
 npm install
 npm run dev        # dev server on :5173, base path /app/
-npm run build      # outputs to frontend/dist (required before backend prod start)
+npm run build      # outputs to frontend/dist (local uvicorn 托管 SPA 时需要)
 npm run analyze    # build + writes frontend/dist/stats.html for bundle inspection
 ```
 
-Docker (full stack on :5711). Build SPA first — entrypoint requires `frontend/dist/index.html`:
+Docker (full stack on :5711). Image build automatically builds and embeds the SPA:
 
 ```bash
-cd frontend && npm run build && cd ..
 docker compose up -d --build
 ```
 
@@ -44,10 +43,10 @@ Docker notes for this project:
 
 - Default `UVICORN_WORKERS=1` (SQLite). Multi-worker works with WAL + Bark file lock but is not recommended.
 - Compose adds `host.docker.internal:host-gateway` so QingLong on the host is reachable as `http://host.docker.internal:5700`.
-- Volumes: `data`, `logs`, `static/uploads`, `frontend/dist`, plus bind-mounted `app/` and `scripts/`.
+- Volumes: `data`, `logs`, `static/uploads`, plus read-only bind-mounted `app/` and `scripts/` for the existing local workflow. The image itself contains `frontend/dist`.
 - SQLite enables `PRAGMA journal_mode=WAL` and `busy_timeout=5000` on connect for safer concurrent readers.
 
-There is no test suite, linter, or formatter configured. Do not invent commands for them.
+Backend regression tests live in `tests/` and run with `python -m pytest -q`; CI also runs `compileall`, frontend `npm run build`, and the blocking Gitleaks secret scan. Frontend lint/test tooling is still not configured.
 
 ## URL and port topology
 
@@ -68,10 +67,10 @@ There is no test suite, linter, or formatter configured. Do not invent commands 
 
 These do different things and should not be confused:
 
-1. **Bearer token** (`API_TOKEN` from `.env`, checked by `app/dependencies.py:verify_token`). Protects QingLong ingest and image upload routers only: `/api/v1/qinglong/*`, `/api/v1/stock-report`, `/api/v1/upload/image`. Used by external scripts (see `scripts/api_template.py`).
-2. **Access key** (header `X-Access-Key`, stored in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. Enforced manually inside `app/routers/web.py` via `verify_access_or_raise` on settings/access routes (logs, qinglong, bark, database backup). Frontend reads/writes it through `frontend/src/api.js` (localStorage key `site_access_key`) and `router.js` redirects to `/access-gate` when needed.
+1. **Bearer token** (`INGEST_TOKEN` from `.env`, with one-release `API_TOKEN` compatibility, checked by `app/dependencies.py:verify_token`). Protects QingLong ingest and image upload routers only: `/api/v1/qinglong/*`, `/api/v1/stock-report`, `/api/v1/upload/image`. Missing/default/short credentials fail startup. Used by external scripts (see `scripts/api_template.py`).
+2. **Access key** (header `X-Access-Key`, stored in `system_settings.access_key`, gated by `system_settings.access_protection_enabled`). UI-level lock for human users. `web` and `stock` routers use `require_ui_access` uniformly; only `/access/status` and `/access/verify` are public. Frontend reads/writes it through `frontend/src/api.js` (localStorage key `site_access_key`) and redirects to `/access-gate` on a protected API 401.
 
-The bulk of `web.py` endpoints are unauthenticated. Adding access-key protection to a new endpoint is opt-in: call `verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)` explicitly.
+When adding a new UI API router, attach `Depends(require_ui_access)` unless it is deliberately public. Do not rely only on the Vue route guard.
 
 ### Schema evolution pattern (no Alembic)
 
@@ -179,6 +178,6 @@ Do **not** use Element Plus `el-drawer` for the main mobile nav. `App.vue` uses 
 - `data/database.db`: SQLite (gitignored).
 - `static/uploads/`: uploaded product images, served at `/static/uploads/...`.
 - `logs/`: runtime logs.
-- `frontend/dist/`: built SPA, required at runtime.
+- `frontend/dist/`: built SPA; required for local uvicorn serving and embedded automatically in the Docker image.
 
-In `docker-compose.yml` these four directories plus `app/` and `scripts/` are bind-mounted, so code edits on the host reflect into the container without rebuild (uvicorn is not run with `--reload` in the container, restart needed).
+In `docker-compose.yml` `data`, `logs`, and `static/uploads` are persistent mounts; `app/` and `scripts/` are read-only mounts for the existing local workflow, so code edits reflect after a container restart. The frontend build is no longer a host bind mount.

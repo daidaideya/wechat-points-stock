@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import json
 import os
+from secrets import compare_digest
 import shutil
 import sqlite3
 import tempfile
@@ -20,10 +21,20 @@ from starlette.background import BackgroundTask
 from app import models
 from app.config import settings as app_settings
 from app.database import get_db
+from app.dependencies import require_ui_access
+from app.maintenance import database_maintenance
 from app.services import bark_service, cleanup_service
 from app.services import qinglong_open_service
 
-router = APIRouter(tags=["api"])
+router = APIRouter(tags=["api"], dependencies=[Depends(require_ui_access)])
+
+try:
+    DATABASE_IMPORT_MAX_BYTES = max(
+        1024 * 1024,
+        int(os.getenv("DATABASE_IMPORT_MAX_BYTES", str(256 * 1024 * 1024))),
+    )
+except ValueError:
+    DATABASE_IMPORT_MAX_BYTES = 256 * 1024 * 1024
 
 
 class AccountUpdate(BaseModel):
@@ -181,7 +192,7 @@ def ensure_runtime_schema(db: Session):
     ensure_product_columns(db)
 
 
-_INDEXES_ENSURED = False
+_INDEXES_ENSURED = set()
 
 
 def ensure_indexes(db: Session):
@@ -190,22 +201,25 @@ def ensure_indexes(db: Session):
     by wechat_id and order by report_time, both of which scan the whole
     table without these. Runs once per process."""
     global _INDEXES_ENSURED
-    if _INDEXES_ENSURED:
-        return
     statements = [
-        "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_id ON points_history (wechat_id)",
-        "CREATE INDEX IF NOT EXISTS ix_points_history_program_id ON points_history (program_id)",
-        "CREATE INDEX IF NOT EXISTS ix_points_history_report_time ON points_history (report_time)",
-        "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program ON points_history (wechat_id, program_id)",
-        "CREATE INDEX IF NOT EXISTS ix_stock_history_program_id ON stock_history (program_id)",
-        "CREATE INDEX IF NOT EXISTS ix_stock_history_change_time ON stock_history (change_time)",
-        "CREATE INDEX IF NOT EXISTS ix_products_program_id ON products (program_id)",
+        ("ix_points_history_wechat_id", "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_id ON points_history (wechat_id)"),
+        ("ix_points_history_program_id", "CREATE INDEX IF NOT EXISTS ix_points_history_program_id ON points_history (program_id)"),
+        ("ix_points_history_report_time", "CREATE INDEX IF NOT EXISTS ix_points_history_report_time ON points_history (report_time)"),
+        ("ix_points_history_wechat_program", "CREATE INDEX IF NOT EXISTS ix_points_history_wechat_program ON points_history (wechat_id, program_id)"),
+        ("ix_points_history_program_wechat_time_id", "CREATE INDEX IF NOT EXISTS ix_points_history_program_wechat_time_id ON points_history (program_id, wechat_id, report_time DESC, id DESC)"),
+        ("ix_stock_history_program_id", "CREATE INDEX IF NOT EXISTS ix_stock_history_program_id ON stock_history (program_id)"),
+        ("ix_stock_history_change_time", "CREATE INDEX IF NOT EXISTS ix_stock_history_change_time ON stock_history (change_time)"),
+        ("ix_products_program_id", "CREATE INDEX IF NOT EXISTS ix_products_program_id ON products (program_id)"),
+        ("ix_products_visibility_points_id", "CREATE INDEX IF NOT EXISTS ix_products_visibility_points_id ON products (is_hidden, is_unlisted, points, id)"),
+        ("ix_products_unlisted_time_id", "CREATE INDEX IF NOT EXISTS ix_products_unlisted_time_id ON products (is_unlisted, unlisted_at DESC, id DESC)"),
+        ("ix_products_hidden_time_id", "CREATE INDEX IF NOT EXISTS ix_products_hidden_time_id ON products (is_hidden, hidden_at DESC, id DESC)"),
     ]
     try:
-        for stmt in statements:
+        pending = [(name, stmt) for name, stmt in statements if name not in _INDEXES_ENSURED]
+        for _name, stmt in pending:
             db.execute(text(stmt))
         db.commit()
-        _INDEXES_ENSURED = True
+        _INDEXES_ENSURED.update(name for name, _stmt in pending)
     except Exception as exc:
         db.rollback()
         # Don't crash the request if index creation fails; just log and move on.
@@ -263,10 +277,80 @@ def get_program_last_updates(db: Session, program_ids: List[str]):
     return {row[0]: row[1].isoformat() if row[1] else None for row in rows}
 
 
+def _latest_points_history_order():
+    return (
+        models.PointsHistory.report_time.desc(),
+        models.PointsHistory.id.desc(),
+    )
+
+
+def _latest_points_history_subquery(
+    db: Session,
+    *,
+    program_ids=None,
+    program_id: Optional[str] = None,
+):
+    """Return one latest row key per program/account pair."""
+    latest_time_query = db.query(
+        models.PointsHistory.program_id.label("program_id"),
+        models.PointsHistory.wechat_id.label("wechat_id"),
+        func.max(models.PointsHistory.report_time).label("max_report_time"),
+    )
+    if program_id is not None:
+        latest_time_query = latest_time_query.filter(
+            models.PointsHistory.program_id == program_id
+        )
+    elif program_ids is not None:
+        latest_time_query = latest_time_query.filter(
+            models.PointsHistory.program_id.in_(program_ids)
+        )
+
+    latest_time_subquery = latest_time_query.group_by(
+        models.PointsHistory.program_id,
+        models.PointsHistory.wechat_id,
+    ).subquery()
+    return db.query(
+        models.PointsHistory.program_id.label("program_id"),
+        models.PointsHistory.wechat_id.label("wechat_id"),
+        func.max(models.PointsHistory.id).label("latest_id"),
+    ).join(
+        latest_time_subquery,
+        and_(
+            models.PointsHistory.program_id == latest_time_subquery.c.program_id,
+            models.PointsHistory.wechat_id == latest_time_subquery.c.wechat_id,
+            models.PointsHistory.report_time == latest_time_subquery.c.max_report_time,
+        ),
+    ).group_by(
+        models.PointsHistory.program_id,
+        models.PointsHistory.wechat_id,
+    ).subquery()
+
+
+def _query_latest_points_history(
+    db: Session,
+    *,
+    program_ids=None,
+    program_id: Optional[str] = None,
+):
+    latest_subquery = _latest_points_history_subquery(
+        db,
+        program_ids=program_ids,
+        program_id=program_id,
+    )
+    return db.query(models.PointsHistory).join(
+        latest_subquery,
+        and_(
+            models.PointsHistory.program_id == latest_subquery.c.program_id,
+            models.PointsHistory.wechat_id == latest_subquery.c.wechat_id,
+            models.PointsHistory.id == latest_subquery.c.latest_id,
+        ),
+    )
+
+
 def get_latest_points_records_for_program(db: Session, program_id: str):
     history = db.query(models.PointsHistory).filter(
         models.PointsHistory.program_id == program_id
-    ).order_by(models.PointsHistory.report_time.desc()).all()
+    ).order_by(*_latest_points_history_order()).all()
 
     user_points_map = {}
     for item in history:
@@ -301,30 +385,17 @@ def get_program_max_user_points_map(db: Session, program_ids: List[str]):
 
     cleanup_service.ensure_points_history_columns(db)
 
-    latest_subq = db.query(
-        models.PointsHistory.program_id.label("program_id"),
-        models.PointsHistory.wechat_id.label("wechat_id"),
-        func.max(models.PointsHistory.report_time).label("max_time"),
-    ).filter(
-        models.PointsHistory.program_id.in_(program_ids),
-    ).group_by(
-        models.PointsHistory.program_id,
-        models.PointsHistory.wechat_id,
+    latest_rows = _query_latest_points_history(
+        db,
+        program_ids=program_ids,
     ).subquery()
 
     rows = db.query(
-        models.PointsHistory.program_id,
-        func.max(models.PointsHistory.points).label("max_points"),
-    ).join(
-        latest_subq,
-        and_(
-            models.PointsHistory.program_id == latest_subq.c.program_id,
-            models.PointsHistory.wechat_id == latest_subq.c.wechat_id,
-            models.PointsHistory.report_time == latest_subq.c.max_time,
-        ),
+        latest_rows.c.program_id,
+        func.max(latest_rows.c.points).label("max_points"),
     ).filter(
-        models.PointsHistory.points.isnot(None),
-    ).group_by(models.PointsHistory.program_id).all()
+        latest_rows.c.points.isnot(None),
+    ).group_by(latest_rows.c.program_id).all()
 
     # Keep as float so fractional balances (0.1 etc.) are not truncated.
     return {row.program_id: float(row.max_points or 0) for row in rows}
@@ -337,30 +408,17 @@ def get_program_max_user_cash_map(db: Session, program_ids: List[str]):
 
     cleanup_service.ensure_points_history_columns(db)
 
-    latest_subq = db.query(
-        models.PointsHistory.program_id.label("program_id"),
-        models.PointsHistory.wechat_id.label("wechat_id"),
-        func.max(models.PointsHistory.report_time).label("max_time"),
-    ).filter(
-        models.PointsHistory.program_id.in_(program_ids),
-    ).group_by(
-        models.PointsHistory.program_id,
-        models.PointsHistory.wechat_id,
+    latest_rows = _query_latest_points_history(
+        db,
+        program_ids=program_ids,
     ).subquery()
 
     rows = db.query(
-        models.PointsHistory.program_id,
-        func.max(models.PointsHistory.cash).label("max_cash"),
-    ).join(
-        latest_subq,
-        and_(
-            models.PointsHistory.program_id == latest_subq.c.program_id,
-            models.PointsHistory.wechat_id == latest_subq.c.wechat_id,
-            models.PointsHistory.report_time == latest_subq.c.max_time,
-        ),
+        latest_rows.c.program_id,
+        func.max(latest_rows.c.cash).label("max_cash"),
     ).filter(
-        models.PointsHistory.cash.isnot(None),
-    ).group_by(models.PointsHistory.program_id).all()
+        latest_rows.c.cash.isnot(None),
+    ).group_by(latest_rows.c.program_id).all()
 
     return {row.program_id: float(row.max_cash or 0) for row in rows}
 
@@ -631,7 +689,7 @@ def verify_access_or_raise(
             return settings
         raise HTTPException(status_code=403, detail="已开启访问保护，但尚未设置访问密钥")
 
-    if (x_access_key or "").strip() != stored_key:
+    if not compare_digest((x_access_key or "").strip(), stored_key):
         raise HTTPException(status_code=401, detail="访问密钥错误或未提供")
 
     return settings
@@ -645,7 +703,7 @@ def fetch_points_history_grouped(db: Session, wechat_ids):
         return {}
     rows = db.query(models.PointsHistory).filter(
         models.PointsHistory.wechat_id.in_(wechat_ids)
-    ).order_by(models.PointsHistory.report_time.desc()).all()
+    ).order_by(*_latest_points_history_order()).all()
     grouped = defaultdict(list)
     for row in rows:
         grouped[row.wechat_id].append(row)
@@ -677,7 +735,7 @@ def build_account_points_summary(
     if user_points is None:
         user_points = db.query(models.PointsHistory).filter(
             models.PointsHistory.wechat_id == account.wechat_id
-        ).order_by(models.PointsHistory.report_time.desc()).all()
+        ).order_by(*_latest_points_history_order()).all()
 
     latest_map = {}
     history_map = defaultdict(list)
@@ -829,7 +887,7 @@ def build_account_points_summary(
 
 
 @router.get("/api/v1/dashboard")
-async def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(db: Session = Depends(get_db)):
     ensure_runtime_schema(db)
     ensure_indexes(db)
 
@@ -919,7 +977,9 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
         models.PointsHistory.report_time >= start_of_day_utc
     ).distinct().count()
 
-    raw_history = db.query(models.PointsHistory).order_by(models.PointsHistory.report_time.desc()).limit(50).all()
+    raw_history = db.query(models.PointsHistory).order_by(
+        *_latest_points_history_order()
+    ).limit(50).all()
     program_name_map = {p.program_id: p.program_name for p in programs}
     recent_program_updates = []
     seen_programs = set()
@@ -957,7 +1017,7 @@ async def get_dashboard_summary(db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/access/status")
-async def get_access_status(
+def get_access_status(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -986,7 +1046,7 @@ async def get_access_status(
 
 
 @router.post("/api/v1/access/verify")
-async def verify_access_key(payload: AccessVerifyRequest, db: Session = Depends(get_db)):
+def verify_access_key(payload: AccessVerifyRequest, db: Session = Depends(get_db)):
     settings = cleanup_service.get_or_create_settings(db)
     enabled = settings.access_protection_enabled == 1
     stored_key = (settings.access_key or "").strip()
@@ -994,14 +1054,14 @@ async def verify_access_key(payload: AccessVerifyRequest, db: Session = Depends(
     if not enabled or not stored_key:
         return JSONResponse(content={"status": "disabled"})
 
-    if payload.access_key.strip() != stored_key:
+    if not compare_digest(payload.access_key.strip(), stored_key):
         raise HTTPException(status_code=401, detail="访问密钥错误")
 
     return JSONResponse(content={"status": "success"})
 
 
 @router.get("/api/v1/settings/logs")
-async def get_log_settings(
+def get_log_settings(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1018,7 +1078,7 @@ async def get_log_settings(
 
 
 @router.post("/api/v1/settings/logs")
-async def update_log_settings(
+def update_log_settings(
     update: LogSettingsUpdate,
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
@@ -1043,7 +1103,7 @@ async def update_log_settings(
 
 
 @router.get("/api/v1/settings/qinglong")
-async def get_qinglong_settings(
+def get_qinglong_settings(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1070,7 +1130,7 @@ async def get_qinglong_settings(
 
 
 @router.post("/api/v1/settings/qinglong")
-async def update_qinglong_settings(
+def update_qinglong_settings(
     update: QinglongSettingsUpdate,
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
@@ -1111,7 +1171,7 @@ async def update_qinglong_settings(
 
 
 @router.post("/api/v1/settings/qinglong/sync")
-async def sync_qinglong_settings(
+def sync_qinglong_settings(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1125,7 +1185,7 @@ async def sync_qinglong_settings(
 
 
 @router.get("/api/v1/settings/bark")
-async def get_bark_settings(
+def get_bark_settings(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1146,7 +1206,7 @@ async def get_bark_settings(
 
 
 @router.post("/api/v1/settings/bark")
-async def update_bark_settings(
+def update_bark_settings(
     update: BarkSettingsUpdate,
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
@@ -1172,7 +1232,7 @@ async def update_bark_settings(
 
 
 @router.post("/api/v1/settings/bark/test")
-async def test_bark_push(
+def test_bark_push(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1223,8 +1283,38 @@ def _assert_sqlite_file(path: str):
         raise HTTPException(status_code=400, detail="文件不是有效的 SQLite 数据库")
 
 
+def _validate_sqlite_backup(path: str):
+    """Validate a backup before it is allowed anywhere near the live DB."""
+    _assert_sqlite_file(path)
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            row = conn.execute("PRAGMA integrity_check").fetchone()
+            if not row or str(row[0]).lower() != "ok":
+                raise HTTPException(status_code=400, detail=f"数据库完整性检查失败: {row}")
+            tables = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            required = {"wechat_accounts", "mini_programs", "points_history"}
+            missing = required - tables
+            if missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不是本系统的数据库备份，缺少表: {', '.join(sorted(missing))}",
+                )
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except sqlite3.Error as exc:
+        raise HTTPException(status_code=400, detail=f"数据库校验失败: {exc}") from exc
+
+
 @router.get("/api/v1/settings/database/export")
-async def export_database(
+def export_database(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -1275,7 +1365,7 @@ async def export_database(
 
 
 @router.post("/api/v1/settings/database/import")
-async def import_database(
+def import_database(
     file: UploadFile = File(...),
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
@@ -1286,69 +1376,74 @@ async def import_database(
         verify_access_or_raise(db, x_access_key, allow_empty_when_disabled=False)
 
     db_path = _resolve_sqlite_db_path()
-    os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+    db_dir = os.path.dirname(db_path) or "."
+    os.makedirs(db_dir, exist_ok=True)
 
-    # Write upload to temp, validate, then atomically replace.
-    tmp_upload = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-    tmp_upload_path = tmp_upload.name
+    # Keep the temporary file on the same volume as the live database so the
+    # final os.replace() is atomic on the supported platforms.
+    tmp_fd, tmp_upload_path = tempfile.mkstemp(prefix=".database-import-", suffix=".db", dir=db_dir)
+    os.close(tmp_fd)
+    staged_path = None
     try:
-        while True:
-            chunk = await file.read(1024 * 1024)
-            if not chunk:
-                break
-            tmp_upload.write(chunk)
-        tmp_upload.close()
+        with open(tmp_upload_path, "wb") as target:
+            total_bytes = 0
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > DATABASE_IMPORT_MAX_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"数据库备份不能超过 {DATABASE_IMPORT_MAX_BYTES // (1024 * 1024)} MiB",
+                    )
+                target.write(chunk)
+            target.flush()
+            os.fsync(target.fileno())
 
-        _assert_sqlite_file(tmp_upload_path)
+        _validate_sqlite_backup(tmp_upload_path)
 
-        # Quick integrity check
-        conn = sqlite3.connect(tmp_upload_path)
-        try:
-            row = conn.execute("PRAGMA integrity_check").fetchone()
-            if not row or str(row[0]).lower() != "ok":
-                raise HTTPException(status_code=400, detail=f"数据库完整性检查失败: {row}")
-            # Must look like this app's schema (at least one core table)
-            tables = {
-                r[0]
-                for r in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            }
-            required = {"wechat_accounts", "mini_programs", "points_history"}
-            missing = required - tables
-            if missing:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"不是本系统的数据库备份，缺少表: {', '.join(sorted(missing))}",
-                )
-        finally:
-            conn.close()
+        with database_maintenance():
+            # Commit the request session first, checkpoint WAL, then release
+            # SQLAlchemy connections before replacing the file.
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            db.close()
 
-        # Close current session connections so Windows can replace the file.
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
-        db.close()
-
-        # Dispose engine pool so file handle is released.
-        try:
             from app.database import engine
+
             engine.dispose()
-        except Exception:
-            pass
+            if os.path.isfile(db_path):
+                checkpoint_conn = sqlite3.connect(db_path, timeout=10)
+                try:
+                    checkpoint_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                finally:
+                    checkpoint_conn.close()
 
-        # Keep a local rollback copy next to the live DB.
-        if os.path.isfile(db_path):
-            rollback_path = db_path + ".pre_restore"
-            shutil.copy2(db_path, rollback_path)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            rollback_path = f"{db_path}.pre_restore.{stamp}"
+            if os.path.isfile(db_path):
+                shutil.copy2(db_path, rollback_path)
+                for suffix in ("-wal", "-shm"):
+                    sidecar = db_path + suffix
+                    if os.path.isfile(sidecar):
+                        shutil.copy2(sidecar, rollback_path + suffix)
+                        os.unlink(sidecar)
 
-        shutil.copy2(tmp_upload_path, db_path)
+            staged_path = f"{db_path}.restore-{os.getpid()}-{stamp}.tmp"
+            shutil.copyfile(tmp_upload_path, staged_path)
+            with open(staged_path, "rb") as staged:
+                os.fsync(staged.fileno())
+            os.replace(staged_path, db_path)
+            staged_path = None
 
         return {
             "status": "success",
-            "message": "数据库已恢复。建议刷新页面；若异常可使用同目录 .pre_restore 回滚。",
+            "message": f"数据库已恢复。建议刷新页面；如需回滚可使用 {rollback_path}。",
             "path": db_path,
+            "rollback_path": rollback_path if os.path.isfile(rollback_path) else None,
         }
     except HTTPException:
         raise
@@ -1356,13 +1451,22 @@ async def import_database(
         raise HTTPException(status_code=500, detail=f"导入数据库失败: {exc}") from exc
     finally:
         try:
+            file.file.close()
+        except Exception:
+            pass
+        try:
             os.unlink(tmp_upload_path)
         except OSError:
             pass
+        if staged_path:
+            try:
+                os.unlink(staged_path)
+            except OSError:
+                pass
 
 
 @router.get("/api/v1/accounts")
-async def get_accounts(db: Session = Depends(get_db)):
+def get_accounts(db: Session = Depends(get_db)):
     ensure_runtime_schema(db)
     ensure_indexes(db)
     accounts = db.query(models.WechatAccount).order_by(
@@ -1398,7 +1502,7 @@ async def get_accounts(db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/accounts/{wechat_id}")
-async def get_account(wechat_id: str, db: Session = Depends(get_db)):
+def get_account(wechat_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     ensure_indexes(db)
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
@@ -1422,7 +1526,7 @@ async def get_account(wechat_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/accounts/{wechat_id}/points_details")
-async def get_account_points_details(wechat_id: str, db: Session = Depends(get_db)):
+def get_account_points_details(wechat_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     ensure_indexes(db)
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
@@ -1445,7 +1549,7 @@ async def get_account_points_details(wechat_id: str, db: Session = Depends(get_d
 
 
 @router.put("/api/v1/accounts/sort-order")
-async def update_sort_order(update: SortOrderUpdate, db: Session = Depends(get_db)):
+def update_sort_order(update: SortOrderUpdate, db: Session = Depends(get_db)):
     for index, wechat_id in enumerate(update.wechat_ids):
         account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
         if account:
@@ -1456,7 +1560,7 @@ async def update_sort_order(update: SortOrderUpdate, db: Session = Depends(get_d
 
 
 @router.put("/api/v1/accounts/{wechat_id}")
-async def update_account(wechat_id: str, update: AccountUpdate, db: Session = Depends(get_db)):
+def update_account(wechat_id: str, update: AccountUpdate, db: Session = Depends(get_db)):
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
         # Manual「新增用户」also appends to the end of the list.
@@ -1484,7 +1588,7 @@ async def update_account(wechat_id: str, update: AccountUpdate, db: Session = De
 
 
 @router.delete("/api/v1/accounts/{wechat_id}")
-async def delete_account(wechat_id: str, db: Session = Depends(get_db)):
+def delete_account(wechat_id: str, db: Session = Depends(get_db)):
     account = db.query(models.WechatAccount).filter(models.WechatAccount.wechat_id == wechat_id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -1496,7 +1600,7 @@ async def delete_account(wechat_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/api/v1/accounts/{wechat_id}/programs/{program_id}")
-async def delete_program_points(wechat_id: str, program_id: str, db: Session = Depends(get_db)):
+def delete_program_points(wechat_id: str, program_id: str, db: Session = Depends(get_db)):
     deleted_count = db.query(models.PointsHistory).filter(
         models.PointsHistory.wechat_id == wechat_id,
         models.PointsHistory.program_id == program_id,
@@ -1506,7 +1610,7 @@ async def delete_program_points(wechat_id: str, program_id: str, db: Session = D
 
 
 @router.get("/api/v1/points")
-async def get_points_overview(db: Session = Depends(get_db)):
+def get_points_overview(db: Session = Depends(get_db)):
     ensure_runtime_schema(db)
     ensure_indexes(db)
     accounts = db.query(models.WechatAccount).order_by(
@@ -1543,7 +1647,7 @@ async def get_points_overview(db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/programs")
-async def get_programs_api(
+def get_programs_api(
     page: int = 1,
     size: int = 21,
     q: Optional[str] = None,
@@ -1558,7 +1662,7 @@ async def get_programs_api(
     ensure_runtime_schema(db)
     # QingLong refresh policy is user-selectable (settings → 青龙联动):
     # auto: scheduler only (this path does nothing — list never waits)
-    # blocking: if stale, await OpenAPI sync here (can take several seconds)
+    # blocking: if stale, wait for OpenAPI sync here (can take several seconds)
     # manual: only「立即同步」
     qinglong_open_service.handle_programs_list_sync(db)
     query = db.query(models.MiniProgram)
@@ -1694,7 +1798,7 @@ async def get_programs_api(
 
 
 @router.get("/api/v1/programs/favorites")
-async def get_favorite_programs(db: Session = Depends(get_db)):
+def get_favorite_programs(db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     programs = db.query(models.MiniProgram).filter(
         models.MiniProgram.is_favorite == 1,
@@ -1721,7 +1825,7 @@ async def get_favorite_programs(db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/programs/unreported")
-async def get_unreported_programs(db: Session = Depends(get_db)):
+def get_unreported_programs(db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     programs = db.query(models.MiniProgram).filter(
         or_(models.MiniProgram.is_archived == 0, models.MiniProgram.is_archived.is_(None)),
@@ -1748,7 +1852,7 @@ async def get_unreported_programs(db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/programs/{program_id}")
-async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Session = Depends(get_db)):
+def get_program_detail(program_id: str, sort: Optional[str] = None, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     cleanup_service.ensure_points_history_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
@@ -1791,11 +1895,12 @@ async def get_program_detail(program_id: str, sort: Optional[str] = None, db: Se
 
 
 @router.get("/api/v1/programs/{program_id}/stock")
-async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
+def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     # Lazy import avoids circular import with routers.stock (which imports helpers from web).
     from app.routers.stock import ensure_product_columns
     ensure_product_columns(db)
+    cleanup_service.ensure_points_history_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     products = db.query(models.Product).filter(
         models.Product.program_id == program_id,
@@ -1807,19 +1912,13 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     now_cst = datetime.utcnow() + tz_offset
     today_cst = now_cst.date()
 
-    subquery = db.query(
-        models.PointsHistory.wechat_id,
-        func.max(models.PointsHistory.report_time).label("max_time"),
-    ).filter(
-        models.PointsHistory.program_id == program_id
-    ).group_by(models.PointsHistory.wechat_id).subquery()
+    latest_rows = _query_latest_points_history(
+        db,
+        program_id=program_id,
+    ).subquery()
 
-    max_points_val = db.query(func.max(models.PointsHistory.points)).join(
-        subquery,
-        and_(
-            models.PointsHistory.wechat_id == subquery.c.wechat_id,
-            models.PointsHistory.report_time == subquery.c.max_time,
-        ),
+    max_points_val = db.query(func.max(latest_rows.c.points)).filter(
+        latest_rows.c.points.isnot(None),
     ).scalar()
 
     report_rows = db.query(
@@ -1920,13 +2019,8 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
     removed_count = len(removed_product_ids) if should_show_changes else 0
 
     # Also expose highest current cash among accounts (for mixed-redeem UI).
-    cleanup_service.ensure_points_history_columns(db)
-    max_cash_val = db.query(func.max(models.PointsHistory.cash)).join(
-        subquery,
-        and_(
-            models.PointsHistory.wechat_id == subquery.c.wechat_id,
-            models.PointsHistory.report_time == subquery.c.max_time,
-        ),
+    max_cash_val = db.query(func.max(latest_rows.c.cash)).filter(
+        latest_rows.c.cash.isnot(None),
     ).scalar()
 
     return {
@@ -1946,7 +2040,7 @@ async def get_program_stock(program_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/api/v1/programs/{program_id}/ranking")
-async def get_program_ranking(program_id: str, sort: Optional[str] = None, db: Session = Depends(get_db)):
+def get_program_ranking(program_id: str, sort: Optional[str] = None, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     accounts = db.query(models.WechatAccount).order_by(
@@ -1976,8 +2070,8 @@ async def get_program_ranking(program_id: str, sort: Optional[str] = None, db: S
 
 
 @router.get("/api/v1/programs/{program_id}/rankings")
-async def get_program_rankings(program_id: str, db: Session = Depends(get_db)):
-    ranking_data = await get_program_ranking(program_id=program_id, sort=None, db=db)
+def get_program_rankings(program_id: str, db: Session = Depends(get_db)):
+    ranking_data = get_program_ranking(program_id=program_id, sort=None, db=db)
     return {
         "program_name": ranking_data["program_name"],
         "rankings": ranking_data["ranking"],
@@ -1985,7 +2079,7 @@ async def get_program_rankings(program_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/api/v1/programs/{program_id}")
-async def update_program(program_id: str, update: ProgramUpdate, db: Session = Depends(get_db)):
+def update_program(program_id: str, update: ProgramUpdate, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     if not program:
@@ -2029,7 +2123,7 @@ async def update_program(program_id: str, update: ProgramUpdate, db: Session = D
 
 
 @router.get("/api/v1/qinglong/crons")
-async def list_qinglong_crons(
+def list_qinglong_crons(
     x_access_key: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -2160,7 +2254,7 @@ def update_qinglong_cron_schedules(
 
 
 @router.delete("/api/v1/programs/{program_id}")
-async def delete_program(program_id: str, db: Session = Depends(get_db)):
+def delete_program(program_id: str, db: Session = Depends(get_db)):
     ensure_mini_program_columns(db)
     program = db.query(models.MiniProgram).filter(models.MiniProgram.program_id == program_id).first()
     db.query(models.PointsHistory).filter(models.PointsHistory.program_id == program_id).delete()

@@ -1,9 +1,16 @@
 # Virtual environment
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+
+# Frontend dependencies and generated files are rebuilt in the Node stage.
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
 
 # Version control
 .git
@@ -17,6 +24,7 @@ logs/
 *.log
 data/
 *.db
+static/uploads/
 
 # Temporary files
 .idea/

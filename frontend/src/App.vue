@@ -79,7 +79,7 @@
             </a>
           </router-link>
         </el-menu-item>
-        <el-menu-item index="/stock">
+        <el-menu-item index="/stock" @mouseenter="preloadStockPage" @focusin="preloadStockPage">
           <router-link to="/stock" custom v-slot="{ href }">
             <a :href="href" class="menu-item-anchor" @click.prevent>
               <span class="menu-item-icon"><el-icon><Box /></el-icon></span>
@@ -203,7 +203,7 @@
               </a>
             </router-link>
           </el-menu-item>
-          <el-menu-item index="/stock">
+          <el-menu-item index="/stock" @mouseenter="preloadStockPage" @focusin="preloadStockPage">
             <router-link to="/stock" custom v-slot="{ href }">
               <a :href="href" class="menu-item-anchor" @click.prevent>
                 <span class="menu-item-icon"><el-icon><Box /></el-icon></span>
@@ -307,6 +307,14 @@ const activeMenu = computed(() => {
 })
 
 const pageTitle = computed(() => route.meta?.title || '库存监控')
+
+let stockPageChunkPromise = null
+function preloadStockPage() {
+  if (!stockPageChunkPromise) {
+    stockPageChunkPromise = import('./views/StockPage.vue')
+  }
+  return stockPageChunkPromise
+}
 
 const pageDescription = computed(() => {
   const descriptions = {

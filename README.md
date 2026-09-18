@@ -287,12 +287,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ### 7.1 使用 Docker Compose（推荐）
 
-**先构建前端**（容器启动时会检查 `frontend/dist/index.html`）：
-
 ```bash
-cd frontend && npm run build && cd ..
 docker compose up -d --build
 ```
+
+Dockerfile 会在 Node 构建阶段自动执行 `npm ci && npm run build`，不再要求宿主机预先生成或挂载 `frontend/dist`。
 
 默认访问地址：
 
@@ -306,8 +305,7 @@ docker compose up -d --build
 - `./data` → SQLite `database.db`（及 WAL/SHM）
 - `./logs`
 - `./static/uploads`
-- `./frontend/dist` → 已构建的 SPA（必挂，否则 entrypoint 退出）
-- `./app`、`./scripts` → 代码热挂载（改代码后需 `docker compose restart`）
+- `./app`、`./scripts` → 只读代码挂载（改代码后需 `docker compose restart`；生产环境可移除这两个开发挂载）
 
 ### 7.3 环境变量与启动参数
 
@@ -328,11 +326,11 @@ docker compose up -d --build
 
 | 能力 | Docker 是否可用 | 备注 |
 |------|----------------|------|
-| 积分/现金上报 | ✅ | Bearer `API_TOKEN` 来自 `.env` |
+| 积分/现金上报 | ✅ | Bearer `INGEST_TOKEN` 来自 `.env`（旧 `API_TOKEN` 仅兼容一版） |
 | 青龙 OpenAPI 同步 | ✅ | 青龙在宿主机时用 `host.docker.internal` |
 | Bark 定时推送 | ✅ | 默认 1 worker；多 worker 时仅一个进程持有调度锁 |
 | 数据库导出/导入 | ✅ | 操作 `data/database.db` 挂载卷 |
-| 前端 SPA | ✅ | 需宿主机先 `npm run build` 并挂载 `frontend/dist` |
+| 前端 SPA | ✅ | 镜像构建阶段自动生成并内置 `frontend/dist` |
 | 懒迁移 `ensure_*_columns` | ✅ | 旧库挂进容器后首次访问自动补列 |
 
 ### 7.5 单独构建镜像
@@ -341,7 +339,7 @@ docker compose up -d --build
 docker build -t wechat-points-stock .
 ```
 
-镜像内不含 `frontend/dist` 与 `data/`（见 `.dockerignore`），运行时请挂载它们，或改用 compose。
+镜像内自带构建好的 `frontend/dist`；`data/`、日志和上传目录仍应通过持久化卷挂载。
 
 ## 8. 项目结构
 

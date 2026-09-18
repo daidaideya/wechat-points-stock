@@ -12,9 +12,16 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-APP_TZ = ZoneInfo("Asia/Shanghai")
+# Windows Python installations do not always ship with the IANA timezone
+# database.  Keep the explicit zone when it is available, but fall back to
+# China's fixed UTC+08:00 offset so dashboard and scheduled-job requests do
+# not fail at import time in a bare virtualenv.
+try:
+    APP_TZ = ZoneInfo("Asia/Shanghai")
+except ZoneInfoNotFoundError:
+    APP_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 UTC = timezone.utc
 
 

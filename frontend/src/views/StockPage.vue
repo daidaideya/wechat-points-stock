@@ -187,7 +187,7 @@
 
             <div class="stock-toolbar-meta stock-toolbar-meta-compact">
               <div class="stock-meta-left">
-                <el-tag round effect="plain" type="info">当前结果 {{ filteredProducts.length }}</el-tag>
+                <el-tag round effect="plain" type="info">当前结果 {{ totalResults }}</el-tag>
                 <el-tag round effect="plain" type="info">已加载 {{ visibleProducts.length }} 条</el-tag>
                 <el-tag v-if="searchKeyword" round effect="plain" type="warning">关键词：{{ searchKeyword }}</el-tag>
                 <el-tag v-if="currentTag" round effect="plain" type="success">标签：{{ currentTag }}</el-tag>
@@ -211,7 +211,7 @@
           </el-result>
         </div>
 
-        <div v-else-if="!filteredProducts.length" class="program-state-card compact stock-state-card">
+        <div v-else-if="!totalResults" class="program-state-card compact stock-state-card">
           <el-empty description="没有符合条件的商品">
             <template #description>
               <p>可尝试调整关键词、价格类型（纯积分 / 积分加钱购）、标签或库存状态筛选。</p>
@@ -283,14 +283,15 @@
           </article>
         </div>
 
-        <div v-if="filteredProducts.length" class="stock-pagination-row stock-infinite-row">
-          <div class="stock-pagination-text">已显示 {{ visibleProducts.length }} / {{ filteredProducts.length }} 条</div>
-          <span class="stock-meta-text" v-if="hasMore">继续下拉自动加载更多</span>
+        <div v-if="totalResults" class="stock-pagination-row stock-infinite-row">
+          <div class="stock-pagination-text">已显示 {{ visibleProducts.length }} / {{ totalResults }} 条</div>
+          <span class="stock-meta-text" v-if="loadingMore">正在加载更多…</span>
+          <span class="stock-meta-text" v-else-if="hasMore">继续下拉自动加载更多</span>
           <span class="stock-meta-text" v-else>已加载全部数据</span>
         </div>
 
         <div
-          v-if="filteredProducts.length && hasMore"
+          v-if="totalResults && hasMore"
           ref="loadMoreSentinel"
           class="infinite-sentinel stock-infinite-sentinel"
           aria-hidden="true"
@@ -425,7 +426,6 @@
       v-model="offShelfDrawerVisible"
       title="已下架商品"
       size="680px"
-      @open="fetchOffShelfProducts()"
     >
       <div class="hidden-products-drawer">
         <div class="hidden-products-toolbar">
@@ -460,7 +460,7 @@
                 <div class="off-shelf-program-name">{{ group.program_name || group.program_id }}</div>
                 <div class="off-shelf-program-id">{{ group.program_id }}</div>
               </div>
-              <el-tag round effect="plain" type="danger">下架 {{ group.count }}</el-tag>
+              <el-tag round effect="plain" type="danger">下架 {{ group.total_count || group.count }}</el-tag>
             </div>
 
             <div class="off-shelf-product-list">
@@ -492,6 +492,12 @@
             </div>
           </article>
         </div>
+
+        <div v-if="offShelfHasMore && !offShelfLoading" class="hidden-products-load-more">
+          <el-button plain :loading="offShelfLoadingMore" @click="fetchOffShelfProducts({ append: true })">
+            加载更多
+          </el-button>
+        </div>
       </div>
     </el-drawer>
   </div>
@@ -501,12 +507,15 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
+import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 
 const PAGE_SIZE = 20
 const STOCK_CACHE_TTL = 60 * 1000
 const HIDDEN_PAGE_SIZE = 100
+const OFF_SHELF_PAGE_SIZE = 50
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const refreshing = ref(false)
 const loadError = ref(false)
 const loadedFromCache = ref(false)
@@ -521,7 +530,16 @@ const cashCapValue = ref(null)
 const cashCapInput = ref('')
 const availableTags = ref([])
 const allProducts = shallowRef([])
-const visibleCount = ref(PAGE_SIZE)
+const totalResults = ref(0)
+const loadedPage = ref(0)
+const serverSummary = ref({
+  totalProducts: 0,
+  inStockProducts: 0,
+  outOfStockProducts: 0,
+  redeemableProducts: 0,
+  pointsOnlyProducts: 0,
+  mixedProducts: 0,
+})
 const detailDrawerVisible = ref(false)
 const detailProduct = ref(null)
 const loadMoreSentinel = ref(null)
@@ -532,8 +550,11 @@ const hiddenTotal = ref(0)
 const hiddenKeywordInput = ref('')
 const offShelfDrawerVisible = ref(false)
 const offShelfLoading = ref(false)
+const offShelfLoadingMore = ref(false)
 const offShelfPrograms = ref([])
 const offShelfTotal = ref(0)
+const offShelfPage = ref(0)
+const offShelfHasMore = ref(false)
 const offShelfKeywordInput = ref('')
 const hidingProductId = ref(null)
 const restoringProductId = ref(null)
@@ -543,7 +564,9 @@ const CASH_CAP_PRESETS = [1, 5, 10, 20]
 
 let observer = null
 let stockCenterRequest = null
-let stockCenterCache = null
+let stockCenterRequestKey = ''
+let stockCenterAbortController = null
+let stockLoadSequence = 0
 
 function formatCashNumber(value) {
   const amount = Number(value)
@@ -551,57 +574,7 @@ function formatCashNumber(value) {
   return amount.toFixed(2).replace(/\.?0+$/, '')
 }
 
-function isPointsOnlyProduct(item) {
-  return Number(item?.cash || 0) <= 0
-}
-
-function isMixedProduct(item) {
-  return Number(item?.cash || 0) > 0
-}
-
-function matchesPriceFilter(item) {
-  if (priceMode.value === 'all') return true
-  if (priceMode.value === 'points_only') return isPointsOnlyProduct(item)
-  if (priceMode.value === 'points_plus_cash') {
-    if (!isMixedProduct(item)) return false
-    if (cashCapValue.value == null) return true
-    return Number(item.cash || 0) <= cashCapValue.value
-  }
-  return true
-}
-
-const summary = computed(() => {
-  let inStockProducts = 0
-  let outOfStockProducts = 0
-  let redeemableProducts = 0
-  let pointsOnlyProducts = 0
-  let mixedProducts = 0
-
-  for (const item of allProducts.value) {
-    if (item.inStock) {
-      inStockProducts += 1
-    } else {
-      outOfStockProducts += 1
-    }
-    if (item.redeemable) {
-      redeemableProducts += 1
-    }
-    if (isPointsOnlyProduct(item)) {
-      pointsOnlyProducts += 1
-    } else {
-      mixedProducts += 1
-    }
-  }
-
-  return {
-    totalProducts: allProducts.value.length,
-    inStockProducts,
-    outOfStockProducts,
-    redeemableProducts,
-    pointsOnlyProducts,
-    mixedProducts,
-  }
-})
+const summary = computed(() => serverSummary.value)
 
 const priceModeLabel = computed(() => {
   if (priceMode.value === 'points_only') return '纯积分'
@@ -612,32 +585,11 @@ const priceModeLabel = computed(() => {
   return '全部商品'
 })
 
-const filteredProducts = computed(() => {
-  const normalizedKeyword = searchKeyword.value.trim().toLowerCase()
-
-  return allProducts.value.filter((item) => {
-    const matchKeyword = !normalizedKeyword || [
-      item.product_name,
-      item.product_id,
-      item.program_id,
-      item.program_name,
-    ].some((field) => String(field || '').toLowerCase().includes(normalizedKeyword))
-
-    const matchStatus =
-      activeStatus.value === 'all' ||
-      (activeStatus.value === 'in_stock' && item.inStock) ||
-      (activeStatus.value === 'out_of_stock' && !item.inStock) ||
-      (activeStatus.value === 'redeemable' && item.redeemable)
-
-    const matchTag = !currentTag.value || (Array.isArray(item.tags) && item.tags.includes(currentTag.value))
-    const matchPrice = matchesPriceFilter(item)
-
-    return matchKeyword && matchStatus && matchTag && matchPrice
-  })
-})
-
-const visibleProducts = computed(() => filteredProducts.value.slice(0, visibleCount.value))
-const hasMore = computed(() => visibleProducts.value.length < filteredProducts.value.length)
+// Filtering now happens in SQL. These aliases keep the rendering code clear
+// while ensuring the browser only holds the pages it has requested.
+const filteredProducts = computed(() => allProducts.value)
+const visibleProducts = computed(() => allProducts.value)
+const hasMore = computed(() => visibleProducts.value.length < totalResults.value)
 
 function buildStatus(stock) {
   const stockValue = Number(stock || 0)
@@ -694,15 +646,7 @@ function normalizeStockCenterResponse(data) {
   return items.map((item) => normalizeProduct({
     ...item,
     tags: Array.isArray(item.tags) ? item.tags : [],
-  })).sort((a, b) => {
-    if (a.redeemable !== b.redeemable) {
-      return Number(b.redeemable) - Number(a.redeemable)
-    }
-    if (a.inStock !== b.inStock) {
-      return Number(b.inStock) - Number(a.inStock)
-    }
-    return String(a.product_name || '').localeCompare(String(b.product_name || ''), 'zh-CN')
-  })
+  }))
 }
 
 function formatHiddenAt(value) {
@@ -712,78 +656,139 @@ function formatHiddenAt(value) {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
-async function fetchStockCenter(forceRefresh = false) {
-  const now = Date.now()
-  if (!forceRefresh && stockCenterCache && now - stockCenterCache.timestamp < STOCK_CACHE_TTL) {
-    loadedFromCache.value = true
-    return stockCenterCache.data
+function buildStockParams(page = 1) {
+  const params = { page, size: PAGE_SIZE }
+  if (searchKeyword.value) params.q = searchKeyword.value
+  if (currentTag.value) params.tag = currentTag.value
+  if (activeStatus.value !== 'all') params.status = activeStatus.value
+  if (priceMode.value !== 'all') params.price_mode = priceMode.value
+  if (priceMode.value === 'points_plus_cash' && cashCapValue.value != null) {
+    params.cash_max = cashCapValue.value
+  }
+  return params
+}
+
+async function fetchStockCenter(params, forceRefresh = false) {
+  const key = JSON.stringify(params)
+  if (!forceRefresh && params.page === 1) {
+    const cached = readStockCache(key, STOCK_CACHE_TTL)
+    if (cached) {
+      loadedFromCache.value = true
+      return cached
+    }
   }
 
-  if (!forceRefresh && stockCenterRequest) {
+  if (!forceRefresh && stockCenterRequest && stockCenterRequestKey === key) {
     loadedFromCache.value = true
     return stockCenterRequest
   }
 
+  if (stockCenterRequest && (forceRefresh || stockCenterRequestKey !== key)) {
+    stockCenterAbortController?.abort()
+  }
+
   loadedFromCache.value = false
-  stockCenterRequest = api.get('/stock/center')
+  stockCenterRequestKey = key
+  const controller = new AbortController()
+  stockCenterAbortController = controller
+  const request = api.get('/stock/center', { params, signal: controller.signal })
     .then(({ data }) => {
-      stockCenterCache = {
-        data,
-        timestamp: Date.now(),
-      }
+      if (params.page === 1) writeStockCache(key, data)
       return data
     })
-    .finally(() => {
-      stockCenterRequest = null
-    })
+  stockCenterRequest = request
+  request.then(
+    () => {
+      if (stockCenterRequest === request) {
+        stockCenterRequest = null
+        stockCenterRequestKey = ''
+        stockCenterAbortController = null
+      }
+    },
+    () => {
+      if (stockCenterRequest === request) {
+        stockCenterRequest = null
+        stockCenterRequestKey = ''
+        stockCenterAbortController = null
+      }
+    },
+  )
 
   return stockCenterRequest
 }
 
 async function loadStockCenter(options = {}) {
-  const { forceRefresh = false, silent = false } = options
+  const { forceRefresh = false, silent = false, append = false } = options
 
-  if (forceRefresh) {
+  if (append) {
+    if (loadingMore.value || !hasMore.value) return
+    loadingMore.value = true
+  } else if (forceRefresh) {
     refreshing.value = true
   } else if (!silent) {
     loading.value = true
   }
 
+  const loadSequence = ++stockLoadSequence
   loadError.value = false
 
   try {
-    const data = await fetchStockCenter(forceRefresh)
-    allProducts.value = normalizeStockCenterResponse(data)
-    resetVisibleCount()
+    const page = append ? loadedPage.value + 1 : 1
+    const data = await fetchStockCenter(buildStockParams(page), forceRefresh && page === 1)
+    if (loadSequence !== stockLoadSequence) return
+    const cacheHit = loadedFromCache.value
+    const normalizedItems = normalizeStockCenterResponse(data)
+    allProducts.value = append ? [...allProducts.value, ...normalizedItems] : normalizedItems
+    totalResults.value = Number(data.total || 0)
+    loadedPage.value = Number(data.page || page)
+    serverSummary.value = {
+      ...serverSummary.value,
+      ...(data.summary || {}),
+    }
+    hiddenTotal.value = Number(data.hidden_total || 0)
+    offShelfTotal.value = Number(data.off_shelf_total || 0)
+
+    // Paint the cached first page immediately, then refresh it in the
+    // background so returning to the route never waits behind the network.
+    if (cacheHit && !append && !forceRefresh) {
+      loading.value = false
+      void loadStockCenter({ forceRefresh: true, silent: true })
+    }
   } catch (error) {
+    if (loadSequence !== stockLoadSequence) return
     console.error(error)
-    loadError.value = true
-    ElMessage.error('加载库存中心失败')
+    if (!silent || !allProducts.value.length) {
+      loadError.value = true
+      ElMessage.error('加载库存中心失败')
+    }
   } finally {
+    if (loadSequence !== stockLoadSequence) return
     loading.value = false
     refreshing.value = false
+    loadingMore.value = false
     await nextTick()
     initObserver()
   }
 }
 
 async function refreshStockCenter() {
+  invalidateStockCache()
   await loadStockCenter({ forceRefresh: true })
 }
 
 function applySearch() {
   searchKeyword.value = keywordInput.value.trim()
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function applyMetricFilter(status) {
   activeStatus.value = status
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function selectTag(tag) {
   currentTag.value = currentTag.value === tag ? '' : tag
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function selectPriceMode(mode) {
@@ -797,7 +802,7 @@ function selectPriceMode(mode) {
     cashCapValue.value = null
     cashCapInput.value = ''
   }
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function parseCashCapInput(raw) {
@@ -816,7 +821,7 @@ function applyCashCap() {
   }
   cashCapValue.value = parsed
   cashCapInput.value = parsed == null ? '' : formatCashNumber(parsed)
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function applyCashCapPreset(amount) {
@@ -825,13 +830,13 @@ function applyCashCapPreset(amount) {
   if (priceMode.value !== 'points_plus_cash') {
     priceMode.value = 'points_plus_cash'
   }
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function clearCashCap() {
   cashCapValue.value = null
   cashCapInput.value = ''
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function isCashCapPresetActive(amount) {
@@ -846,7 +851,7 @@ function resetFilters() {
   priceMode.value = 'all'
   cashCapValue.value = null
   cashCapInput.value = ''
-  resetVisibleCount()
+  void loadStockCenter({ forceRefresh: true })
 }
 
 function openDetailDrawer(product) {
@@ -854,13 +859,8 @@ function openDetailDrawer(product) {
   detailDrawerVisible.value = true
 }
 
-function resetVisibleCount() {
-  visibleCount.value = PAGE_SIZE
-}
-
-function loadMore() {
-  if (!hasMore.value) return
-  visibleCount.value += PAGE_SIZE
+async function loadMore() {
+  await loadStockCenter({ append: true })
 }
 
 function initObserver() {
@@ -905,26 +905,57 @@ async function fetchHiddenProducts(page = 1) {
   }
 }
 
-async function fetchOffShelfProducts() {
-  offShelfLoading.value = true
+async function fetchOffShelfProducts(options = {}) {
+  const { append = false } = options
+  if (append && (offShelfLoadingMore.value || !offShelfHasMore.value)) return
+  if (append) {
+    offShelfLoadingMore.value = true
+  } else {
+    offShelfLoading.value = true
+  }
   try {
     const keyword = offShelfKeywordInput.value.trim()
-    const params = {}
+    const page = append ? offShelfPage.value + 1 : 1
+    const params = { page, size: OFF_SHELF_PAGE_SIZE }
     if (keyword) params.q = keyword
     const { data } = await api.get('/stock/off-shelf', { params })
-    offShelfPrograms.value = Array.isArray(data.items)
+    const nextGroups = Array.isArray(data.items)
       ? data.items.map((group) => ({
           ...group,
           products: Array.isArray(group.products) ? group.products.map(normalizeProduct) : [],
         }))
       : []
+    if (!append) {
+      offShelfPrograms.value = nextGroups
+    } else {
+      const groups = new Map(offShelfPrograms.value.map((group) => [group.program_id, group]))
+      for (const group of nextGroups) {
+        const existing = groups.get(group.program_id)
+        if (existing) {
+          existing.products = [...existing.products, ...group.products]
+          existing.count = existing.products.length
+          existing.total_count = group.total_count || existing.total_count
+        } else {
+          groups.set(group.program_id, group)
+        }
+      }
+      offShelfPrograms.value = [...groups.values()]
+    }
+    offShelfPage.value = Number(data.page || page)
     offShelfTotal.value = Number(data.total || 0)
+    const loadedCount = offShelfPrograms.value.reduce((sum, group) => sum + (group.products || []).length, 0)
+    offShelfHasMore.value = loadedCount < offShelfTotal.value
   } catch (error) {
     console.error(error)
-    offShelfPrograms.value = []
+    if (!append) {
+      offShelfPrograms.value = []
+      offShelfPage.value = 0
+      offShelfHasMore.value = false
+    }
     ElMessage.error('加载已下架商品失败')
   } finally {
     offShelfLoading.value = false
+    offShelfLoadingMore.value = false
   }
 }
 
@@ -937,11 +968,12 @@ async function relistProduct(product, group) {
     if (group) {
       group.products = group.products.filter((item) => item.id !== product.id)
       group.count = group.products.length
+      group.total_count = Math.max(0, Number(group.total_count || group.count) - 1)
     }
     offShelfPrograms.value = offShelfPrograms.value.filter((g) => (g.products || []).length > 0)
     offShelfTotal.value = Math.max(0, offShelfTotal.value - 1)
     // 主列表的缓存可能不再准确，标记失效
-    stockCenterCache = null
+    invalidateStockCache()
     ElMessage.success(`「${product.product_name || product.product_id}」已恢复上架`)
   } catch (error) {
     console.error(error)
@@ -975,6 +1007,9 @@ async function hideProduct(product) {
       detailProduct.value = null
     }
     hiddenTotal.value += 1
+    totalResults.value = Math.max(0, totalResults.value - 1)
+    invalidateStockCache()
+    await loadStockCenter({ forceRefresh: true, silent: true })
     if (hiddenDrawerVisible.value) {
       await fetchHiddenProducts(1)
     }
@@ -996,7 +1031,7 @@ async function restoreProduct(product) {
     await api.put(`/stock/products/${product.id}/restore`)
     hiddenProducts.value = hiddenProducts.value.filter((item) => item.id !== product.id)
     hiddenTotal.value = Math.max(0, hiddenTotal.value - 1)
-    stockCenterCache = null
+    invalidateStockCache()
     await loadStockCenter({ forceRefresh: true, silent: true })
     if (offShelfDrawerVisible.value) {
       await fetchOffShelfProducts()
@@ -1032,8 +1067,6 @@ watch(offShelfDrawerVisible, (visible) => {
 
 onMounted(async () => {
   await loadStockCenter()
-  await fetchHiddenProducts(1)
-  await fetchOffShelfProducts()
 })
 
 onBeforeUnmount(() => {
@@ -1519,6 +1552,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.hidden-products-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
 }
 .hidden-products-toolbar {
   display: flex;

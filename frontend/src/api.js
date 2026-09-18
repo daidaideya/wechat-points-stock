@@ -26,9 +26,25 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const accessKey = getAccessSession()
   if (accessKey) {
+    config.headers = config.headers || {}
     config.headers['X-Access-Key'] = accessKey
   }
   return config
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const requestUrl = String(error?.config?.url || '')
+    const isAccessBootstrapRequest = requestUrl.endsWith('/access/status') || requestUrl.endsWith('/access/verify')
+    if (error?.response?.status === 401 && !isAccessBootstrapRequest) {
+      clearAccessSession()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site-access-required'))
+      }
+    }
+    return Promise.reject(error)
+  },
+)
 
 export default api

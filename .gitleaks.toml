@@ -1,0 +1,25 @@
+title = "wechat-points-stock secret scanning"
+minVersion = "v8.25.0"
+
+[extend]
+useDefault = true
+
+# Keep the default rules enabled. These exceptions are limited to the exact
+# documented placeholders already used by this repository's example and tests.
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Known non-secret placeholders in the example and regression fixture"
+  condition = "AND"
+  regexTarget = "secret"
+  paths = [
+    '''(^|/)\.env\.example$''',
+    '''(^|/)tests/test_regressions\.py$''',
+  ]
+  regexes = [
+    '''^replace-with-a-random-secret-at-least-32-characters$''',
+    '''^default_token$''',
+    '''^expected-token$''',
+    '''^ui-secret$''',
+  ]

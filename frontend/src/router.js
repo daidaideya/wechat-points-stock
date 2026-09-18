@@ -121,6 +121,16 @@ export function invalidateAccessStatusCache() {
   accessStatusCache = { at: 0, enabled: false, ok: true }
 }
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('site-access-required', () => {
+    clearAccessSession()
+    invalidateAccessStatusCache()
+    if (router.currentRoute.value.name !== 'access-gate') {
+      router.replace({ name: 'access-gate' })
+    }
+  })
+}
+
 router.beforeEach(async (to) => {
   if (to.meta?.public) {
     return true

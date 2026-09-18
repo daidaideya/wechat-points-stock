@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import SessionLocal
+from app.maintenance import is_database_maintenance
 from app.services import cleanup_service
 
 # In-process token cache: key -> (token, expire_unix)
@@ -39,6 +40,9 @@ VALID_SYNC_MODES = {SYNC_MODE_AUTO, SYNC_MODE_BLOCKING, SYNC_MODE_MANUAL}
 
 _scheduler_started = False
 _scheduler_lock = threading.Lock()
+_scheduler_thread: Optional[threading.Thread] = None
+_scheduler_stop_event: Optional[threading.Event] = None
+_SCHEDULER_JOIN_TIMEOUT = 10.0
 _process_lock_fh: Optional[TextIO] = None
 _PROCESS_LOCK_PATH = os.path.join("data", ".qinglong_scheduler.lock")
 # Prevent concurrent syncs (list trigger + scheduler + manual).
@@ -433,6 +437,8 @@ def maybe_auto_sync(
     respect_mode: bool = True,
 ) -> None:
     """Best-effort refresh if last sync is older than interval; never raises."""
+    if is_database_maintenance():
+        return
     try:
         settings = cleanup_service.get_or_create_settings(db)
         if respect_mode:
@@ -460,6 +466,8 @@ def maybe_blocking_sync_for_list(db: Session) -> Optional[Dict[str, Any]]:
 
     Returns a small status dict when a sync ran; None when skipped.
     """
+    if is_database_maintenance():
+        return None
     settings = cleanup_service.get_or_create_settings(db)
     mode = normalize_sync_mode(getattr(settings, "ql_sync_mode", None))
     if mode != SYNC_MODE_BLOCKING:
@@ -505,11 +513,12 @@ def handle_programs_list_sync(db: Session) -> None:
         print(f"[qinglong_open_service] list sync hook failed: {exc}")
 
 
-def _try_acquire_process_lock(path: str = _PROCESS_LOCK_PATH) -> bool:
+def _try_acquire_process_lock(path: Optional[str] = None) -> bool:
     """Non-blocking exclusive lock across uvicorn workers."""
     global _process_lock_fh
     if _process_lock_fh is not None:
         return True
+    path = path or _PROCESS_LOCK_PATH
 
     lock_dir = os.path.dirname(path) or "."
     try:
@@ -550,40 +559,110 @@ def _try_acquire_process_lock(path: str = _PROCESS_LOCK_PATH) -> bool:
         return False
 
 
-def _scheduler_loop() -> None:
-    # First pass shortly after boot so cards get status without waiting for UI traffic.
-    time.sleep(15)
-    while True:
-        interval = DEFAULT_AUTO_SYNC_MINUTES
-        db = SessionLocal()
+def _release_process_lock() -> None:
+    """Release the lock held by this process, if this worker owns it."""
+    global _process_lock_fh
+    fh = _process_lock_fh
+    _process_lock_fh = None
+    if fh is None:
+        return
+
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    except (OSError, ValueError):
+        # Closing the descriptor also releases the OS lock. This path mainly
+        # handles a descriptor that was already closed during shutdown.
+        pass
+    finally:
         try:
-            mode = get_configured_sync_mode(db)
-            interval = get_configured_auto_sync_minutes(db)
-            if mode == SYNC_MODE_AUTO:
-                maybe_auto_sync(db, min_interval_minutes=interval, respect_mode=True)
-            # blocking / manual: scheduler idle (blocking uses list path; manual uses button)
-        except Exception as exc:
-            print(f"[qinglong_open_service] scheduler loop error: {exc}")
-        finally:
-            db.close()
-        # Re-read interval/mode each cycle so Settings changes apply without restart.
-        time.sleep(max(60, interval * 60))
+            fh.close()
+        except (OSError, ValueError):
+            pass
+
+
+def _scheduler_loop(stop_event: threading.Event) -> None:
+    # First pass shortly after boot so cards get status without waiting for UI traffic.
+    try:
+        if stop_event.wait(15):
+            return
+        while not stop_event.is_set():
+            interval = DEFAULT_AUTO_SYNC_MINUTES
+            db = None
+            try:
+                db = SessionLocal()
+                mode = get_configured_sync_mode(db)
+                interval = get_configured_auto_sync_minutes(db)
+                if mode == SYNC_MODE_AUTO:
+                    maybe_auto_sync(db, min_interval_minutes=interval, respect_mode=True)
+                # blocking / manual: scheduler idle (blocking uses list path; manual uses button)
+            except Exception as exc:
+                print(f"[qinglong_open_service] scheduler loop error: {exc}")
+            finally:
+                if db is not None:
+                    db.close()
+            # Re-read interval/mode each cycle so Settings changes apply without restart.
+            if stop_event.wait(max(60, interval * 60)):
+                break
+    finally:
+        _release_process_lock()
 
 
 def start_qinglong_scheduler() -> None:
     """Start periodic QingLong cron sync once per container/host."""
-    global _scheduler_started
+    global _scheduler_started, _scheduler_thread, _scheduler_stop_event
     with _scheduler_lock:
-        if _scheduler_started:
+        if _scheduler_thread is not None and _scheduler_thread.is_alive():
+            _scheduler_started = True
             return
+        if _scheduler_thread is not None or _scheduler_started:
+            _scheduler_thread = None
+            _scheduler_stop_event = None
+            _scheduler_started = False
+            _release_process_lock()
         if not _try_acquire_process_lock():
             print("[qinglong_open_service] scheduler skipped (another worker already owns it)")
             return
+        stop_event = threading.Event()
         thread = threading.Thread(
             target=_scheduler_loop,
+            args=(stop_event,),
             name="qinglong-scheduler",
             daemon=True,
         )
-        thread.start()
+        try:
+            thread.start()
+        except BaseException:
+            _release_process_lock()
+            raise
+        _scheduler_stop_event = stop_event
+        _scheduler_thread = thread
         _scheduler_started = True
         print("[qinglong_open_service] scheduler started (interval from settings)")
+
+
+def stop_qinglong_scheduler(timeout: float = _SCHEDULER_JOIN_TIMEOUT) -> bool:
+    """Request scheduler shutdown and release this worker's process lock."""
+    global _scheduler_started, _scheduler_thread, _scheduler_stop_event
+    with _scheduler_lock:
+        thread = _scheduler_thread
+        stop_event = _scheduler_stop_event
+        if stop_event is not None:
+            stop_event.set()
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(max(0.0, timeout))
+
+        stopped = thread is None or not thread.is_alive()
+        if stopped:
+            _scheduler_thread = None
+            _scheduler_stop_event = None
+            _release_process_lock()
+        _scheduler_started = False
+        return stopped

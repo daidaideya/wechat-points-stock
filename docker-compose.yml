@@ -5,6 +5,12 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5711:5711"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5711/health/ready', timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     env_file:
       - .env
     environment:
@@ -19,11 +25,11 @@ services:
       - "host.docker.internal:host-gateway"
     entrypoint: ["sh", "/app/entrypoint.sh"]
     volumes:
-      - ./app:/app/app
+      # Keep source mounts for the existing Windows workflow, but do not let
+      # the container modify application code.
+      - ./app:/app/app:ro
       - ./data:/app/data
       - ./logs:/app/logs
       - ./static/uploads:/app/static/uploads
-      - ./scripts:/app/scripts
-      # Built SPA is required at runtime (run: cd frontend && npm run build)
-      - ./frontend/dist:/app/frontend/dist
+      - ./scripts:/app/scripts:ro
     restart: unless-stopped
