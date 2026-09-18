@@ -1,8 +1,18 @@
+import threading
+import time
+from datetime import datetime, timedelta
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select, text
 from app import models
 from app.security import hash_access_key
-from datetime import datetime, timedelta
+
+
+ACCESS_AUDIT_RETENTION_DAYS = 90
+ACCESS_AUDIT_MAX_ENTRIES = 10000
+_ACCESS_AUDIT_PRUNE_INTERVAL_SECONDS = 15 * 60
+_access_audit_prune_lock = threading.Lock()
+_last_access_audit_prune_at = 0.0
 
 
 def ensure_system_settings_columns(db: Session):
@@ -96,6 +106,77 @@ def record_access_audit(db: Session, request, event_type: str):
         rollback = getattr(db, "rollback", None)
         if rollback:
             rollback()
+        return
+
+    _maybe_prune_access_audit_events(db)
+
+
+def _claim_access_audit_prune_slot() -> bool:
+    """Allow at most one audit retention attempt per process interval.
+
+    The retention pass is deliberately best-effort. Claiming the slot before
+    running it prevents a failing database operation from turning every
+    authentication request into another full-table cleanup attempt.
+    """
+    global _last_access_audit_prune_at
+
+    now = time.monotonic()
+    with _access_audit_prune_lock:
+        if now - _last_access_audit_prune_at < _ACCESS_AUDIT_PRUNE_INTERVAL_SECONDS:
+            return False
+        _last_access_audit_prune_at = now
+        return True
+
+
+def _maybe_prune_access_audit_events(db: Session) -> None:
+    """Run audit retention occasionally without affecting authentication."""
+    if not _claim_access_audit_prune_slot():
+        return
+
+    try:
+        prune_access_audit_events(db)
+        db.commit()
+    except Exception:
+        # The audit write has already been committed. Retention is optional;
+        # roll back only its transaction and never make access verification
+        # fail because cleanup is unavailable or temporarily busy.
+        rollback = getattr(db, "rollback", None)
+        if rollback:
+            try:
+                rollback()
+            except Exception:
+                pass
+
+
+def prune_access_audit_events(
+    db: Session,
+    max_days: int = ACCESS_AUDIT_RETENTION_DAYS,
+    max_entries: int = ACCESS_AUDIT_MAX_ENTRIES,
+):
+    """Prune old and excess access audit events without storing credentials.
+
+    Rows are first removed when they are older than ``max_days``. The
+    remaining rows are then ranked by ``event_time DESC, id DESC`` so that
+    identical timestamps still produce deterministic retention. As with the
+    points and stock helpers below, this function does not commit; callers
+    own the transaction boundary.
+
+    A non-positive limit disables that dimension, matching the existing
+    history-pruning semantics.
+    """
+    if max_days is not None and max_days > 0:
+        threshold = datetime.utcnow() - timedelta(days=max_days)
+        db.query(models.AccessAuditEvent).filter(
+            models.AccessAuditEvent.event_time < threshold
+        ).delete(synchronize_session=False)
+
+    if max_entries is not None and max_entries > 0:
+        _prune_history_by_max_entries(
+            db,
+            models.AccessAuditEvent,
+            models.AccessAuditEvent.event_time,
+            max_entries,
+        )
 
 
 def ensure_points_history_columns(db: Session):
