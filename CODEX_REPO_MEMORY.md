@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`aa2f0ea`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`09a32da`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批和 Dashboard/Favorites/Points/Users 请求取消第四批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，Settings/ProgramDetail 等请求取消、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `27 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
 - CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run format:check` → `npm run build` 执行；独立 `frontend-e2e` job 安装 Chromium 后执行 `npm run test:e2e`；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -92,6 +92,8 @@
 | `frontend/src/composables/useProgramFilters.test.js` | Programs/Apps 页筛选 composable 的 Node 内置单元测试 |
 | `frontend/src/composables/useAccessSession.js` | 旧版 localStorage access key 的安全读取与清理边界 |
 | `frontend/src/composables/useAccessSession.test.js` | 访问会话迁移边界的 Node 内置单元测试 |
+| `frontend/src/composables/useAbortableRequest.js` | 页面请求取消、最新请求判定和卸载清理控制器 |
+| `frontend/src/composables/useAbortableRequest.test.js` | 请求替换、取消和过期判定的 Node 内置单元测试 |
 | `frontend/src/composables/usePageStateCache.js` | 带 schema 版本和 TTL 的 sessionStorage 页面状态缓存 |
 | `frontend/src/composables/usePageStateCache.test.js` | 页面状态缓存版本、TTL 和失效行为的 Node 内置单元测试 |
 | `frontend/src/components/ProgramFilterBar.vue` | Programs/Apps 页筛选栏展示与筛选事件派发 |
@@ -104,7 +106,7 @@
 | `frontend/src/components/UserMobileCard.vue` | Users 页移动端用户卡片展示；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
 | `frontend/src/components/UserDesktopTable.vue` | Users 页桌面表格列、排序句柄、身份展示和操作按钮；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
 | `frontend/src/components/UserEditDialog.vue` | Users 页新增/编辑表单、取消和保存状态展示；通过 `v-model`、`update-field`、`save` 事件回到页面编排 |
-| `frontend/src/utils/apiError.js` | Axios/API 错误载荷归一化和取消请求识别 |
+| `frontend/src/utils/apiError.js` | Axios/API 错误载荷归一化、request ID 和取消请求识别 |
 | `frontend/src/utils/apiError.test.js` | API 错误消息与取消请求解析的 Node 内置单元测试 |
 | `frontend/eslint.config.js` | ESLint 9 + Vue flat config，覆盖前端 JS/Vue 源码 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
@@ -416,14 +418,16 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `UserDesktopTable.vue` 负责 Users 页桌面列、头像、排序句柄和操作按钮展示；`UsersPage.vue` 通过组件 ref 继续取得表格 DOM 给 Sortable 使用，并保留顺序持久化、失败回滚和移动端列表生命周期。
 - `UserEditDialog.vue` 负责 Users 页新增/编辑表单展示和字段更新事件；`UsersPage.vue` 保留表单初始化、字段白名单更新、微信号非空校验、保存 API、刷新和错误提示。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
-- `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios 取消、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
-- 前端 Node 内置测试目前共 `27 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析和 Users 身份展示规则测试。
-- 2026-09-18 在临时 SQLite 数据库和随机本地 `INGEST_TOKEN` 上完成桌面浏览器 smoke：Dashboard、Programs、Apps、Users、Points、Stock、QingLong、Settings 均可加载主内容/空态；Users 新增用户空表单校验和 QingLong 未配置 OpenAPI 提示均符合预期，浏览器 console 无 error/warn。验证后服务已停止、临时数据库已删除；浏览器不支持 viewport 覆盖，因此移动端视口和 CI Playwright 自动化仍待补齐。
+- `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios/native abort、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
+- `frontend/src/composables/useAbortableRequest.js` 为 Dashboard、Favorites、Points、Users 列表/积分详情提供“新请求取消旧请求、卸载取消、过期响应不写状态”的控制器；取消不会弹出错误，也不会由旧请求覆盖 loading 状态。
+- 前端 Node 内置测试目前共 `30 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析、AbortError 和 Users 身份展示规则测试。
+- 2026-09-18 在临时 SQLite 数据库和随机本地 `INGEST_TOKEN` 上完成桌面浏览器 smoke：Dashboard、Programs、Apps、Users、Points、Stock、QingLong、Settings 均可加载主内容/空态；Users 新增用户空表单校验和 QingLong 未配置 OpenAPI 提示均符合预期，浏览器 console 无 error/warn。验证后服务已停止、临时数据库已删除。
 - 2026-09-18 新增 `frontend/playwright.config.js` 与 `frontend/e2e/smoke.spec.js`：API mock 下覆盖上述八个主路由、Users 空表单校验和 390px 移动导航开关，监听 console error/warn 与 pageerror；本地干净 `npm ci` 后 `npm run test:e2e` 为 `3 passed`，CI 使用独立 job 安装 Chromium。真实后端数据、跨浏览器和生产鉴权流程仍未纳入该 smoke。
 - 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
-- `frontend/package.json` 提供 `npm test`、`npm run lint`、`npm run format:check` 和 `npm run build`；ESLint/Prettier 共享层格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
+- `frontend/package.json` 提供 `npm test`、`npm run test:e2e`、`npm run lint`、`npm run format:check` 和 `npm run build`；ESLint/Prettier/Playwright 配置与用例格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
+- `scripts/export_openapi.py` 从 FastAPI `app.openapi()` 生成排序稳定的 `docs/openapi.json`；`--check` 在 CI 中阻断路由/参数/schema 漂移，导入 app 不启动数据库或后台调度器。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
