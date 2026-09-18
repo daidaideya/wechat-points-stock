@@ -399,109 +399,17 @@
       </template>
     </el-dialog>
 
-    <el-dialog
+    <ProgramDetailDialog
       v-model="detailDialogVisible"
-      :title="detailDialogTitle"
-      :width="dialogWidth"
-      :top="dialogTop"
+      :dialog-width="dialogWidth"
+      :dialog-top="dialogTop"
       :fullscreen="isCompactDialog"
-      class="showcase-dialog showcase-detail-dialog"
-      destroy-on-close
-    >
-      <div class="showcase-dialog-body detail-dialog-body">
-        <div class="showcase-dialog-intro">
-          <div>
-            <div class="showcase-dialog-title">{{ isAppList ? 'APP 详情' : '小程序详情' }}</div>
-            <div class="showcase-dialog-subtitle">当前页查看积分排行与基础信息，无需跳转离开列表。</div>
-          </div>
-          <div class="stock-dialog-badges">
-            <div class="showcase-dialog-badge stock-badge">{{ detailData?.is_favorite ? '已收藏' : '未收藏' }}</div>
-            <div class="showcase-dialog-badge stock-badge">最高积分 {{ detailData?.max_user_points ?? 0 }}</div>
-            <div class="showcase-dialog-badge stock-badge">排行 {{ detailRanking.length }}</div>
-          </div>
-        </div>
-
-        <div v-if="detailLoading" class="stock-loading dialog-panel">
-          <el-skeleton :rows="6" animated />
-        </div>
-        <template v-else>
-          <div class="stock-summary-grid">
-            <div class="stock-summary-card dialog-panel">
-              <div class="stock-summary-label">program_id</div>
-              <div class="stock-summary-value mono-text detail-id-value">{{ detailData?.program_id || '—' }}</div>
-            </div>
-            <div class="stock-summary-card dialog-panel">
-              <div class="stock-summary-label">最近更新</div>
-              <div class="stock-summary-value detail-update-value">{{ formatDate(detailData?.last_update_time) }}</div>
-            </div>
-            <div class="stock-summary-card dialog-panel">
-              <div class="stock-summary-label">标签数量</div>
-              <div class="stock-summary-value">{{ (detailData?.tags || []).length || 0 }}</div>
-            </div>
-            <div class="stock-summary-card dialog-panel">
-              <div class="stock-summary-label">最高用户积分</div>
-              <div class="stock-summary-value success-text">{{ detailData?.max_user_points ?? 0 }}</div>
-            </div>
-          </div>
-
-          <div class="detail-info-grid">
-            <div class="dialog-panel detail-info-card">
-              <div class="stock-section-title">标签</div>
-              <div class="detail-tag-row">
-                <span v-for="tag in detailData?.tags || []" :key="tag" class="info-tag">{{ tag }}</span>
-                <span v-if="!(detailData?.tags || []).length" class="info-tag empty">未设置标签</span>
-              </div>
-            </div>
-            <div class="dialog-panel detail-info-card">
-              <div class="stock-section-title">备注</div>
-              <p class="detail-note-text">{{ detailData?.note || '暂无备注信息' }}</p>
-            </div>
-          </div>
-
-          <div class="dialog-panel stock-table-panel">
-            <div class="stock-section-title-row">
-              <div class="stock-section-title">积分排行榜</div>
-              <div class="stock-section-hint">展示该小程序下账号最新积分</div>
-            </div>
-            <el-table :data="detailRanking" stripe class="showcase-dialog-table">
-              <el-table-column type="index" label="#" width="60" />
-              <el-table-column prop="nickname" label="昵称" min-width="120">
-                <template #default="scope">{{ scope.row.nickname || '未命名' }}</template>
-              </el-table-column>
-              <!-- APP 排行优先展示手机号；小程序仍显示微信号 -->
-              <el-table-column v-if="isAppList" label="手机号" min-width="150">
-                <template #default="scope">{{ rankingPhone(scope.row) || '—' }}</template>
-              </el-table-column>
-              <el-table-column v-else label="微信号" min-width="160">
-                <template #default="scope">{{ rankingWechatId(scope.row) || '—' }}</template>
-              </el-table-column>
-              <el-table-column v-if="isAppList" label="微信号" min-width="140">
-                <template #default="scope">{{ rankingWechatId(scope.row) || '—' }}</template>
-              </el-table-column>
-              <el-table-column prop="device" label="设备" min-width="100">
-                <template #default="scope">{{ scope.row.device || '—' }}</template>
-              </el-table-column>
-              <el-table-column prop="points" label="积分" width="100">
-                <template #default="scope">{{ scope.row.points ?? 0 }}</template>
-              </el-table-column>
-              <el-table-column prop="cash" label="现金" width="100">
-                <template #default="scope">
-                  {{ scope.row.cash == null || scope.row.cash === '' ? '—' : `¥${scope.row.cash}` }}
-                </template>
-              </el-table-column>
-              <el-table-column label="更新时间" min-width="160">
-                <template #default="scope">{{ formatDate(scope.row.report_time) }}</template>
-              </el-table-column>
-            </el-table>
-            <el-empty v-if="!detailRanking.length" description="暂无积分排行数据" :image-size="80" />
-          </div>
-        </template>
-      </div>
-      <template #footer>
-        <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button v-if="detailData?.has_stock" type="primary" @click="openStockFromDetail"> 查看库存 </el-button>
-      </template>
-    </el-dialog>
+      :is-app-list="isAppList"
+      :loading="detailLoading"
+      :detail-data="detailData"
+      :format-date="formatDate"
+      @open-stock="openStockDialog"
+    />
 
     <el-dialog
       v-model="stockDialogVisible"
@@ -699,6 +607,7 @@ import {
 import { useRoute } from 'vue-router'
 import api from '../api'
 import ProgramFilterBar from '../components/ProgramFilterBar.vue'
+import ProgramDetailDialog from '../components/ProgramDetailDialog.vue'
 import ProgramMetricStrip from '../components/ProgramMetricStrip.vue'
 import {
   formatMoney,
@@ -721,23 +630,6 @@ const listKind = computed(() => (route.meta?.listKind === 'app' ? 'app' : 'mini'
 const isAppList = computed(() => listKind.value === 'app')
 const entityLabel = computed(() => (isAppList.value ? 'APP' : '小程序'))
 const PROGRAMS_PAGE_STATE_KEY = computed(() => (isAppList.value ? 'apps-page-state' : 'programs-page-state'))
-
-function isPhoneLike(value) {
-  return /^1[3-9]\d{9}$/.test(String(value || '').trim())
-}
-
-function rankingPhone(row) {
-  const phone = String(row?.phone || '').trim()
-  if (phone) return phone
-  const wid = String(row?.wechat_id || '').trim()
-  return isPhoneLike(wid) ? wid : ''
-}
-
-function rankingWechatId(row) {
-  const wid = String(row?.wechat_id || '').trim()
-  if (!wid || isPhoneLike(wid)) return ''
-  return wid
-}
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -806,25 +698,6 @@ function handleViewportResize() {
 const stockDialogTitle = computed(() => {
   if (!stockData.value?.program_name) return '库存详情'
   return `${stockData.value.program_name} - 库存详情`
-})
-
-const detailDialogTitle = computed(() => {
-  if (!detailData.value?.program_name && !detailData.value?.program_id) {
-    return isAppList.value ? 'APP 详情' : '小程序详情'
-  }
-  return `${detailData.value.program_name || detailData.value.program_id} - 详情`
-})
-
-const detailRanking = computed(() => {
-  const ranking = Array.isArray(detailData.value?.ranking) ? [...detailData.value.ranking] : []
-  return ranking.sort((a, b) => {
-    const ap = Number(a?.points) || 0
-    const bp = Number(b?.points) || 0
-    if (bp !== ap) return bp - ap
-    const ac = Number(a?.cash) || 0
-    const bc = Number(b?.cash) || 0
-    return bc - ac
-  })
 })
 
 const stockMaxUserPoints = computed(() => Number(stockData.value?.max_user_points) || 0)
@@ -986,13 +859,6 @@ async function openDetailDialog(program) {
   } finally {
     detailLoading.value = false
   }
-}
-
-function openStockFromDetail() {
-  const program = detailData.value
-  if (!program?.program_id || !program.has_stock) return
-  detailDialogVisible.value = false
-  openStockDialog(program)
 }
 
 function formatDate(value) {
@@ -2035,55 +1901,8 @@ onBeforeUnmount(() => {
   line-height: 1.7;
 }
 
-.stock-dialog-body,
-.detail-dialog-body {
+.stock-dialog-body {
   gap: 14px;
-}
-
-.detail-info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.detail-info-card {
-  min-height: 110px;
-}
-
-.detail-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.info-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255, 244, 221, 0.95);
-  color: #8b5e34;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.info-tag.empty {
-  background: rgba(248, 250, 252, 0.95);
-  color: #94a3b8;
-}
-
-.detail-note-text {
-  margin: 0;
-  color: #4a3623;
-  font-size: 14px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.detail-id-value,
-.detail-update-value {
-  font-size: 15px !important;
 }
 
 .mono-text {
@@ -2828,7 +2647,6 @@ onBeforeUnmount(() => {
     padding: 6px;
   }
 
-  .detail-info-grid,
   .stock-summary-grid {
     grid-template-columns: 1fr;
   }
