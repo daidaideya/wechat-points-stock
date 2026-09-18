@@ -420,10 +420,12 @@ import {
 } from '@element-plus/icons-vue'
 import api from '../api'
 import { useViewport } from '../composables/useViewport'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const loading = ref(false)
 const items = ref([])
+const requestController = useAbortableRequest()
 const searchKeyword = ref('')
 const sortMode = ref('totalPoints')
 const quickFilter = ref('all')
@@ -676,15 +678,21 @@ function openUnregistered(item) {
 }
 
 async function loadPoints() {
+  const request = requestController.start()
   loading.value = true
   try {
-    const { data } = await api.get('/points')
+    const { data } = await api.get('/points', { signal: request.signal })
+    if (!request.isCurrent()) return
     items.value = data.items || []
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载积分总览失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 

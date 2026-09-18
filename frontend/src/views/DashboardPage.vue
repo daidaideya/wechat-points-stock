@@ -141,7 +141,8 @@ import {
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const router = useRouter()
 const loading = ref(false)
@@ -151,6 +152,8 @@ const unreportedPrograms = ref([])
 const allUnreportedPrograms = ref([])
 const unreportedDialogVisible = ref(false)
 const unreportedDialogLoading = ref(false)
+const dashboardRequestController = useAbortableRequest()
+const unreportedRequestController = useAbortableRequest()
 
 const cards = computed(() => [
   {
@@ -224,7 +227,10 @@ function formatDate(value) {
 }
 
 async function fetchUnreportedPrograms() {
-  const { data } = await api.get('/programs/unreported')
+  const request = unreportedRequestController.start()
+  const { data } = await api.get('/programs/unreported', { signal: request.signal })
+  if (!request.isCurrent()) return []
+  request.finish()
   return data?.items || []
 }
 
@@ -235,6 +241,7 @@ async function openUnreportedDialog() {
     const items = await fetchUnreportedPrograms()
     allUnreportedPrograms.value = items
   } catch (error) {
+    if (isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载今日未报列表失败'))
   } finally {
@@ -254,9 +261,11 @@ function handleCardClick(card) {
 }
 
 async function loadDashboard() {
+  const request = dashboardRequestController.start()
   loading.value = true
   try {
-    const { data } = await api.get('/dashboard')
+    const { data } = await api.get('/dashboard', { signal: request.signal })
+    if (!request.isCurrent()) return
     summary.value = data || {}
     recentUpdates.value = data?.recent_program_updates || []
     // 后端在 /dashboard 直接给出 unreported_top（前 5 条），首屏不再多发一次 /programs/unreported
@@ -264,10 +273,14 @@ async function loadDashboard() {
     // 列表对话框打开时再单独 fetch 全部，不阻塞首屏
     allUnreportedPrograms.value = []
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载仪表盘失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 

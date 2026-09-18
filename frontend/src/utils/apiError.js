@@ -1,5 +1,5 @@
 export function isRequestCanceled(error) {
-  return error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError'
+  return error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError' || error?.name === 'AbortError'
 }
 
 export function getApiErrorKind(error) {

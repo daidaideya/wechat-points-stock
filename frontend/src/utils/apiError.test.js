@@ -49,3 +49,11 @@ test('classifies transport failures and includes the backend request id', () => 
     '服务异常（请求 ID: req-header）',
   )
 })
+
+test('treats native AbortError as a silent cancellation', () => {
+  const error = new DOMException('The operation was aborted.', 'AbortError')
+
+  assert.equal(isRequestCanceled(error), true)
+  assert.equal(getApiErrorKind(error), 'canceled')
+  assert.equal(getApiErrorMessage(error, '不应显示'), '')
+})

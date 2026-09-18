@@ -106,11 +106,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import api from '../api'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
 import UserDesktopTable from '../components/UserDesktopTable.vue'
 import UserEditDialog from '../components/UserEditDialog.vue'
 import UserPointsDialog from '../components/UserPointsDialog.vue'
 import UserMobileCard from '../components/UserMobileCard.vue'
-import { getApiErrorMessage } from '../utils/apiError'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 import { displayName, displayPhone } from '../utils/user'
 
 const loading = ref(false)
@@ -126,6 +127,8 @@ const currentRow = ref(null)
 const pointsUser = ref(null)
 const mobileListRef = ref(null)
 const desktopTableRef = ref(null)
+const usersRequestController = useAbortableRequest()
+const pointsRequestController = useAbortableRequest()
 
 let mobileSortable = null
 let desktopSortable = null
@@ -175,15 +178,21 @@ function updateFormField(field, value) {
 }
 
 async function loadUsers() {
+  const request = usersRequestController.start()
   loading.value = true
   try {
-    const { data } = await api.get('/accounts')
+    const { data } = await api.get('/accounts', { signal: request.signal })
+    if (!request.isCurrent()) return
     items.value = data.items || []
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载用户列表失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 
@@ -242,17 +251,25 @@ async function removeUser(row) {
 }
 
 async function viewPoints(row) {
+  const request = pointsRequestController.start()
   pointsVisible.value = true
   pointsLoading.value = true
   pointsUser.value = row
   try {
-    const { data } = await api.get(`/accounts/${encodeURIComponent(row.wechat_id)}/points_details`)
+    const { data } = await api.get(`/accounts/${encodeURIComponent(row.wechat_id)}/points_details`, {
+      signal: request.signal,
+    })
+    if (!request.isCurrent()) return
     pointItems.value = Array.isArray(data) ? data : []
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载积分详情失败'))
   } finally {
-    pointsLoading.value = false
+    if (request.isCurrent()) {
+      pointsLoading.value = false
+      request.finish()
+    }
   }
 }
 

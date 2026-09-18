@@ -49,11 +49,13 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
-import { getApiErrorMessage } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const router = useRouter()
 const loading = ref(false)
 const items = ref([])
+const requestController = useAbortableRequest()
 
 function formatDate(value) {
   if (!value) return '暂无数据'
@@ -63,15 +65,21 @@ function formatDate(value) {
 }
 
 async function loadFavorites() {
+  const request = requestController.start()
   loading.value = true
   try {
-    const { data } = await api.get('/programs/favorites')
+    const { data } = await api.get('/programs/favorites', { signal: request.signal })
+    if (!request.isCurrent()) return
     items.value = data.items || []
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载收藏列表失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 
