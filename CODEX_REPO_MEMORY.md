@@ -9,7 +9,7 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`c2a5531`（2026-09-18）
+- 快照提交：`407624d`（2026-09-18）
 - 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
@@ -92,6 +92,7 @@
 | `frontend/src/composables/useAccessSession.test.js` | 访问会话迁移边界的 Node 内置单元测试 |
 | `frontend/src/composables/usePageStateCache.js` | 带 schema 版本和 TTL 的 sessionStorage 页面状态缓存 |
 | `frontend/src/composables/usePageStateCache.test.js` | 页面状态缓存版本、TTL 和失效行为的 Node 内置单元测试 |
+| `frontend/src/components/ProgramFilterBar.vue` | Programs/Apps 页筛选栏展示与筛选事件派发 |
 | `frontend/eslint.config.js` | ESLint 9 + Vue flat config，覆盖前端 JS/Vue 源码 |
 | `frontend/src/views/` | 各业务页；最大文件是 `ProgramsPage.vue`、`StockPage.vue`、`QinglongCronsPage.vue` |
 | `scripts/api_template.py` | 给青龙/自写脚本复用的 `PointsReporter`、`StockReporter` |
@@ -385,6 +386,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `StockPage.vue` 通过 `frontend/src/composables/useStockFilters.js` 管理关键词、库存状态、标签、价格模式和现金上限；页面保留筛选后请求、缓存和结果展示。
 - 前端 Node 内置测试目前共 `14 passed`，其中包含 Stock 筛选参数和状态切换测试。
 - `ProgramsPage.vue` 与 `/apps` 共用 `frontend/src/composables/useProgramFilters.js` 管理搜索、状态、收藏、青龙状态、排序和标签筛选；页面保留 API 请求、分页、sessionStorage 恢复和归档/删除等业务编排。
+- `ProgramFilterBar.vue` 负责 Programs/Apps 页筛选栏展示和事件派发；`ProgramsPage.vue` 保留筛选状态、请求、分页、缓存恢复和业务操作。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - 前端 Node 内置测试目前共 `21 passed`，其中包含 Programs/Apps 筛选参数、访问会话和页面状态缓存版本/TTL 测试。
 - `frontend/package.json` 提供 `npm test`、`npm run lint` 和 `npm run build`；ESLint 已接入 CI 可复用命令，现有代码基线通过 lint。
