@@ -122,7 +122,13 @@ def _claim_access_audit_prune_slot() -> bool:
 
     now = time.monotonic()
     with _access_audit_prune_lock:
-        if now - _last_access_audit_prune_at < _ACCESS_AUDIT_PRUNE_INTERVAL_SECONDS:
+        # ``0.0`` is the startup/sentinel value.  ``time.monotonic()`` is
+        # relative to the current boot/process, so a fresh Linux runner can
+        # legitimately be less than one retention interval past zero.
+        if (
+            _last_access_audit_prune_at
+            and now - _last_access_audit_prune_at < _ACCESS_AUDIT_PRUNE_INTERVAL_SECONDS
+        ):
             return False
         _last_access_audit_prune_at = now
         return True
