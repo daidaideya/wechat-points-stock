@@ -22,6 +22,7 @@ if _is_sqlite:
         """WAL + busy timeout make Docker multi-reader / occasional writer safer."""
         cursor = dbapi_connection.cursor()
         try:
+            cursor.execute("PRAGMA foreign_keys=ON")
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA busy_timeout=5000")
             cursor.execute("PRAGMA synchronous=NORMAL")
