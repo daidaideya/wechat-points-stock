@@ -100,11 +100,19 @@ test('mobile navigation opens and closes at the responsive breakpoint', async ({
   await page.getByRole('button', { name: '打开主导航' }).click()
   await expect(page.locator('.mobile-nav-panel')).toBeVisible()
   await expect(page.getByText('用户管理', { exact: true }).last()).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开主导航' })).toHaveAttribute('aria-expanded', 'true')
+  const firstNavItem = page.locator('.mobile-nav-panel .menu-item-anchor').first()
+  const lastNavItem = page.locator('.mobile-nav-panel .menu-item-anchor').last()
+  await expect(firstNavItem).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(lastNavItem).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(firstNavItem).toBeFocused()
 
-  // The mask sits behind the side panel, so force the event on its close
-  // button instead of relying on a physical point outside the panel.
-  await page.getByRole('button', { name: '关闭主导航' }).click({ force: true })
+  await page.keyboard.press('Escape')
   await expect(page.locator('.mobile-nav-panel')).toBeHidden()
+  await expect(page.getByRole('button', { name: '打开主导航' })).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: '打开主导航' })).toBeFocused()
 
   expect(issues).toEqual([])
 })

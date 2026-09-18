@@ -8,9 +8,12 @@
   <div v-else class="app-layout">
     <header class="mobile-topbar">
       <button
+        ref="mobileMenuButtonRef"
         class="mobile-menu-button"
         type="button"
         aria-label="打开主导航"
+        aria-controls="mobile-navigation-panel"
+        :aria-expanded="mobileNavVisible ? 'true' : 'false'"
         @click.stop="openMobileNav"
       >
         <el-icon><Menu /></el-icon>
@@ -145,7 +148,15 @@
         aria-label="关闭主导航"
         @click="closeMobileNav"
       ></button>
-      <aside class="sidebar mobile-sidebar mobile-nav-panel" role="dialog" aria-modal="true">
+      <aside
+        id="mobile-navigation-panel"
+        ref="mobileNavPanelRef"
+        class="sidebar mobile-sidebar mobile-nav-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="主导航"
+        @keydown="handleMobileNavKeydown"
+      >
         <div class="brand brand-enhanced mobile-brand">
           <div class="brand-mark">
             <el-icon><DataAnalysis /></el-icon>
@@ -296,7 +307,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Bell,
   Box,
@@ -318,6 +329,8 @@ import { isNavigationLoading, preloadStockPage } from './router'
 
 const route = useRoute()
 const mobileNavVisible = ref(false)
+const mobileMenuButtonRef = ref(null)
+const mobileNavPanelRef = ref(null)
 const MOBILE_LAYOUT_MAX = 900
 
 const isPublicPage = computed(() => Boolean(route.meta?.public))
@@ -369,10 +382,40 @@ function openMobileNav() {
   // Guard against desktop accidental open; button is mobile-only by CSS.
   if (!isMobileLayout()) return
   mobileNavVisible.value = true
+  void nextTick(() => {
+    const firstFocusable = mobileNavPanelRef.value?.querySelector?.(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    firstFocusable?.focus()
+  })
 }
 
-function closeMobileNav() {
+function closeMobileNav(restoreFocus = true) {
+  const wasVisible = mobileNavVisible.value
   mobileNavVisible.value = false
+  if (restoreFocus && wasVisible) {
+    void nextTick(() => mobileMenuButtonRef.value?.focus?.())
+  }
+}
+
+function handleMobileNavKeydown(event) {
+  if (event.key !== 'Tab') return
+  const panel = mobileNavPanelRef.value
+  if (!panel) return
+  const focusable = Array.from(
+    panel.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+  ).filter((element) => element instanceof HTMLElement && !element.hidden)
+  if (!focusable.length) return
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 const handleMobileMenuSelect = () => {
@@ -382,7 +425,7 @@ const handleMobileMenuSelect = () => {
 function handleViewportLayoutChange() {
   // Desktop layout should never keep the mobile panel open.
   if (!isMobileLayout() && mobileNavVisible.value) {
-    closeMobileNav()
+    closeMobileNav(false)
   }
 }
 
@@ -435,7 +478,7 @@ onBeforeUnmount(() => {
 watch(
   () => route.fullPath,
   () => {
-    closeMobileNav()
+    closeMobileNav(false)
   },
 )
 
