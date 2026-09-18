@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`0f5a472`（2026-09-18）
-- 工作区：OPT-015 已完成主要页面错误边界第三批；OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
+- 快照提交：`bba2bf1`（2026-09-18）
+- 工作区：OPT-017 已完成共享层 Prettier 门禁第二批；OPT-015 主要页面错误边界第三批和 OPT-016 当前余额快照第一批已落地，后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `24 passed`，`npm run lint` 通过
@@ -398,7 +398,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios 取消、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - 前端 Node 内置测试目前共 `24 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL 和 API 错误解析测试。
-- `frontend/package.json` 提供 `npm test`、`npm run lint` 和 `npm run build`；ESLint 已接入 CI 可复用命令，现有代码基线通过 lint。
+- `frontend/package.json` 提供 `npm test`、`npm run lint`、`npm run format:check` 和 `npm run build`；ESLint/Prettier 共享层格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
