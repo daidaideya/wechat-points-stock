@@ -47,10 +47,12 @@
 import { ref } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api, { clearAccessSession } from '../api'
+import api from '../api'
+import { useAccessSession } from '../composables/useAccessSession'
 import { invalidateAccessStatusCache } from '../router'
 
 const router = useRouter()
+const { clearAccessSession } = useAccessSession()
 const accessKey = ref('')
 const submitting = ref(false)
 const errorMessage = ref('')

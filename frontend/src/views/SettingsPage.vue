@@ -291,10 +291,12 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import api, { clearAccessSession } from '../api'
+import api from '../api'
+import { useAccessSession } from '../composables/useAccessSession'
 
 const route = useRoute()
 const router = useRouter()
+const { clearAccessSession } = useAccessSession()
 
 const navItems = [
   { key: 'general', label: '基础设置', desc: '日志清理 / 访问保护', icon: '⚙️' },

@@ -1,6 +1,7 @@
 import { readonly, ref } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
-import api, { clearAccessSession } from './api'
+import api from './api'
+import { clearAccessSession } from './composables/useAccessSession'
 
 const DashboardPage = () => import('./views/DashboardPage.vue')
 const ProgramsPage = () => import('./views/ProgramsPage.vue')

@@ -1,14 +1,5 @@
 import axios from 'axios'
-
-const ACCESS_SESSION_KEY = 'site_access_key'
-
-export function getAccessSession() {
-  return localStorage.getItem(ACCESS_SESSION_KEY) || ''
-}
-
-export function clearAccessSession() {
-  localStorage.removeItem(ACCESS_SESSION_KEY)
-}
+import { clearAccessSession, getAccessSession } from './composables/useAccessSession'
 
 function isAccessBootstrapRequest(url) {
   return url.endsWith('/access/status') || url.endsWith('/access/verify')
