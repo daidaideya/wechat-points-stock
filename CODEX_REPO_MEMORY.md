@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`2edf15f`（2026-09-18）
-- 工作区：当前正在按 `docs/优化路线图.md` 实施前端结构与测试底座改造；不要覆盖现有未提交修改
+- 快照提交：`c7e17c4`（2026-09-18）
+- 工作区：OPT-016 已落地当前余额快照第一批；后续继续按 `docs/优化路线图.md` 推进，未完成项不要误标为闭环
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `106 passed`；前端 `npm test` 为 `23 passed`，`npm run lint` 通过
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `23 passed`，`npm run lint` 通过
 - CI：前端 job 按 `npm ci` → `npm test` → `npm run lint` → `npm run build` 执行；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -57,7 +57,7 @@
 | `app/main.py` | FastAPI 组装、lifespan 启停、启动前校验兼容 schema/index、后台线程、健康检查、request ID/请求日志、GZip、静态资源、SPA fallback |
 | `app/config.py` | 从 `.env` 读取 `INGEST_TOKEN`（兼容旧 `API_TOKEN`）、`DATABASE_URL`、上传目录并校验启动配置 |
 | `app/database.py` | SQLAlchemy engine/session；SQLite 开启 foreign keys、WAL、busy timeout、NORMAL synchronous |
-| `app/models.py` | `SystemSettings`、`WechatAccount`、`MiniProgram`、`PointsHistory`、`Product`、`StockHistory` |
+| `app/models.py` | `SystemSettings`、`WechatAccount`、`MiniProgram`、`PointsHistory`、`CurrentPointBalance`、`Product`、`StockHistory` |
 | `app/schemas.py` | 外部积分/现金上报与库存上报的 Pydantic 请求模型；包含字符串、finite/非负数值和批量上限约束 |
 | `app/schemas_stock.py` | 库存管理 CRUD/分页响应模型及分页、排序、字段范围约束 |
 | `app/dependencies.py` | Bearer 上报鉴权、UI `require_ui_access()` 统一访问保护、8 小时签名 HttpOnly Cookie 会话 |
@@ -69,7 +69,7 @@
 | `app/services/qinglong_service.py` | 账号解析、积分入库、库存快照 upsert/下架判断 |
 | `app/services/qinglong_open_service.py` | QingLong OpenAPI token、任务列表、匹配、同步和定时器 |
 | `app/services/bark_service.py` | 今日未上报小程序计算、Bark 推送和定时器 |
-| `app/services/cleanup_service.py` | 设置单例、懒迁移、积分/库存历史清理；历史 max_entries 裁剪使用数据库子查询 |
+| `app/services/cleanup_service.py` | 设置单例、懒迁移、当前余额快照回填/upsert、积分/库存历史清理；历史 max_entries 裁剪使用数据库子查询 |
 | `app/maintenance.py` | 数据库恢复期间的进程内维护态、跨进程旁路锁和在途数据库请求排空 |
 | `app/timeutil.py` | Asia/Shanghai 与 UTC 转换辅助函数；Windows 缺少 IANA tzdata 时回退到固定 UTC+08:00 |
 | `app/static_assets.py` | 优先返回 Vite 生成的 `.gz` 资源 |
@@ -119,6 +119,9 @@ MiniProgram (program_id 唯一)
     ├── PointsHistory.program_id
     └── Product.program_id + product_id 唯一
 
+CurrentPointBalance (wechat_id + program_id 唯一)
+    └── 逻辑镜像 PointsHistory 的最新一行；不设历史外键，允许历史裁剪后保留当前状态
+
 Product
     └── StockHistory 通过 program_id/product_id 逻辑关联
 
@@ -139,6 +142,8 @@ SystemSettings：单行全局设置
 | `mini_programs` | `ql_*` | QingLong 任务匹配缓存，只读镜像，不是数据上报来源 |
 | `points_history` | `points` / `cash` | 账户余额历史；均可为 `NULL`，`NULL` 表示该次没有上报该维度，不等于 0 |
 | `points_history` | `batch_id` | 一次积分上报请求生成一个 UUID，便于识别批次 |
+| `current_point_balances` | `points` / `cash` | 每个账号/程序最新历史行的当前镜像；保持 `NULL` 维度语义，不参与趋势/审计替代 |
+| `current_point_balances` | `last_report_time` / `history_id` | 以报告时间、历史主键组成稳定版本；晚到旧报告不能覆盖新快照 |
 | `products` | `points` / `cash` | 商品兑换价；`cash` 单位为人民币元，0/NULL 表示纯积分商品 |
 | `products` | `stock` | 当前库存，没货应报 `0`，不要因为没货就从快照列表删除 |
 | `products` | `is_hidden` | 用户手动隐藏；由“ 不感兴趣 ”操作控制 |
@@ -153,6 +158,7 @@ SystemSettings：单行全局设置
 - `stock.py:ensure_product_columns`
 - `cleanup_service.py:ensure_system_settings_columns`
 - `cleanup_service.py:ensure_points_history_columns`
+- `cleanup_service.py:ensure_current_balance_table`
 
 增加模型字段时必须同时把字段加入对应 `ensure_*_columns` 映射，否则旧 `data/database.db` 会在运行时缺列。非列变更再使用一次性脚本。
 
@@ -202,8 +208,8 @@ Authorization: Bearer <INGEST_TOKEN>
 3. `wechat_id` 若是中国手机号格式 `^1[3-9]\d{9}$`，优先按 `phone` 找已有账号；必要时把手机号写入 `phone` 列。手机号型账号不会被请求里的空昵称覆盖。
 4. 非手机号身份按 `wechat_id` 查找，不存在则创建，并使用请求昵称。
 5. 小程序不存在则自动创建；`program_name` 和有效的 `auth_type` 会更新已有记录。
-6. 每个余额快照写入 `PointsHistory`，`report.execution_time` 优先作为时间，否则用当前 UTC。
-7. 请求结束后按 `SystemSettings.max_log_entries` 与 `max_retention_days` 裁剪积分历史；裁剪失败只打印日志，不让上报失败。
+6. 每个余额快照写入 `PointsHistory`，并在同一事务内 upsert `CurrentPointBalance`；`report.execution_time` 优先作为时间，否则用当前 UTC。快照以 `(report_time, history_id)` 稳定判断新旧。
+7. 请求结束后按 `SystemSettings.max_log_entries` 与 `max_retention_days` 裁剪积分历史；裁剪失败只打印日志，不让上报失败，当前余额快照不随历史裁剪删除。
 
 “活跃”在 UI 汇总中通常指当前积分或现金至少一个大于 0；纯 0 余额不算活跃。
 
@@ -501,7 +507,7 @@ docker compose up -d --build
 9. **健康检查已提供。** `/health/live` 只表示进程路由可用；`/health/ready` 执行 `SELECT 1`，Compose 已用它做容器 healthcheck。
 10. **上报与库存 CRUD 已补第一层输入约束。** Pydantic schema 现在拒绝空白/超长字段、负库存/积分/现金、NaN/Infinity、非整数计数和超大批量；合法数字字符串继续兼容。图片上传还会校验 PNG/JPEG/GIF/WebP 尺寸，限制为 25 MP，并在尺寸校验失败时清理已写入文件；请求体/代理统一上限、批量配置化和校验审计仍待补。
 11. **SQLite 连接已开启外键约束。** `app/database.py` 对每个 SQLite 连接执行 `PRAGMA foreign_keys=ON`，现有 `PointsHistory` 账号/程序外键有回归测试；正式迁移、旧库孤儿清理、StockHistory 外键和级联策略仍待设计。
-12. **历史裁剪和积分摘要查询已避免大规模 Python 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；`web.py` 的账号/积分摘要用窗口查询取每个组合的最新记录和本地业务日前基线。程序排行和长期增长场景仍可评估当前余额快照表，并需要真实规模基准。
+12. **历史裁剪和积分摘要查询已避免大规模 Python 物化。** `cleanup_service.py` 用数据库子查询按时间和 `id` 稳定裁剪积分/库存历史，并保持调用方事务边界；`web.py` 的账号/积分摘要用窗口查询取每个组合的最新记录和本地业务日前基线；`current_point_balances` 已承接程序卡片、仪表盘、库存最高余额和最近上报时间聚合。程序排行/明细仍读历史，快照与历史的真实规模 p95 基准仍待补。
 13. **Bark/QingLong HTTP 连接治理已补。** 两个服务都按线程复用带连接池的 `requests.Session`，scheduler/shutdown 时释放；通知与 QingLong PUT 均关闭自动重试，避免重复副作用。仅对明确幂等的 QingLong GET 设计有限重试/退避仍是后续项。
 
 ## 13. 后续接手时的推荐阅读顺序
