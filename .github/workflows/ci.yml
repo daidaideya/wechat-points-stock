@@ -47,6 +47,7 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run format:check
+      - run: npm run check:resources
       - run: npm run build
 
   frontend-e2e:
