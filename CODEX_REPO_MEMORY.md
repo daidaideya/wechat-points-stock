@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`09a32da`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、QingLong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批和 Dashboard/Favorites/Points/Users 请求取消第四批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，Settings/ProgramDetail 等请求取消、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`6ab9683`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批和编辑弹窗第十批，并完成八个主页面的首轮桌面视觉 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批和 ProgramDetail/Settings 读取取消第五批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，设置写操作 pending、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
@@ -419,7 +419,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `UserEditDialog.vue` 负责 Users 页新增/编辑表单展示和字段更新事件；`UsersPage.vue` 保留表单初始化、字段白名单更新、微信号非空校验、保存 API、刷新和错误提示。
 - `ProgramsPage.vue` 的非追加请求带 AbortController 和序列号，快速筛选时取消旧请求并丢弃过期响应；Stock 页已有同类请求保护。
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios/native abort、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
-- `frontend/src/composables/useAbortableRequest.js` 为 Dashboard、Favorites、Points、Users 列表/积分详情提供“新请求取消旧请求、卸载取消、过期响应不写状态”的控制器；取消不会弹出错误，也不会由旧请求覆盖 loading 状态。
+- `frontend/src/composables/useAbortableRequest.js` 为 Dashboard、Favorites、Points、Users 列表/积分详情、ProgramDetail 和 Settings 读取提供“新请求取消旧请求、卸载取消、过期响应不写状态”的控制器；取消不会弹出错误，也不会由旧请求覆盖 loading 状态，Settings 的写操作仍保持显式 pending。
 - 前端 Node 内置测试目前共 `30 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析、AbortError 和 Users 身份展示规则测试。
 - 2026-09-18 在临时 SQLite 数据库和随机本地 `INGEST_TOKEN` 上完成桌面浏览器 smoke：Dashboard、Programs、Apps、Users、Points、Stock、QingLong、Settings 均可加载主内容/空态；Users 新增用户空表单校验和 QingLong 未配置 OpenAPI 提示均符合预期，浏览器 console 无 error/warn。验证后服务已停止、临时数据库已删除。
 - 2026-09-18 新增 `frontend/playwright.config.js` 与 `frontend/e2e/smoke.spec.js`：API mock 下覆盖上述八个主路由、Users 空表单校验和 390px 移动导航开关，监听 console error/warn 与 pageerror；本地干净 `npm ci` 后 `npm run test:e2e` 为 `3 passed`，CI 使用独立 job 安装 Chromium。真实后端数据、跨浏览器和生产鉴权流程仍未纳入该 smoke。
