@@ -419,6 +419,7 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import api from '../api'
+import { useViewport } from '../composables/useViewport'
 
 const loading = ref(false)
 const items = ref([])
@@ -433,7 +434,8 @@ const detailSortMode = ref('points')
 const detailOnlyChanged = ref(false)
 const unregisteredVisible = ref(false)
 
-const drawerSize = computed(() => (window.innerWidth <= 768 ? '100%' : '720px'))
+const { isMobile: isNarrowViewport } = useViewport({ mobileMax: 768 })
+const drawerSize = computed(() => (isNarrowViewport.value ? '100%' : '720px'))
 
 function parseDate(value) {
   if (!value) return null
