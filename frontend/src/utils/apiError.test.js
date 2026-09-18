@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { getApiErrorMessage, isRequestCanceled } from './apiError.js'
+import { getApiErrorKind, getApiErrorMessage, isRequestCanceled } from './apiError.js'
 
 test('normalizes string, message, and validation error payloads', () => {
   assert.equal(getApiErrorMessage({ response: { data: { detail: '密钥错误' } } }, '失败'), '密钥错误')
@@ -17,4 +17,29 @@ test('uses a fallback for unknown errors and hides cancellation messages', () =>
   assert.equal(getApiErrorMessage({ code: 'ERR_CANCELED' }, '网络异常'), '')
   assert.equal(isRequestCanceled({ name: 'CanceledError' }), true)
   assert.equal(isRequestCanceled({ code: 'ERR_NETWORK' }), false)
+})
+
+test('classifies transport failures and includes the backend request id', () => {
+  assert.equal(getApiErrorKind({ code: 'ECONNABORTED' }), 'timeout')
+  assert.equal(getApiErrorMessage({ code: 'ECONNABORTED' }, '加载失败'), '加载失败（请求超时）')
+  assert.equal(getApiErrorKind({ code: 'ERR_NETWORK' }), 'network')
+  assert.equal(getApiErrorMessage({ code: 'ERR_NETWORK' }, '加载失败'), '加载失败（网络不可用）')
+  assert.equal(
+    getApiErrorMessage({
+      response: {
+        data: { detail: '服务异常', request_id: 'req-123' },
+        headers: {},
+      },
+    }, '加载失败'),
+    '服务异常（请求 ID: req-123）',
+  )
+  assert.equal(
+    getApiErrorMessage({
+      response: {
+        data: { detail: '服务异常' },
+        headers: { 'X-Request-ID': 'req-header' },
+      },
+    }, '加载失败'),
+    '服务异常（请求 ID: req-header）',
+  )
 })
