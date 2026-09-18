@@ -9,8 +9,8 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`cae189c`（2026-09-18）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批和 Bark 推送区第十六批，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批和 Settings 导入/刷新 pending 第七批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已提交代码生成的 OpenAPI 基线并接入 CI 漂移检查；OPT-016 当前余额快照第一批已落地，设置其他写操作统一边界、复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`921528f`（2026-09-18）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批和 Bark 推送区第十六批，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批和 Settings 导入/刷新 pending 第七批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批和 API mock Playwright/CI 第五批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板和前端静态资源引用门禁第三批；OPT-016 当前余额快照第一批已落地，设置其他写操作统一边界、复杂弹窗可访问性、真实后端数据 Playwright、跨浏览器覆盖及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
 - 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 `npm test` 为 `30 passed`，Playwright Chromium smoke 为 `3 passed`，`npm run lint`、`npm run format:check` 和 `npm run build` 通过
@@ -432,6 +432,8 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
 - `scripts/export_openapi.py` 从 FastAPI `app.openapi()` 生成排序稳定的 `docs/openapi.json`；`--check` 在 CI 中阻断路由/参数/schema 漂移，导入 app 不启动数据库或后台调度器。
+- `frontend/scripts/check-frontend-resources.mjs` 由 `npm run check:resources` 执行，扫描 `public`/`src/assets` 静态资源引用并阻断 Vite starter 资源回归；当前仓库没有这些静态资源，因此门禁报告扫描 `0` 项。动态路由、自动注册 Vue 组件和构建产物不纳入该检查。
+- `.github/pull_request_template.md` 固化测试、迁移/旧库兼容、API/OpenAPI/上报模板、移动端、敏感文件和路线图/记忆同步清单。
 - 全局导航进度/骨架由 `App.vue` 提供；`router.js` 在仪表盘空闲或库存菜单 hover/focus 时预加载库存 chunk。预加载失败会清理 promise，不能因此绕过访问保护。
 - 青龙批量应用请求把超时提高到 300 秒；后端最多并发 8 个青龙 PUT。
 - 主移动导航是 `App.vue` 自定义 `.mobile-nav-shell`，不要改回 Element Plus `el-drawer`，否则容易出现遮罩残留/点击被拦截。
