@@ -162,7 +162,7 @@ test('program list dialogs render API data and close cleanly', async ({ page }) 
       items: [
         {
           program_id: 'demo',
-          program_name: '弹窗详情小程序',
+          program_name: '弹窗详情小程序超长名称用于验证卡片完整显示',
           is_favorite: false,
           tags: ['积分'],
           note: '弹窗备注',
@@ -177,7 +177,7 @@ test('program list dialogs render API data and close cleanly', async ({ page }) 
     },
     programDetail: {
       program_id: 'demo',
-      program_name: '弹窗详情小程序',
+      program_name: '弹窗详情小程序超长名称用于验证卡片完整显示',
       is_favorite: true,
       tags: ['积分', '热门'],
       note: '详情弹窗备注',
@@ -196,7 +196,17 @@ test('program list dialogs render API data and close cleanly', async ({ page }) 
   await page.goto('/app/programs')
   const programCard = page.locator('.showcase-card').first()
   await expect(programCard).toBeVisible()
-  await expect(programCard).toContainText('弹窗详情小程序')
+  await expect(programCard).toContainText('弹窗详情小程序超长名称用于验证卡片完整显示')
+  const programTitle = programCard.locator('.showcase-card-title')
+  await expect(programTitle).toHaveCSS('white-space', 'normal')
+  await expect(programTitle).toHaveCSS('overflow-wrap', 'anywhere')
+  await expect(programTitle).toHaveCSS('text-overflow', 'clip')
+  await expect(programTitle).toHaveCSS('overflow', 'visible')
+  const titleLayout = await programTitle.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }))
+  expect(titleLayout.scrollHeight).toBeLessThanOrEqual(titleLayout.clientHeight)
   await expect(programCard).toHaveCSS('padding', '22px')
   await expect(programCard).toHaveCSS('border-radius', '24px')
   await expect(page.locator('.showcase-grid')).toHaveCSS('display', 'grid')

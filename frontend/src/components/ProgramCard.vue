@@ -255,7 +255,7 @@ function emitCommand(command) {
 
 .showcase-card-title-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
@@ -270,9 +270,10 @@ function emitCommand(command) {
   font-size: 18px;
   line-height: 1.25;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .showcase-card-title.is-title-md {
@@ -350,9 +351,11 @@ function emitCommand(command) {
 }
 
 .showcase-card-id {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.4;
   flex: 0 1 auto;
   min-width: 0;
 }
@@ -488,9 +491,9 @@ function emitCommand(command) {
 
 .inline-tag-chip {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   padding: 2px 8px;
   font-size: 12px;
   line-height: 1.35;

@@ -407,7 +407,7 @@ function formatQlScheduleTooltip(program) {
   return `青龙定时（${statusText}）：${schedule}`
 }
 
-/** Shrink title font by length so long names stay on one line in the grid card. */
+/** Shrink title font by length while allowing long names to wrap in the grid card. */
 function titleSizeClass(name) {
   const len = Array.from(String(name || '')).length
   if (len >= 22) return 'is-title-xs'
