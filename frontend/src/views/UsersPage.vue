@@ -15,36 +15,12 @@
         </div>
       </div>
 
-      <div class="users-summary-grid">
-        <div class="users-summary-card">
-          <div class="users-summary-icon" aria-hidden="true">👥</div>
-          <div class="users-summary-body">
-            <span class="users-summary-label">用户数量</span>
-            <strong class="users-summary-value">{{ items.length }}</strong>
-          </div>
-        </div>
-        <div class="users-summary-card">
-          <div class="users-summary-icon" aria-hidden="true">🎯</div>
-          <div class="users-summary-body">
-            <span class="users-summary-label">活跃小程序总计</span>
-            <strong class="users-summary-value">{{ totalActivePrograms }}</strong>
-          </div>
-        </div>
-        <div class="users-summary-card">
-          <div class="users-summary-icon" aria-hidden="true">📦</div>
-          <div class="users-summary-body">
-            <span class="users-summary-label">活跃 APP 总计</span>
-            <strong class="users-summary-value">{{ totalActiveApps }}</strong>
-          </div>
-        </div>
-        <div class="users-summary-card">
-          <div class="users-summary-icon" aria-hidden="true">📱</div>
-          <div class="users-summary-body">
-            <span class="users-summary-label">已留手机号</span>
-            <strong class="users-summary-value">{{ usersWithPhone }}</strong>
-          </div>
-        </div>
-      </div>
+      <UsersSummaryCards
+        :user-count="items.length"
+        :total-active-programs="totalActivePrograms"
+        :total-active-apps="totalActiveApps"
+        :users-with-phone="usersWithPhone"
+      />
     </section>
 
     <section class="toolbar-card users-list-card">
@@ -120,6 +96,7 @@ import UserDesktopTable from '../components/UserDesktopTable.vue'
 import UserEditDialog from '../components/UserEditDialog.vue'
 import UserPointsDialog from '../components/UserPointsDialog.vue'
 import UserMobileCard from '../components/UserMobileCard.vue'
+import UsersSummaryCards from '../components/UsersSummaryCards.vue'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 import { displayName, displayPhone } from '../utils/user'
 
@@ -525,64 +502,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 10px 22px rgba(216, 154, 60, 0.18);
 }
 
-.users-summary-grid {
-  margin-top: 18px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.users-summary-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 249, 240, 0.9);
-  border: 1px solid rgba(232, 211, 183, 0.86);
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.users-summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(145, 109, 61, 0.1);
-}
-
-.users-summary-icon {
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(231, 179, 90, 0.22), rgba(216, 154, 60, 0.16));
-  font-size: 22px;
-  line-height: 1;
-}
-
-.users-summary-body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.users-summary-label {
-  display: block;
-  color: #8a6c4c;
-  font-size: 12px;
-}
-
-.users-summary-value {
-  display: block;
-  margin-top: 6px;
-  color: #3a2b1a;
-  font-size: 26px;
-  line-height: 1.1;
-}
-
 .users-list-head {
   margin-bottom: 14px;
 }
@@ -628,10 +547,6 @@ onBeforeUnmount(() => {
   .users-list-head {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .users-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .users-desktop-table-wrap {
