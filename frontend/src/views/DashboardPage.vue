@@ -1,28 +1,7 @@
 <template>
   <div class="page-stack dashboard-page">
     <section class="dashboard-metrics-grid dashboard-metrics-grid-compact">
-      <el-card
-        v-for="card in cards"
-        :key="card.label"
-        shadow="hover"
-        class="dashboard-metric-card dashboard-interactive-card"
-        :class="[card.tone, { clickable: card.clickable }]"
-        @click="handleCardClick(card)"
-      >
-        <div class="dashboard-metric-top">
-          <div>
-            <div class="dashboard-metric-label">{{ card.label }}</div>
-            <div class="dashboard-metric-value">{{ card.value }}</div>
-          </div>
-          <div class="dashboard-metric-icon">
-            <el-icon><component :is="card.icon" /></el-icon>
-          </div>
-        </div>
-        <div class="dashboard-metric-footer">
-          <span>{{ card.description }}</span>
-          <span v-if="card.emphasis" class="dashboard-metric-emphasis">{{ card.emphasis }}</span>
-        </div>
-      </el-card>
+      <DashboardMetricCard v-for="card in cards" :key="card.label" :card="card" @activate="handleCardClick" />
     </section>
 
     <section class="dashboard-bottom-grid aligned-dashboard-grid">
@@ -45,7 +24,11 @@
         <el-skeleton v-if="loading" :rows="6" animated />
         <el-empty v-else-if="!recentUpdates.length" description="暂无更新记录" />
         <div v-else class="recent-update-list aligned-panel-list">
-          <div v-for="item in recentUpdates" :key="`${item.program_id}-${item.wechat_id}-${item.report_time}`" class="recent-update-item aligned-list-item">
+          <div
+            v-for="item in recentUpdates"
+            :key="`${item.program_id}-${item.wechat_id}-${item.report_time}`"
+            class="recent-update-item aligned-list-item"
+          >
             <div class="recent-update-main">
               <div class="recent-update-name-row">
                 <span class="recent-update-name">{{ item.program_name || item.program_id || '未知小程序' }}</span>
@@ -80,7 +63,11 @@
         <el-skeleton v-if="loading" :rows="6" animated />
         <el-empty v-else-if="!unreportedPrograms.length" description="今天全部已上报" />
         <div v-else class="recent-update-list aligned-panel-list unreported-program-list">
-          <div v-for="item in unreportedPrograms" :key="item.program_id" class="recent-update-item aligned-list-item unreported-program-item">
+          <div
+            v-for="item in unreportedPrograms"
+            :key="item.program_id"
+            class="recent-update-item aligned-list-item unreported-program-item"
+          >
             <div class="recent-update-main">
               <div class="recent-update-name-row">
                 <span class="recent-update-name">{{ item.program_name || item.program_id || '未知小程序' }}</span>
@@ -100,7 +87,12 @@
       </el-card>
     </section>
 
-    <el-dialog v-model="unreportedDialogVisible" title="今天没报的小程序" width="960px" class="dashboard-unreported-dialog">
+    <el-dialog
+      v-model="unreportedDialogVisible"
+      title="今天没报的小程序"
+      width="960px"
+      class="dashboard-unreported-dialog"
+    >
       <div
         v-if="unreportedDialogLoading"
         class="dashboard-dialog-loading"
@@ -137,17 +129,10 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import {
-  Box,
-  Clock,
-  DataLine,
-  Grid,
-  Star,
-  User,
-  Warning,
-} from '@element-plus/icons-vue'
+import { Box, Clock, DataLine, Grid, Star, User, Warning } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
+import DashboardMetricCard from '../components/DashboardMetricCard.vue'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 

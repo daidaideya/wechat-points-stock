@@ -13,7 +13,7 @@
     "generate:api-types": "openapi-typescript ../docs/openapi.json -o src/api.generated.d.ts",
     "check:api-types": "npm run generate:api-types && git diff --exit-code -- src/api.generated.d.ts",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check src/api.js eslint.config.js playwright.config.js vitest.config.js src/views/UsersPage.vue src/views/QinglongCronsPage.vue \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/components/**/*.component.spec.js\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
+    "format:check": "prettier --check src/api.js eslint.config.js playwright.config.js vitest.config.js src/views/UsersPage.vue src/views/QinglongCronsPage.vue src/views/DashboardPage.vue \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/components/**/*.component.spec.js\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
     "analyze": "vite build --mode analyze && node scripts/gzip-assets.mjs",
     "preview": "vite preview"
   },
