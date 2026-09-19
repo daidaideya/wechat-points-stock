@@ -194,7 +194,12 @@ test('program list dialogs render API data and close cleanly', async ({ page }) 
   })
 
   await page.goto('/app/programs')
-  await expect(page.getByText('弹窗详情小程序', { exact: true }).first()).toBeVisible()
+  const programCard = page.locator('.showcase-card').first()
+  await expect(programCard).toBeVisible()
+  await expect(programCard).toContainText('弹窗详情小程序')
+  await expect(programCard).toHaveCSS('padding', '22px')
+  await expect(programCard).toHaveCSS('border-radius', '24px')
+  await expect(page.locator('.showcase-grid')).toHaveCSS('display', 'grid')
 
   await page.getByTitle('编辑备注').click()
   const noteDialog = page.locator('.showcase-dialog').filter({ hasText: '维护小程序备注' })
