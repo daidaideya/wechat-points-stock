@@ -988,10 +988,19 @@ export interface components {
         };
         /** StockReportRequest */
         StockReportRequest: {
+            /** Expected Product Count */
+            expected_product_count?: number | null;
             /** Products */
             products: components["schemas"]["ProductData"][];
             /** Program Id */
             program_id: string;
+            /**
+             * Snapshot Complete
+             * @default true
+             */
+            snapshot_complete: boolean;
+            /** Snapshot Id */
+            snapshot_id?: string | null;
         };
         /** ValidationError */
         ValidationError: {

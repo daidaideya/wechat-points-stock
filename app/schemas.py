@@ -208,6 +208,29 @@ class StockReportRequest(SchemaBase):
     # Empty is meaningful: the service deliberately skips auto-unlisting for
     # an empty snapshot, so only the upper bound is constrained.
     products: List[ProductData] = Field(max_length=MAX_PRODUCTS_PER_STOCK_REPORT)
+    # New reporters can explicitly mark a partial fetch. Legacy reporters omit
+    # this field and retain the historical complete-snapshot behavior.
+    snapshot_id: Optional[str] = Field(default=None, max_length=100)
+    snapshot_complete: bool = True
+    # When supplied, a count mismatch is treated as an incomplete snapshot and
+    # therefore cannot auto-unlist products.
+    expected_product_count: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=MAX_PRODUCTS_PER_STOCK_REPORT,
+    )
+
+    @field_validator("snapshot_id", mode="before")
+    @classmethod
+    def normalize_snapshot_id(cls, value: Any):
+        return normalize_optional_text(value)
+
+    @field_validator("expected_product_count", mode="before")
+    @classmethod
+    def coerce_expected_product_count(cls, value: Union[int, float, str, None]):
+        if value is None or value == "":
+            return None
+        return coerce_nonnegative_integer(value, "expected_product_count")
 
 
 # --- Access audit query schemas ---

@@ -86,6 +86,14 @@ class MiniProgram(Base):
     ql_matched_at = Column(DateTime, nullable=True)
     ql_command = Column(String(500), nullable=True)
     ql_schedule = Column(String(100), nullable=True)  # crontab expression, e.g. "0 9 * * *"
+    # Latest stock report quality metadata.  A non-complete snapshot must not
+    # automatically mark previously seen products as off-shelf.
+    stock_snapshot_id = Column(String(100), nullable=True)
+    stock_snapshot_at = Column(DateTime, nullable=True)
+    stock_snapshot_complete = Column(Integer, nullable=True)
+    stock_snapshot_status = Column(String(20), nullable=True)
+    stock_snapshot_product_count = Column(Integer, nullable=True)
+    stock_snapshot_expected_count = Column(Integer, nullable=True)
 
     points = relationship("PointsHistory", back_populates="program")
     products = relationship("Product", back_populates="program")

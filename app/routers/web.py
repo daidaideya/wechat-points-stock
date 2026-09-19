@@ -223,6 +223,12 @@ def ensure_mini_program_columns(db: Session):
         "ql_matched_at": "ALTER TABLE mini_programs ADD COLUMN ql_matched_at DATETIME",
         "ql_command": "ALTER TABLE mini_programs ADD COLUMN ql_command VARCHAR(500)",
         "ql_schedule": "ALTER TABLE mini_programs ADD COLUMN ql_schedule VARCHAR(100)",
+        "stock_snapshot_id": "ALTER TABLE mini_programs ADD COLUMN stock_snapshot_id VARCHAR(100)",
+        "stock_snapshot_at": "ALTER TABLE mini_programs ADD COLUMN stock_snapshot_at DATETIME",
+        "stock_snapshot_complete": "ALTER TABLE mini_programs ADD COLUMN stock_snapshot_complete INTEGER",
+        "stock_snapshot_status": "ALTER TABLE mini_programs ADD COLUMN stock_snapshot_status VARCHAR(20)",
+        "stock_snapshot_product_count": "ALTER TABLE mini_programs ADD COLUMN stock_snapshot_product_count INTEGER",
+        "stock_snapshot_expected_count": "ALTER TABLE mini_programs ADD COLUMN stock_snapshot_expected_count INTEGER",
     }
 
     connection = db.bind.connect()
@@ -247,6 +253,25 @@ def ensure_mini_program_columns(db: Session):
 
 def ensure_program_tags_column(db: Session):
     ensure_mini_program_columns(db)
+
+
+def get_stock_snapshot_payload(program) -> Optional[dict]:
+    """Expose the latest stock snapshot quality without leaking ORM fields."""
+    snapshot_id = getattr(program, "stock_snapshot_id", None)
+    snapshot_at = getattr(program, "stock_snapshot_at", None)
+    status = getattr(program, "stock_snapshot_status", None)
+    if not snapshot_id and not snapshot_at and not status:
+        return None
+
+    complete_value = getattr(program, "stock_snapshot_complete", None)
+    return {
+        "id": snapshot_id,
+        "at": snapshot_at.isoformat() if snapshot_at else None,
+        "is_complete": bool(complete_value) if complete_value is not None else False,
+        "status": status or "unknown",
+        "reported_product_count": getattr(program, "stock_snapshot_product_count", None),
+        "expected_product_count": getattr(program, "stock_snapshot_expected_count", None),
+    }
 
 
 def ensure_runtime_schema(db: Session):
@@ -776,6 +801,7 @@ def build_program_payload(
         "ql_status": resolve_ql_status(program),
         "ql_cron_name": getattr(program, "ql_cron_name", None),
         "ql_schedule": getattr(program, "ql_schedule", None),
+        "stock_snapshot": get_stock_snapshot_payload(program),
         "stock_change": {
             "added_count": int(stock_change.get("added_count", 0)),
             "removed_count": int(stock_change.get("removed_count", 0)),
@@ -2223,6 +2249,7 @@ def get_program_stock(program_id: str, db: Session = Depends(get_db)):
         "program_name": program.program_name if program else program_id,
         "max_user_points": max_points_val if max_points_val is not None else 0,
         "max_user_cash": float(max_cash_val) if max_cash_val is not None else None,
+        "stock_snapshot": get_stock_snapshot_payload(program),
         "product_count": len(items),
         "stock_change": {
             "added_count": added_count,

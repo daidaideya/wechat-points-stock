@@ -1,8 +1,5 @@
 <template>
-  <div
-    v-if="hasStockMetric(program) || hasPointsMetric(program) || hasCashMetric(program) || hasStockChange(program)"
-    class="showcase-card-stock-row"
-  >
+  <div v-if="hasAnyMetric(program)" class="showcase-card-stock-row">
     <button
       v-if="hasStockMetric(program)"
       type="button"
@@ -49,6 +46,15 @@
         -{{ program.stock_change.removed_count }}
       </span>
     </div>
+    <span
+      v-if="hasIncompleteStockSnapshot(program)"
+      class="stock-snapshot-warning"
+      role="status"
+      aria-label="库存快照需复核"
+      :title="getStockSnapshotWarning(program)"
+    >
+      库存快照需复核
+    </span>
   </div>
 </template>
 
@@ -105,10 +111,34 @@ function hasCashMetric(program) {
   return Number.isFinite(value)
 }
 
+function hasAnyMetric(program) {
+  return (
+    hasStockMetric(program) ||
+    hasPointsMetric(program) ||
+    hasCashMetric(program) ||
+    hasStockChange(program) ||
+    hasIncompleteStockSnapshot(program)
+  )
+}
+
 function hasStockChange(program) {
   return Boolean(
     (Number(program?.stock_change?.added_count) || 0) > 0 || (Number(program?.stock_change?.removed_count) || 0) > 0,
   )
+}
+
+function hasIncompleteStockSnapshot(program) {
+  return Boolean(program?.stock_snapshot && program.stock_snapshot.is_complete === false)
+}
+
+function getStockSnapshotWarning(program) {
+  const snapshot = program?.stock_snapshot
+  if (snapshot?.status === 'partial') return '本次库存上报标记为不完整，未自动下架缺失商品'
+  if (snapshot?.status === 'count_mismatch') {
+    return `本次库存上报数量异常（${snapshot.reported_product_count ?? 0}/${snapshot.expected_product_count ?? 0}），未自动下架缺失商品`
+  }
+  if (snapshot?.status === 'empty') return '本次库存上报为空，未自动下架缺失商品'
+  return '本次库存快照未通过完整性检查，未自动下架缺失商品'
 }
 
 const program = toRef(props, 'program')
@@ -255,5 +285,18 @@ const program = toRef(props, 'program')
   color: #9a3412;
   background: rgba(255, 237, 213, 0.95);
   box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.35);
+}
+
+.stock-snapshot-warning {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #9a3412;
+  background: rgba(255, 237, 213, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.35);
+  font-size: 12px;
+  font-weight: 700;
 }
 </style>

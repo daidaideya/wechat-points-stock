@@ -208,6 +208,20 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
         db.flush()
 
     report_timestamp = report.products[0].last_updated if report.products and report.products[0].last_updated else datetime.utcnow()
+    snapshot_id = (report.snapshot_id or str(uuid.uuid4())).strip()
+    reported_product_count = len(report.products)
+    expected_product_count = report.expected_product_count
+    count_matches = expected_product_count is None or expected_product_count == reported_product_count
+    if not report.snapshot_complete:
+        snapshot_status = "partial"
+    elif not count_matches:
+        snapshot_status = "count_mismatch"
+    elif not report.products:
+        snapshot_status = "empty"
+    else:
+        snapshot_status = "complete"
+    snapshot_is_complete = snapshot_status == "complete"
+
     current_report_product_ids = set()
     updated_products = []
 
@@ -293,7 +307,7 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
     # 库存一直不变的商品不会留痕，旧逻辑会永远漏掉它们，导致失效/重复商品一直挂在在架列表里。
     # 空报告（脚本异常抓了 0 个商品）跳过下架，避免误清空整个小程序。
     products_to_unlist = set()
-    if report.products:
+    if report.products and snapshot_is_complete:
         active_products = db.query(models.Product).filter(
             models.Product.program_id == report.program_id,
             or_(models.Product.is_unlisted == 0, models.Product.is_unlisted.is_(None)),
@@ -312,5 +326,35 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
     except Exception as e:
         print(f"Error pruning stock history: {e}")
 
+    # Settings/schema compatibility helpers may commit while they initialize
+    # legacy databases. Persist the snapshot metadata after those helpers so
+    # the quality decision cannot be lost before the report transaction ends.
+    program.stock_snapshot_id = snapshot_id
+    program.stock_snapshot_at = report_timestamp
+    program.stock_snapshot_complete = 1 if snapshot_is_complete else 0
+    program.stock_snapshot_status = snapshot_status
+    program.stock_snapshot_product_count = reported_product_count
+    program.stock_snapshot_expected_count = expected_product_count
+    db.add(program)
     db.commit()
-    return {"status": "success", "updated_products": updated_products, "unlisted_products": list(products_to_unlist)}
+    unlisting_skipped_reason = None
+    if not snapshot_is_complete:
+        unlisting_skipped_reason = snapshot_status
+    elif not report.products:
+        unlisting_skipped_reason = "empty"
+
+    return {
+        "status": "success",
+        "updated_products": updated_products,
+        "unlisted_products": list(products_to_unlist),
+        "snapshot": {
+            "id": snapshot_id,
+            "at": report_timestamp.isoformat(),
+            "is_complete": snapshot_is_complete,
+            "status": snapshot_status,
+            "reported_product_count": reported_product_count,
+            "expected_product_count": expected_product_count,
+            "unlisting_applied": bool(report.products and snapshot_is_complete),
+            "unlisting_skipped_reason": unlisting_skipped_reason,
+        },
+    }

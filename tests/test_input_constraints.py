@@ -118,6 +118,35 @@ def test_optional_blank_product_id_keeps_legacy_fallback_semantics():
     assert report.products[0].cash == 0
 
 
+def test_stock_snapshot_quality_fields_keep_legacy_defaults_and_normalize_counts():
+    legacy = StockReportRequest.model_validate({"program_id": "program", "products": []})
+    assert legacy.snapshot_id is None
+    assert legacy.snapshot_complete is True
+    assert legacy.expected_product_count is None
+
+    report = StockReportRequest.model_validate(
+        {
+            "program_id": "program",
+            "products": [{"product_name": "商品"}],
+            "snapshot_id": " snapshot-1 ",
+            "snapshot_complete": False,
+            "expected_product_count": "2",
+        }
+    )
+    assert report.snapshot_id == "snapshot-1"
+    assert report.snapshot_complete is False
+    assert report.expected_product_count == 2
+
+    with pytest.raises(ValidationError):
+        StockReportRequest.model_validate(
+            {
+                "program_id": "program",
+                "products": [],
+                "expected_product_count": 1.5,
+            }
+        )
+
+
 @pytest.mark.parametrize(
     "payload",
     [

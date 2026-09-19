@@ -932,6 +932,19 @@
       },
       "StockReportRequest": {
         "properties": {
+          "expected_product_count": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Product Count"
+          },
           "products": {
             "items": {
               "$ref": "#/components/schemas/ProductData"
@@ -945,6 +958,23 @@
             "minLength": 1,
             "title": "Program Id",
             "type": "string"
+          },
+          "snapshot_complete": {
+            "default": true,
+            "title": "Snapshot Complete",
+            "type": "boolean"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
           }
         },
         "required": [

@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 
 from app.access_control import AccessAttemptLimiter
-from app import models
+from app import models, schemas
 from app.config import settings
 from app.database import Base
 from app.dependencies import (
@@ -35,6 +35,7 @@ from app.routers import stock, web
 from app.routers import images
 from app.security import hash_access_key, verify_access_key_hash
 from app.services import cleanup_service
+from app.services import qinglong_service
 
 
 def make_request(path: str) -> Request:
@@ -493,6 +494,55 @@ def test_off_shelf_endpoint_is_server_paginated(stock_db):
     assert page["total"] == 2
     assert len(page["items"]) == 1
     assert page["items"][0]["total_count"] == 2
+
+
+def test_partial_stock_snapshot_does_not_unlist_missing_products(stock_db):
+    report = schemas.StockReportRequest.model_validate(
+        {
+            "program_id": "program-1",
+            "snapshot_id": "partial-1",
+            "snapshot_complete": False,
+            "expected_product_count": 3,
+            "products": [{"product_id": "free-product", "product_name": "纯积分商品", "stock": 8}],
+        }
+    )
+
+    result = qinglong_service.process_stock_report(stock_db, report)
+
+    assert result["snapshot"] == {
+        "id": "partial-1",
+        "at": result["snapshot"]["at"],
+        "is_complete": False,
+        "status": "partial",
+        "reported_product_count": 1,
+        "expected_product_count": 3,
+        "unlisting_applied": False,
+        "unlisting_skipped_reason": "partial",
+    }
+    program = stock_db.query(models.MiniProgram).filter_by(program_id="program-1").one()
+    assert program.stock_snapshot_id == "partial-1"
+    assert program.stock_snapshot_complete == 0
+    assert program.stock_snapshot_status == "partial"
+    assert stock_db.query(models.Product).filter_by(product_id="cash-product").one().is_unlisted == 0
+    assert stock_db.query(models.Product).filter_by(product_id="empty-product").one().is_unlisted == 0
+
+
+def test_complete_matching_stock_snapshot_keeps_full_snapshot_unlisting(stock_db):
+    report = schemas.StockReportRequest.model_validate(
+        {
+            "program_id": "program-1",
+            "snapshot_id": "complete-1",
+            "expected_product_count": 1,
+            "products": [{"product_id": "free-product", "product_name": "纯积分商品", "stock": 8}],
+        }
+    )
+
+    result = qinglong_service.process_stock_report(stock_db, report)
+
+    assert result["snapshot"]["is_complete"] is True
+    assert result["snapshot"]["unlisting_applied"] is True
+    assert set(result["unlisted_products"]) == {"cash-product", "empty-product"}
+    assert stock_db.query(models.Product).filter_by(product_id="cash-product").one().is_unlisted == 1
 
 
 def test_image_upload_rejects_wrong_type_and_oversize(tmp_path, monkeypatch):

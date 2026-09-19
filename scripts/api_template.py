@@ -98,7 +98,15 @@ class StockReporter:
         if not api_token:
             self.api_token = os.getenv("POINTS_MONITOR_TOKEN", self.api_token)
 
-    def report(self, program_id, products):
+    def report(
+        self,
+        program_id,
+        products,
+        *,
+        snapshot_id=None,
+        snapshot_complete=True,
+        expected_product_count=None,
+    ):
         """
         上报库存数据
         :param program_id: 小程序唯一 ID
@@ -115,6 +123,9 @@ class StockReporter:
                    ...
                ]
                兼容旧脚本：只传 points，不传 cash。
+        :param snapshot_id: 可选的业务侧抓取批次 ID
+        :param snapshot_complete: 抓取是否完整；部分抓取传 False，避免自动下架
+        :param expected_product_count: 可选的预期商品数量，用于异常检测
         """
         url = f"{self.api_url.rstrip('/')}/api/v1/stock-report"
         headers = {
@@ -125,6 +136,12 @@ class StockReporter:
             "program_id": program_id,
             "products": products,
         }
+        if snapshot_id:
+            payload["snapshot_id"] = snapshot_id
+        if snapshot_complete is False:
+            payload["snapshot_complete"] = False
+        if expected_product_count is not None:
+            payload["expected_product_count"] = expected_product_count
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=15)
             if response.status_code == 200:

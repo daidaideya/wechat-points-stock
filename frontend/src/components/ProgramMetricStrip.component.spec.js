@@ -50,4 +50,20 @@ describe('ProgramMetricStrip', () => {
     expect(wrapper.text()).toContain('1.3k')
     expect(wrapper.find('.cash-count-display').exists()).toBe(false)
   })
+
+  it('shows a review status for incomplete stock snapshots', () => {
+    const wrapper = mountMetrics({
+      stock_snapshot: {
+        is_complete: false,
+        status: 'count_mismatch',
+        reported_product_count: 2,
+        expected_product_count: 3,
+      },
+    })
+
+    const warning = wrapper.get('.stock-snapshot-warning')
+    expect(warning.text()).toBe('库存快照需复核')
+    expect(warning.attributes('title')).toContain('2/3')
+    expect(warning.attributes('aria-label')).toBe('库存快照需复核')
+  })
 })
