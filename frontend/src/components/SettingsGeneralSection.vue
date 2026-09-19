@@ -1,12 +1,5 @@
 <template>
-  <section class="settings-section-card">
-    <div class="settings-section-header">
-      <div>
-        <h3 class="settings-section-title">基础设置</h3>
-        <p class="settings-section-desc">日志清理策略与访问保护。</p>
-      </div>
-    </div>
-
+  <SettingsSectionCard title="基础设置" description="日志清理策略与访问保护。">
     <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <div class="settings-block-title">日志清理设置</div>
       <el-form-item label="最大日志条数">
@@ -68,10 +61,12 @@
         </el-button>
       </el-form-item>
     </el-form>
-  </section>
+  </SettingsSectionCard>
 </template>
 
 <script setup>
+import SettingsSectionCard from './SettingsSectionCard.vue'
+
 const props = defineProps({
   form: {
     type: Object,
@@ -103,32 +98,6 @@ function updateField(field, value) {
 </script>
 
 <style scoped>
-.settings-section-card {
-  padding: 18px 18px 8px;
-  border-radius: 18px;
-  background: rgba(255, 253, 249, 0.96);
-  border: 1px solid rgba(236, 220, 196, 0.95);
-  box-shadow: 0 8px 18px rgba(126, 98, 63, 0.05);
-}
-
-.settings-section-header {
-  margin-bottom: 8px;
-}
-
-.settings-section-title {
-  margin: 0;
-  color: #2f2418;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.settings-section-desc {
-  margin: 6px 0 0;
-  color: #8a6c4c;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
 .settings-block-title {
   margin-bottom: 16px;
   color: var(--el-text-color-primary);

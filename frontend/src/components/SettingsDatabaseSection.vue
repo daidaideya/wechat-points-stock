@@ -1,12 +1,5 @@
 <template>
-  <section class="settings-section-card">
-    <div class="settings-section-header">
-      <div>
-        <h3 class="settings-section-title">数据库备份 / 恢复</h3>
-        <p class="settings-section-desc">导出备份，或从备份文件恢复当前 SQLite 数据库。</p>
-      </div>
-    </div>
-
+  <SettingsSectionCard title="数据库备份 / 恢复" description="导出备份，或从备份文件恢复当前 SQLite 数据库。">
     <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <p class="settings-help-block">
         导出当前 SQLite 数据库作为备份；导入会完整替换现有数据。导入前请先导出一份备份。 导入成功后会在数据库旁保留
@@ -31,11 +24,12 @@
         </div>
       </el-form-item>
     </el-form>
-  </section>
+  </SettingsSectionCard>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import SettingsSectionCard from './SettingsSectionCard.vue'
 
 const props = defineProps({
   exporting: {
@@ -68,32 +62,6 @@ function handleFileChange(event) {
 </script>
 
 <style scoped>
-.settings-section-card {
-  padding: 18px 18px 8px;
-  border-radius: 18px;
-  background: rgba(255, 253, 249, 0.96);
-  border: 1px solid rgba(236, 220, 196, 0.95);
-  box-shadow: 0 8px 18px rgba(126, 98, 63, 0.05);
-}
-
-.settings-section-header {
-  margin-bottom: 8px;
-}
-
-.settings-section-title {
-  margin: 0;
-  color: #2f2418;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.settings-section-desc {
-  margin: 6px 0 0;
-  color: #8a6c4c;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
 .settings-help-block {
   margin: 0 0 16px;
   color: var(--el-text-color-secondary);

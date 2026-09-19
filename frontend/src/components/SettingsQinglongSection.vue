@@ -1,12 +1,5 @@
 <template>
-  <section class="settings-section-card">
-    <div class="settings-section-header">
-      <div>
-        <h3 class="settings-section-title">青龙面板联动</h3>
-        <p class="settings-section-desc">只读同步定时任务启用/禁用与 crontab；可自选自动或阻塞同步。</p>
-      </div>
-    </div>
-
+  <SettingsSectionCard title="青龙面板联动" description="只读同步定时任务启用/禁用与 crontab；可自选自动或阻塞同步。">
     <el-form label-width="140px" class="settings-form" :disabled="props.disabled">
       <p class="settings-help-block">
         使用青龙「应用设置」里的 Client ID / Client Secret。 匹配规则：优先按任务名称与小程序名称对齐。
@@ -92,10 +85,12 @@
         </el-button>
       </el-form-item>
     </el-form>
-  </section>
+  </SettingsSectionCard>
 </template>
 
 <script setup>
+import SettingsSectionCard from './SettingsSectionCard.vue'
+
 const props = defineProps({
   form: {
     type: Object,
@@ -135,32 +130,6 @@ function updateField(field, value) {
 </script>
 
 <style scoped>
-.settings-section-card {
-  padding: 18px 18px 8px;
-  border-radius: 18px;
-  background: rgba(255, 253, 249, 0.96);
-  border: 1px solid rgba(236, 220, 196, 0.95);
-  box-shadow: 0 8px 18px rgba(126, 98, 63, 0.05);
-}
-
-.settings-section-header {
-  margin-bottom: 8px;
-}
-
-.settings-section-title {
-  margin: 0;
-  color: #2f2418;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.settings-section-desc {
-  margin: 6px 0 0;
-  color: #8a6c4c;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
 .settings-help-block {
   margin: 0 0 16px;
   color: var(--el-text-color-secondary);
