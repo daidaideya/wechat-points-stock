@@ -50,6 +50,31 @@ jobs:
       - run: npm run check:resources
       - run: npm run build
 
+  dependency-audit:
+    name: dependency vulnerability and license audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install pip-audit==2.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: python scripts/check_dependency_licenses.py
+      - run: npm audit --audit-level=high
+        working-directory: frontend
+      - run: python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict
+
   frontend-e2e:
     name: frontend Playwright smoke
     runs-on: ubuntu-latest

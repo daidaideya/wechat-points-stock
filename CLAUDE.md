@@ -48,7 +48,7 @@ Docker notes for this project:
 - SQLite enables `PRAGMA journal_mode=WAL` and `busy_timeout=5000` on connect for safer concurrent readers.
 - Database restore uses a database-path sidecar maintenance lock, rejects new API work, drains in-flight database tasks in the current process, and aborts when `wal_checkpoint(TRUNCATE)` reports a busy transaction. Cross-worker in-flight work is still guarded by the checkpoint barrier.
 
-Backend regression tests live in `tests/` and run with `python -m pytest -q`; CI also runs `compileall`, frontend `npm run build`, and the blocking Gitleaks secret scan. Frontend lint/test tooling is still not configured.
+Backend regression tests live in `tests/` and run with `python -m pytest -q`; CI also runs `compileall`, the generated OpenAPI drift check, frontend Node tests/lint/format/resource checks/build, three-browser Playwright smoke, dependency vulnerability/license audits, and the blocking Gitleaks secret scan.
 
 ## URL and port topology
 
