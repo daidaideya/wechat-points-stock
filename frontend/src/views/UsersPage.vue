@@ -183,7 +183,8 @@ function restoreFocus(target) {
 }
 
 function openEdit(row, event) {
-  editDialogReturnFocus.value = event?.currentTarget instanceof HTMLElement ? event.currentTarget : captureActiveElement()
+  editDialogReturnFocus.value =
+    event?.currentTarget instanceof HTMLElement ? event.currentTarget : captureActiveElement()
   currentRow.value = row
   if (row) {
     form.wechat_id = row.wechat_id || ''
@@ -297,7 +298,8 @@ async function removeUser(row) {
 
 async function viewPoints(row, event) {
   const request = pointsRequestController.start()
-  pointsDialogReturnFocus.value = event?.currentTarget instanceof HTMLElement ? event.currentTarget : captureActiveElement()
+  pointsDialogReturnFocus.value =
+    event?.currentTarget instanceof HTMLElement ? event.currentTarget : captureActiveElement()
   pointsVisible.value = true
   pointsLoading.value = true
   pointsUser.value = row
