@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`b663f1e`（2026-09-19）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批和 ProgramFilterBar 筛选语义第十批；OPT-016 已完成当前余额快照第一批和库存快照可信度第二批，库存上报支持完整性元数据并阻止不完整报告误下架；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批、ProgramFilterBar 组件测试第十三批和 ProgramMetricStrip 快照告警测试第十四批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 的金额精度、标签/身份模型、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`a74c8ad`（2026-09-19）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、整理预览弹窗第二十批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批和 ProgramFilterBar 筛选语义第十批；OPT-016 已完成当前余额快照第一批和库存快照可信度第二批，库存上报支持完整性元数据并阻止不完整报告误下架；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批、ProgramFilterBar 组件测试第十三批、ProgramMetricStrip 快照告警测试第十四批和 QinglongCronPlanDialog 整理预览测试/页面格式门禁第十五批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 的金额精度、标签/身份模型、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `112 passed`；前端 Node 测试 `npm test` 为 `30 passed`，Vitest 组件测试为 `6 passed`，API 类型漂移检查、Playwright mock Chromium + Firefox + WebKit smoke 共 `12 passed`（含 dialog ARIA/焦点回收、ProgramFilterBar 筛选状态和 ProgramMetricStrip 快照告警断言），真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、`npm run format:check`、`npm run check:resources` 和 `npm run build` 通过；npm audit、pip-audit 和许可证检查均通过（新增依赖后检查 335 个 npm 包）
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `112 passed`；前端 Node 测试 `npm test` 为 `30 passed`，Vitest 组件测试为 `8 passed`，API 类型漂移检查、Playwright mock Chromium + Firefox + WebKit smoke 共 `12 passed`（含 dialog ARIA/焦点回收、ProgramFilterBar 筛选状态、ProgramMetricStrip 快照告警和 Qinglong 整理预览事件断言），真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、`npm run format:check`、`npm run check:resources` 和 `npm run build` 通过；npm audit、pip-audit 和许可证检查均通过（新增依赖后检查 335 个 npm 包）
 - CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run test:components` → `npm run lint` → `npm run format:check` → `npm run check:api-types` → `npm run check:resources` → `npm run build` 执行；独立 `dependency-audit` job 执行 npm audit、pip-audit 和许可证检查；独立 `frontend-e2e` job 安装 Chromium + Firefox + WebKit 后执行 mock `npm run test:e2e`；独立 `frontend-real-e2e` job 使用临时 SQLite、seed 脚本和 FastAPI 后执行真实后端 Chromium smoke；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -98,6 +98,7 @@
 | `frontend/src/composables/usePageStateCache.test.js` | 页面状态缓存版本、TTL 和失效行为的 Node 内置单元测试 |
 | `frontend/src/components/ProgramFilterBar.vue` | Programs/Apps 页筛选栏展示与筛选事件派发 |
 | `frontend/src/components/ProgramMetricStrip.vue` | Programs/Apps 卡片当前库存、最高积分/现金和库存变化指标展示；通过 `open-stock` 事件回到页面编排 |
+| `frontend/src/components/QinglongCronPlanDialog.vue` | QingLong 整理预览摘要、计划表格和单行/批量应用事件；父页保留确认与 API 编排 |
 | `frontend/src/components/ProgramDetailDialog.vue` | Programs/Apps 详情弹窗展示、积分排行和响应式布局；通过 `open-stock` 事件回到页面编排 |
 | `frontend/src/components/ProgramStockDialog.vue` | Programs/Apps 库存摘要、变化明细、在架商品表格和兑换状态展示；业务计算通过函数 props 注入 |
 | `frontend/src/components/StockProductCard.vue` | Stock 页主库存列表的商品卡片展示；通过 `hide` 事件回到页面执行隐藏操作 |
@@ -437,9 +438,11 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 2026-09-19 将 `frontend/src/views/UsersPage.vue` 完成首轮 Prettier 格式收敛，并将该大型页面纳入 `npm run format:check`；本批只调整格式，不改变用户列表、弹窗焦点恢复或请求编排，其他大型页面继续按 OPT-014 拆分边界逐页纳入。
 - 2026-09-19 将 `ProgramFilterBar.vue` 的状态、收藏、青龙、排序和标签筛选区补为带中文名称的 `role=group`，互斥按钮补 `aria-pressed`，并新增组件测试覆盖状态和事件映射；Vitest 组件测试从 `3 passed` 增至 `5 passed`，官方 registry npm audit 为 `0 vulnerabilities`。
 - 2026-09-19 库存上报新增 `snapshot_id`、`snapshot_complete` 和 `expected_product_count`；旧库按需增加 `mini_programs.stock_snapshot_*` 字段。只有完整且数量匹配的非空报告才自动下架缺失商品，部分/数量异常/空报告会保留旧商品并在程序卡片显示需复核；新增输入约束、完整/部分快照回归测试和 `ProgramMetricStrip` 组件告警测试，Vitest 组件测试达到 `6 passed`，后端全量达到 `112 passed`。
+- 2026-09-19 将 `QinglongCronsPage.vue` 的整理预览弹窗提取为 `QinglongCronPlanDialog.vue`；组件只通过 `v-model`、`apply` 和 `apply-item` 事件回传，父页继续持有计划生成、确认、批量写入和刷新。新增组件测试后 Vitest 达到 `8 passed`，并将该大型页面纳入 `npm run format:check`。
 - 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
 - 2026-09-19 将 FastAPI 升级到 `0.141.1` 后重新生成 `docs/openapi.json`；文件上传和校验错误 schema 的变化已通过 `scripts/export_openapi.py --check` 固化，避免依赖升级造成 API 基线漂移。
 - `frontend/package.json` 提供 `npm test`、`npm run test:components`、`npm run test:e2e`、`npm run lint`、`npm run format:check`、`npm run generate:api-types`、`npm run check:api-types` 和 `npm run build`；ESLint/Prettier/Vitest/Playwright 配置与用例格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
+- `npm run format:check` 当前覆盖共享层、组件、E2E、composable/utils，以及已完成首轮格式收敛的 `UsersPage.vue` 和 `QinglongCronsPage.vue`；其他大型页面继续随稳定拆分边界逐页纳入。
 - 已删除确认无引用的 Vite 初始 `HelloWorld.vue`、`vite.svg` 和 `vue.svg`，入口页不再引用模板 favicon。
 - README、CLAUDE、技术文档和 `points-stock.service` 已与当前 scheduler-only 青龙同步、显式导入约定、路由/API 入口及 SQLite 单 worker 默认值对齐。
 - `scripts/export_openapi.py` 从 FastAPI `app.openapi()` 生成排序稳定的 `docs/openapi.json`；`--check` 在 CI 中阻断路由/参数/schema 漂移，导入 app 不启动数据库或后台调度器。
