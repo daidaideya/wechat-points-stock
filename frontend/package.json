@@ -7,12 +7,13 @@
     "dev": "vite",
     "build": "vite build && node scripts/gzip-assets.mjs",
     "test": "node --test",
+    "test:components": "vitest run --config vitest.config.js",
     "test:e2e": "playwright test",
     "check:resources": "node scripts/check-frontend-resources.mjs",
     "generate:api-types": "openapi-typescript ../docs/openapi.json -o src/api.generated.d.ts",
     "check:api-types": "npm run generate:api-types && git diff --exit-code -- src/api.generated.d.ts",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check src/api.js eslint.config.js playwright.config.js \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
+    "format:check": "prettier --check src/api.js eslint.config.js playwright.config.js vitest.config.js \"e2e/**/*.js\" \"src/components/**/*.vue\" \"src/components/**/*.component.spec.js\" \"src/composables/**/*.{js,vue}\" \"src/utils/**/*.{js,vue}\"",
     "analyze": "vite build --mode analyze && node scripts/gzip-assets.mjs",
     "preview": "vite preview"
   },
@@ -28,14 +29,17 @@
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.63.0",
     "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/test-utils": "^2.5.1",
     "eslint": "^9.39.4",
     "eslint-plugin-vue": "^10.11.0",
     "globals": "^16.5.0",
+    "happy-dom": "^20.14.5",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.8",
     "rollup-plugin-visualizer": "^7.0.1",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-vue-components": "^32.0.0",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.11"
   }
 }

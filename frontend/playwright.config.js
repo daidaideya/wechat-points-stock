@@ -31,9 +31,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4173',
+    command: 'npm run dev -- --host 127.0.0.1 --port 4173 --force',
     cwd: '.',
-    url: 'http://127.0.0.1:4173/app/access-gate',
+    // Wait on a dynamic page module, not only the HTML shell. Vite may finish
+    // its HTTP listener before dependency optimization has completed; this
+    // readiness probe makes Playwright wait through that first optimization.
+    url: 'http://127.0.0.1:4173/src/views/ProgramsPage.vue',
     // A stale local Vite process can keep an old dependency optimizer cache
     // after npm install. Reuse is opt-in so each smoke run starts from a
     // server that matches the current lockfile and source tree.
