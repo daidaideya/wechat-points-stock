@@ -56,6 +56,7 @@ declare module 'vue' {
     ProgramStockDialog: typeof import('./components/ProgramStockDialog.vue')['default']
     ProgramStockTable: typeof import('./components/ProgramStockTable.vue')['default']
     QinglongCronEditDialog: typeof import('./components/QinglongCronEditDialog.vue')['default']
+    QinglongCronOverview: typeof import('./components/QinglongCronOverview.vue')['default']
     QinglongCronPlanDialog: typeof import('./components/QinglongCronPlanDialog.vue')['default']
     QinglongCronRow: typeof import('./components/QinglongCronRow.vue')['default']
     QinglongCronTimeline: typeof import('./components/QinglongCronTimeline.vue')['default']

@@ -1,135 +1,27 @@
 <template>
   <div class="page-stack ql-crons-page">
-    <section class="toolbar-card ql-hero">
-      <div class="ql-hero-head">
-        <div>
-          <div class="section-title">青龙定时</div>
-          <p class="section-description">查看青龙脚本每日执行时间线，识别间隔过密的任务，并一键重排执行间隔。</p>
-        </div>
-        <div class="ql-hero-actions">
-          <el-button :loading="loading" @click="loadCrons">
-            <el-icon><RefreshRight /></el-icon>
-            刷新数据
-          </el-button>
-        </div>
-      </div>
-
-      <div class="points-metrics-grid">
-        <article class="points-metric-card tone-blue">
-          <div class="points-metric-top">
-            <div>
-              <div class="points-metric-label">脚本任务</div>
-              <div class="points-metric-value">{{ scriptCrons.length }}</div>
-            </div>
-            <span class="points-metric-icon">
-              <el-icon><Document /></el-icon>
-            </span>
-          </div>
-          <div class="points-metric-foot">青龙面板中的全部脚本任务</div>
-        </article>
-
-        <article class="points-metric-card tone-green">
-          <div class="points-metric-top">
-            <div>
-              <div class="points-metric-label">启用</div>
-              <div class="points-metric-value">{{ enabledCrons.length }}</div>
-            </div>
-            <span class="points-metric-icon">
-              <el-icon><CircleCheck /></el-icon>
-            </span>
-          </div>
-          <div class="points-metric-foot">参与时间线整理的任务数量</div>
-        </article>
-
-        <article class="points-metric-card tone-red">
-          <div class="points-metric-top">
-            <div>
-              <div class="points-metric-label">已禁用</div>
-              <div class="points-metric-value">{{ disabledCrons.length }}</div>
-            </div>
-            <span class="points-metric-icon">
-              <el-icon><CircleClose /></el-icon>
-            </span>
-          </div>
-          <div class="points-metric-foot">已停用，不参与整理</div>
-        </article>
-
-        <article class="points-metric-card tone-amber ql-next-slot-card">
-          <div class="points-metric-top">
-            <div>
-              <div class="points-metric-label">新脚本时间</div>
-              <div class="points-metric-value ql-coverage-value">{{ nextSlotTime || '-' }}</div>
-            </div>
-            <span class="points-metric-icon">
-              <el-icon><CopyDocument /></el-icon>
-            </span>
-          </div>
-          <div class="points-metric-foot ql-next-slot-foot">
-            <code class="ql-next-slot-code">{{ nextSlotSchedule || '暂无可复制的表达式' }}</code>
-            <el-button size="small" type="primary" plain :disabled="!nextSlotSchedule" @click="copyNextSlot">
-              复制
-            </el-button>
-          </div>
-          <div v-if="nextSlotLastSchedule" class="ql-next-slot-hint">
-            基于最新脚本「{{ nextSlotLastName }}」{{ nextSlotLastSchedule }} +{{ planForm.intervalMinutes || 2 }} 分钟
-          </div>
-        </article>
-      </div>
-
-      <div class="points-hero-meta">
-        <span class="points-meta-chip">
-          <el-icon><Search /></el-icon>
-          <input v-model="keyword" class="ql-meta-search" type="text" placeholder="搜索名称 / 命令" />
-        </span>
-        <span v-if="crowdedCount" class="points-meta-chip warning">
-          <el-icon><Warning /></el-icon>
-          {{ crowdedCount }} 个任务间隔小于 {{ planForm.intervalMinutes }} 分钟
-        </span>
-        <span v-if="excludedCronNames.size" class="points-meta-chip ql-excluded-meta-chip">
-          <el-icon><Remove /></el-icon>
-          黑名单 {{ excludedCronNames.size }} 个脚本
-          <el-button link size="small" type="primary" class="ql-clear-excluded-btn" @click="clearAllExcluded">
-            清空
-          </el-button>
-        </span>
-      </div>
-
-      <div class="ql-filter-row">
-        <div class="ql-filter-label">
-          <el-icon><Files /></el-icon>
-          <span>脚本类型</span>
-        </div>
-        <div class="ql-filter-chips">
-          <button
-            type="button"
-            class="ql-filter-chip"
-            :class="{ active: commandTypeFilter === 'all' }"
-            @click="commandTypeFilter = 'all'"
-          >
-            <span class="ql-filter-chip-dot"></span>
-            全部脚本 {{ scriptCrons.length }}
-          </button>
-          <button
-            type="button"
-            class="ql-filter-chip"
-            :class="{ active: commandTypeFilter === 'code' }"
-            @click="commandTypeFilter = 'code'"
-          >
-            <span class="ql-filter-chip-dot"></span>
-            code 版 {{ codeCronsCount }}
-          </button>
-          <button
-            type="button"
-            class="ql-filter-chip"
-            :class="{ active: commandTypeFilter === 'other' }"
-            @click="commandTypeFilter = 'other'"
-          >
-            <span class="ql-filter-chip-dot"></span>
-            其他命令 {{ otherCronsCount }}
-          </button>
-        </div>
-      </div>
-    </section>
+    <QinglongCronOverview
+      :loading="loading"
+      :script-count="scriptCrons.length"
+      :enabled-count="enabledCrons.length"
+      :disabled-count="disabledCrons.length"
+      :next-slot-time="nextSlotTime"
+      :next-slot-schedule="nextSlotSchedule"
+      :next-slot-last-name="nextSlotLastName"
+      :next-slot-last-schedule="nextSlotLastSchedule"
+      :interval-minutes="planForm.intervalMinutes"
+      :keyword="keyword"
+      :crowded-count="crowdedCount"
+      :excluded-count="excludedCronNames.size"
+      :command-type-filter="commandTypeFilter"
+      :code-count="codeCronsCount"
+      :other-count="otherCronsCount"
+      @refresh="loadCrons"
+      @copy-next-slot="copyNextSlot"
+      @clear-excluded="clearAllExcluded"
+      @update:keyword="keyword = $event"
+      @update:command-type-filter="commandTypeFilter = $event"
+    />
 
     <el-card shadow="never" class="ql-card">
       <template #header>
@@ -237,18 +129,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  CircleCheck,
-  CircleClose,
-  CopyDocument,
-  Document,
-  Files,
-  RefreshRight,
-  Remove,
-  Search,
-  Warning,
-} from '@element-plus/icons-vue'
+import { Files } from '@element-plus/icons-vue'
 import api from '../api'
+import QinglongCronOverview from '../components/QinglongCronOverview.vue'
 import QinglongCronEditDialog from '../components/QinglongCronEditDialog.vue'
 import QinglongCronPlanDialog from '../components/QinglongCronPlanDialog.vue'
 import QinglongCronTimeline from '../components/QinglongCronTimeline.vue'
@@ -684,134 +567,6 @@ onMounted(() => {
 }
 
 /* 顶部驾驶舱：沿用积分总览的 hero 结构 */
-.ql-hero-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.ql-hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ql-coverage-value {
-  font-size: 24px;
-  line-height: 1.35;
-  padding-top: 6px;
-}
-
-.ql-next-slot-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.ql-next-slot-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  padding: 4px 8px;
-  color: var(--el-text-color-regular);
-  word-break: break-all;
-}
-
-.ql-next-slot-hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 6px;
-}
-
-/* 搜索框放进 meta chip 里，保持胶囊形态 */
-.ql-meta-search {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 13px;
-  color: inherit;
-  width: 180px;
-  font-family: inherit;
-}
-
-.ql-meta-search::placeholder {
-  color: var(--el-text-color-secondary);
-}
-
-/* 脚本类型筛选 */
-.ql-filter-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
-
-.ql-filter-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  flex: 0 0 auto;
-}
-
-.ql-filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.ql-filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(226, 207, 181, 0.95);
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.78);
-  color: #7c6143;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  transition: all 0.22s ease;
-  box-shadow: 0 6px 14px rgba(130, 100, 64, 0.05);
-}
-
-.ql-filter-chip:hover {
-  transform: translateY(-1px);
-  border-color: rgba(226, 175, 102, 0.95);
-  background: rgba(255, 249, 241, 0.96);
-  color: #9a6224;
-  box-shadow: 0 10px 22px rgba(198, 146, 72, 0.14);
-}
-
-.ql-filter-chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(233, 184, 110, 0.95), rgba(216, 145, 58, 0.95));
-  box-shadow: 0 0 0 4px rgba(244, 207, 157, 0.3);
-}
-
-.ql-filter-chip.active {
-  border-color: transparent;
-  background: linear-gradient(135deg, #f1c983, #df9f50);
-  color: #fff;
-}
-
-.ql-filter-chip.active .ql-filter-chip-dot {
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25);
-}
-
-/* 卡片对齐全站暖色风格 */
 .ql-card {
   border-radius: 22px;
   border: 1px solid var(--warm-border);
@@ -891,60 +646,11 @@ onMounted(() => {
   color: var(--el-text-color-secondary);
 }
 
-.ql-excluded-meta-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.ql-clear-excluded-btn {
-  margin-left: 4px;
-  padding: 0 4px;
-  height: auto;
-  font-size: 12px;
-}
-
 .ql-plan-alert {
   margin-top: 16px;
 }
 
 @media (max-width: 900px) {
-  .ql-hero-head {
-    flex-direction: column;
-  }
-
-  .ql-hero-actions {
-    width: 100%;
-  }
-
-  .ql-hero-actions .el-button {
-    flex: 1;
-  }
-
-  .ql-meta-search {
-    flex: 1;
-    width: auto;
-  }
-
-  /* 筛选行：标签和 chips 垂直排列 */
-  .ql-filter-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .ql-filter-chips {
-    width: 100%;
-  }
-
-  .ql-filter-chip {
-    flex: 1;
-    min-width: 100px;
-    justify-content: center;
-    padding: 8px 10px;
-    font-size: 12px;
-  }
-
   /* 小时分组：标签和行垂直排列 */
   .ql-hour-group {
     flex-direction: column;
@@ -989,60 +695,6 @@ onMounted(() => {
 
   .ql-form-hint {
     text-align: center;
-  }
-
-  /* 指标卡：2 列布局 */
-  .points-metrics-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-  }
-
-  .points-metric-card {
-    padding: 12px !important;
-  }
-
-  .points-metric-value {
-    font-size: 22px !important;
-    margin-top: 4px !important;
-  }
-
-  .points-metric-icon {
-    width: 40px !important;
-    height: 40px !important;
-    font-size: 18px !important;
-    flex-basis: 40px !important;
-  }
-
-  .points-metric-foot {
-    font-size: 11px !important;
-    margin-top: 8px !important;
-  }
-
-  /* 顶部 hero meta chips 可换行 */
-  .points-hero-meta {
-    flex-wrap: wrap;
-  }
-
-  .points-meta-chip {
-    flex: 1;
-    min-width: 140px;
-  }
-
-  .ql-excluded-meta-chip {
-    min-width: 160px;
-  }
-}
-
-@media (max-width: 480px) {
-  /* 更小屏幕：进一步压缩 */
-  .points-metrics-grid {
-    grid-template-columns: 1fr 1fr !important;
-  }
-
-  .ql-filter-chip {
-    min-width: 80px;
-    padding: 6px 8px;
-    font-size: 11px;
   }
 }
 </style>
