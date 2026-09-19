@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DashboardActivityPanels: typeof import('./components/DashboardActivityPanels.vue')['default']
     DashboardMetricCard: typeof import('./components/DashboardMetricCard.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']
