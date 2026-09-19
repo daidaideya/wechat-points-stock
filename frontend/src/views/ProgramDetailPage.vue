@@ -98,10 +98,7 @@
             <span class="stock-highlight-label">当前最高用户积分</span>
             <strong class="stock-highlight-value">{{ stock?.max_user_points ?? 0 }}</strong>
           </div>
-          <div
-            v-if="stock?.max_user_cash != null && stock?.max_user_cash !== ''"
-            class="stock-highlight-card"
-          >
+          <div v-if="stock?.max_user_cash != null && stock?.max_user_cash !== ''" class="stock-highlight-card">
             <span class="stock-highlight-label">当前最高用户现金</span>
             <strong class="stock-highlight-value">¥{{ formatCashNumber(stock.max_user_cash) }}</strong>
           </div>
@@ -209,7 +206,10 @@ onMounted(loadDetail)
     linear-gradient(rgba(229, 209, 176, 0.16) 1px, transparent 1px),
     linear-gradient(90deg, rgba(229, 209, 176, 0.16) 1px, transparent 1px),
     linear-gradient(180deg, #fffaf0 0%, #fff7eb 100%);
-  background-size: 24px 24px, 24px 24px, 100% 100%;
+  background-size:
+    24px 24px,
+    24px 24px,
+    100% 100%;
 }
 
 .detail-hero-card,
