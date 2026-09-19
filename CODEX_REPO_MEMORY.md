@@ -33,14 +33,15 @@
 - 本次推进：OPT-014 第五十七批清理 `ProgramsPage.vue` 在卡片、操作区和指标组件拆分后遗留的重复 scoped CSS，仅保留页面背景、网格、空态跨列和无限滚动状态栏；页面由 1696 行收敛为 871 行，业务请求、筛选、分页和弹窗编排不变。OPT-017 第五十七批新增 Programs 卡片样式归属 smoke 断言，Vitest 保持 `80 passed`，三浏览器 smoke 保持 `30 passed`，真实后端 Chromium smoke 保持 `1 passed`。
 - 本次推进：OPT-014 第五十八批新增 `QinglongCronOverview.vue`，将青龙页顶部指标、新脚本时间建议展示、搜索和脚本类型筛选从 `QinglongCronsPage.vue` 拆出；父页继续保留任务 API、黑名单、最新脚本 ID/占用分钟/小时溢出建议、一键整理、时间线和弹窗副作用。OPT-017 第五十八批新增概览组件测试，Vitest 提升到 `83 passed`，三浏览器 smoke 保持 `30 passed`，真实后端 Chromium smoke 保持 `1 passed`。
 - 本次推进：OPT-014 第五十九批新增 `DashboardActivityPanels.vue`，将 Dashboard 最近更新、今日未报列表和完整未报详情弹窗从 `DashboardPage.vue` 拆出；父页继续保留指标计算、Dashboard/未报 API、请求取消、路由和弹窗状态编排。OPT-017 第五十九批新增活动区组件测试，Vitest 提升到 `86 passed`，三浏览器 smoke 保持 `30 passed`，真实后端 Chromium smoke 保持 `1 passed`。
+- 本次推进：OPT-014 第六十批新增 `UsersListSection.vue`，将 Users 用户列表标题/排序提示、加载/空态、移动卡片和桌面表格从 `UsersPage.vue` 拆出；通过显式桥接保留父页 Sortable 的 DOM 访问，父页继续保留用户请求、表单/弹窗和排序/删除副作用。OPT-017 第六十批新增列表区组件测试，Vitest 提升到 `89 passed`，三浏览器 smoke 保持 `30 passed`，真实后端 Chromium smoke 保持 `1 passed`。
 - 本次推进：OPT-017 第四十批将 `ProgramDetailPage.vue` 完成首轮 Prettier 格式收敛，并把 `ProgramDetailPage.vue`、`FavoritesPage.vue`、`SettingsPage.vue` 纳入 `npm run format:check`；页面业务编排保持不变。
 - 本次推进：OPT-018 第五批新增 `docs/API.md` 业务接口参考，补齐鉴权、上报、查询、库存 ETag、设置/备份/上传和健康检查语义，并在 README 增加入口；OpenAPI 基线仍由代码生成和 CI 漂移检查负责。
 
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`14a0a4a`（路线图已同步；本记忆文档随本批提交推送，2026-09-19）
-- 最新代码提交：`310caeb`，将 Dashboard 最近更新、今日未报列表和详情弹窗拆为 `DashboardActivityPanels.vue`；页面继续保留指标、API、请求取消、路由和弹窗状态编排。
+- 快照提交：`367c68b`（路线图已同步；本记忆文档随本批提交推送，2026-09-19）
+- 最新代码提交：`b93095d`，将 Users 用户列表展示和 Sortable DOM 桥接拆为 `UsersListSection.vue`；页面继续保留请求、表单/弹窗和排序/删除副作用编排。
 - 最新修复：库存筛选栏已恢复 flex、圆角和内边距样式；青龙黑名单刷新后仍保持；Stock 商品详情抽屉已可从商品卡打开并通过 Escape 关闭；Programs 卡片在父页样式清理后仍保持 22px 内边距、24px 圆角和 grid 布局，三浏览器 E2E smoke 当前为 `30 passed`，真实后端 Chromium smoke 为 `1 passed`；移动导航 1120px→390px 动态切换、Users 窄内容区、QingLong 任务数据绑定、Stock 卡片布局和 Points 导航问题已保留在历史提交中。
 - 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、程序卡片第二十三批、详情弹窗、库存弹窗、ProgramsPage 样式归属第五十七批、Stock 商品卡片第五批、Stock 筛选工具栏第三十六批、Stock 商品详情抽屉第五十六批、Qinglong 概览第五十八批、时间线行第六批、整理预览弹窗第二十批、Settings 分区导航第二十一批、Settings 共享卡片第二十二批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Dashboard 指标卡第二十四批、Points 账号展示卡第二十五批、Points 账号详情抽屉第三十五批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批、ProgramFilterBar 筛选语义第十批和 Settings 分区导航语义第十一批、QingLong 读取取消第十二批和 Stock 抽屉读取取消第十三批、Programs 共享视口第十四批；OPT-016 已完成当前余额快照第一批和库存快照可信度第二批，库存上报支持完整性元数据并阻止不完整报告误下架；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批、ProgramFilterBar 组件测试第十三批、ProgramMetricStrip 快照告警测试第十四批、QinglongCronPlanDialog 整理预览测试/页面格式门禁第十五批、SettingsSectionNav 导航语义测试第十六批、SettingsSectionCard 共享投影测试第十七批、ProgramCard 程序卡片展示/事件测试第十八批、ProgramDetailDialog 详情弹窗展示/事件测试第十九批、ProgramStockDialog 库存弹窗展示/交互测试第二十批、UserPointsDialog 积分详情弹窗展示/交互测试第二十一批、StockProductCard 库存商品卡展示/交互测试第二十二批、UserMobileCard Users 移动卡片展示/交互测试第二十三批、UserEditDialog 用户编辑弹窗展示/交互测试第二十四批、UserDesktopTable Users 桌面表格展示/交互测试第二十五批、QinglongCronRow 青龙时间线行展示/交互测试第二十六批、四个 Settings 业务区段展示/字段/写操作/文件选择边界测试第二十七批、Dashboard 指标卡展示/激活事件测试第二十八批、Points 账号卡展示/状态/指标/入口事件测试第二十九批、Points 账号详情双抽屉测试第四十六批、StockFilterToolbar 筛选工具栏测试第四十七批和 StockProductDetailDrawer 商品详情抽屉测试第五十六批、Programs 卡片样式归属第五十七批、QinglongCronOverview 概览测试第五十八批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 的金额精度、标签/身份模型、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
@@ -167,6 +168,8 @@
 | `frontend/src/components/UserDesktopTable.vue` | Users 页桌面表格列、排序句柄、身份展示和操作按钮；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
 | `frontend/src/components/UsersSummaryCards.vue` | Users 页用户数、活跃小程序/APP、手机号统计卡展示和响应式布局；只接收父页计算后的数值 |
 | `frontend/src/components/UsersSummaryCards.component.spec.js` | Users 四项统计卡展示和数值更新组件测试 |
+| `frontend/src/components/UsersListSection.vue` | Users 用户列表标题、排序提示、加载/空态、移动卡片和桌面表格展示；通过白名单事件和 Sortable DOM 桥接回到页面编排 |
+| `frontend/src/components/UsersListSection.component.spec.js` | Users 列表展示、排序提示、移动/桌面操作事件、加载态和空态组件测试 |
 | `frontend/src/components/DashboardActivityPanels.vue` | Dashboard 最近更新、今日未报列表和完整未报详情弹窗展示；通过刷新和 `v-model:unreported-dialog-visible` 回到页面编排 |
 | `frontend/src/components/DashboardActivityPanels.component.spec.js` | Dashboard 活动列表、日期格式化、刷新/可见性事件、加载态和空态组件测试 |
 | `frontend/src/components/UserEditDialog.vue` | Users 页新增/编辑表单、取消和保存状态展示；通过 `v-model`、`update-field`、`save` 事件回到页面编排 |
@@ -477,6 +480,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `ProgramMetricStrip.vue` 负责 Programs/Apps 卡片的库存、最高积分/现金、库存变化和不完整库存快照告警格式化、可见性判断与 scoped 样式；`ProgramsPage.vue` 保留列表状态、请求和库存弹窗编排，组件通过 `open-stock` 事件触发查看库存。
 - `ProgramCard.vue` 负责 Programs/Apps 程序卡片的名称/ID、青龙状态、标签、指标和备注展示及自身卡片样式；`ProgramCardActions.vue` 负责日期脚注、移动/桌面操作、归档/删除菜单及自身操作区样式，`ProgramMetricStrip.vue` 负责指标展示和样式；`ProgramsPage.vue` 只保留页面网格/背景/空态布局以及复制、标签、库存、详情、备注、收藏、归档和删除等业务副作用。
 - `DashboardActivityPanels.vue` 负责 Dashboard 最近更新、今日未报摘要和完整未报详情弹窗的展示、加载/空态与响应式布局；`DashboardPage.vue` 继续保留指标计算、Dashboard/未报 API、请求取消、路由跳转和弹窗数据状态，组件通过刷新和 `v-model:unreported-dialog-visible` 回传交互。
+- `UsersListSection.vue` 负责 Users 用户列表标题、排序提示、加载/空态、移动卡片和桌面表格组合；`UsersPage.vue` 继续保留用户 API、表单/积分弹窗、删除和 Sortable 写入，组件通过用户操作事件以及 `getMobileListElement()`/`getDesktopTableInstance()` 桥接回传展示 DOM。
 - `ProgramMaintenanceDialogs.vue` 负责 Programs/Apps 备注和标签维护弹窗、本地编辑草稿、快捷/自定义标签、响应式宽度和保存/关闭事件；`ProgramsPage.vue` 继续持有当前程序、备注/标签 PUT 请求、列表标签聚合、pending 和成功后的状态更新，组件不直接访问 API。
 - `ProgramDetailDialog.vue` 负责 Programs/Apps 详情弹窗的概要、标签/备注、积分排行、手机号/微信号和响应式展示；`ProgramsPage.vue` 保留详情 API 请求与数据状态，组件通过 `v-model` 和 `open-stock` 事件回传页面编排。
 - `ProgramStockDialog.vue` 负责 Programs/Apps 库存摘要、变化明细和弹窗交互；`ProgramStockTable.vue` 负责在架商品表格、图片预览、兑换状态、积分差额和响应式样式；`ProgramsPage.vue` 保留库存 API、排序/兑换业务计算与状态，组件通过 `v-model` 和 `update:change-expanded` 回传交互状态。
@@ -502,7 +506,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `frontend/src/utils/apiError.js` 统一处理 API 的 `message`、`detail`、Pydantic 列表错误、Axios/native abort、超时/网络分类和后端 request ID；访问页、设置页、青龙页、用户页、Programs、Favorites、Dashboard、Points、Stock 和 ProgramDetail 的主要 API 请求已使用该边界。
 - `frontend/src/composables/useAbortableRequest.js` 为 Dashboard、Favorites、Points、Users 列表/积分详情、ProgramDetail 和 Settings 读取提供“新请求取消旧请求、卸载取消、过期响应不写状态”的控制器；取消不会弹出错误，也不会由旧请求覆盖 loading 状态，Settings 的写操作仍保持显式 pending。
 - `SettingsPage.vue` 通过 `settingsBusy` 汇总读取、保存、同步、推送、导出和导入状态，并传给四个 Settings 区段；busy 期间锁定分区导航、刷新、表单控件和操作按钮，避免副作用请求并发覆盖状态。Playwright 有延迟保存 smoke 覆盖该边界。
-- 前端 Node 内置测试目前共 `36 passed`，Vitest 组件测试共 `86 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析、AbortError、日期边界、Users 身份展示规则、Stock 中心请求缓存/去重/取消边界、Stock 商品详情抽屉展示/事件边界、QingLong 概览展示/事件边界和 Dashboard 活动区展示/事件边界测试。
+- 前端 Node 内置测试目前共 `36 passed`，Vitest 组件测试共 `89 passed`，其中包含 Programs/Apps 筛选参数、访问会话、页面状态缓存版本/TTL、API 错误解析、AbortError、日期边界、Users 身份展示规则、Stock 中心请求缓存/去重/取消边界、Stock 商品详情抽屉展示/事件边界、QingLong 概览展示/事件边界、Dashboard 活动区展示/事件边界和 Users 列表展示/事件边界测试。
 - 2026-09-18 在临时 SQLite 数据库和随机本地 `INGEST_TOKEN` 上完成桌面浏览器 smoke：Dashboard、Programs、Apps、Users、Points、Stock、QingLong、Settings 均可加载主内容/空态；Users 新增用户空表单校验和 QingLong 未配置 OpenAPI 提示均符合预期，浏览器 console 无 error/warn。验证后服务已停止、临时数据库已删除。
 - 2026-09-18 新增 `frontend/playwright.config.js` 与 `frontend/e2e/smoke.spec.js`：API mock 下覆盖上述八个主路由、Settings 四个查询分区、Users 空表单校验、Settings 写操作 busy 边界和 390px 移动导航开关，监听 console error/warn 与 pageerror；桌面主路由在跳转后等待 network idle，避免 Firefox 快速切换时的动态模块取消 warning；本地干净 `npm ci` 后 Chromium + Firefox + WebKit `npm run test:e2e` 为 `12 passed`，共享 Vite dev server 的 Playwright workers 固定为 1，CI 使用独立 job 安装三种浏览器。真实后端数据和生产鉴权流程仍未纳入该 smoke。
 - 2026-09-19 新增 `scripts/seed_playwright_data.py` 与 `frontend/e2e/real-backend.spec.js`：使用临时 SQLite 和固定测试 `INGEST_TOKEN` 注入真实用户、程序、积分、库存数据，`REAL_BACKEND_E2E=1` 选择不 mock API 的真实后端用例；本地 FastAPI + Chromium `1 passed`，CI 由独立 `frontend-real-e2e` job 执行，未使用默认数据库或生产凭据，生产鉴权流程仍不在该 smoke 范围内。
@@ -548,6 +552,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 2026-09-19 清理 `ProgramsPage.vue` 在卡片/操作区/指标拆分后遗留的 827 行重复 scoped CSS，页面由 1696 行收敛为 871 行；新增 Programs 卡片样式归属 smoke，完整门禁保持 Node `36 passed`、Vitest `80 passed`、三浏览器 Playwright `30 passed`、真实后端 Chromium `1 passed`、后端 `123 passed` 和生产构建通过；代码提交为 `620ee7c`，路线图提交为 `46e5249`，本记忆快照随本批提交。
 - 2026-09-19 将 QingLong 顶部指标、新脚本时间建议、搜索和脚本类型筛选提取为 `QinglongCronOverview.vue`，`QinglongCronsPage.vue` 由 1048 行收敛为 700 行；新增概览组件测试，完整门禁保持 Node `36 passed`、Vitest `83 passed`、三浏览器 Playwright `30 passed`、真实后端 Chromium `1 passed`、后端 `123 passed` 和生产构建通过；代码提交为 `3893e86`，路线图提交为 `0220666`，本记忆快照随本批提交。
 - 2026-09-19 将 Dashboard 最近更新、今日未报列表和详情弹窗提取为 `DashboardActivityPanels.vue`，`DashboardPage.vue` 由 274 行收敛为 165 行；新增活动区组件测试，完整门禁保持 Node `36 passed`、Vitest `86 passed`、三浏览器 Playwright `30 passed`、真实后端 Chromium `1 passed`、后端 `123 passed` 和生产构建通过；代码提交为 `310caeb`，路线图提交为 `14a0a4a`，本记忆快照随本批提交。
+- 2026-09-19 将 Users 用户列表展示和 Sortable DOM 桥接提取为 `UsersListSection.vue`，`UsersPage.vue` 由 569 行收敛为 490 行；新增列表区组件测试，完整门禁保持 Node `36 passed`、Vitest `89 passed`、三浏览器 Playwright `30 passed`、真实后端 Chromium `1 passed`、后端 `123 passed` 和生产构建通过；代码提交为 `b93095d`，路线图提交为 `367c68b`，本记忆快照随本批提交。
 - 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
 - 2026-09-19 将 FastAPI 升级到 `0.141.1` 后重新生成 `docs/openapi.json`；文件上传和校验错误 schema 的变化已通过 `scripts/export_openapi.py --check` 固化，避免依赖升级造成 API 基线漂移。
 - `frontend/package.json` 提供 `npm test`、`npm run test:components`、`npm run test:e2e`、`npm run lint`、`npm run format:check`、`npm run generate:api-types`、`npm run check:api-types` 和 `npm run build`；ESLint/Prettier/Vitest/Playwright 配置与用例格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
