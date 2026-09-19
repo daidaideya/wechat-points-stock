@@ -34,7 +34,10 @@ export default defineConfig({
     command: 'npm run dev -- --host 127.0.0.1 --port 4173',
     cwd: '.',
     url: 'http://127.0.0.1:4173/app/access-gate',
-    reuseExistingServer: !process.env.CI,
+    // A stale local Vite process can keep an old dependency optimizer cache
+    // after npm install. Reuse is opt-in so each smoke run starts from a
+    // server that matches the current lockfile and source tree.
+    reuseExistingServer: process.env.PW_REUSE_SERVER === '1',
     timeout: 120_000,
   },
 })

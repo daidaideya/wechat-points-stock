@@ -35,7 +35,7 @@ LICENSE_CLASSIFIER_MAP = {
     "Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0",
     "Python Software Foundation License": "PSF-2.0",
 }
-LICENSE_SPLIT_RE = re.compile(r"\s+(?:AND|OR)\s+|\s*[,/]\s*", re.IGNORECASE)
+LICENSE_SPLIT_RE = re.compile(r"\s+(?:AND|OR)\s+|\s*[,/]\s*|[()]", re.IGNORECASE)
 
 
 def canonical_license(value: str) -> str:
@@ -52,7 +52,7 @@ def canonical_license(value: str) -> str:
 
 
 def allowed_license(value: str) -> bool:
-    parts = [canonical_license(part) for part in LICENSE_SPLIT_RE.split(value)]
+    parts = [canonical_license(part) for part in LICENSE_SPLIT_RE.split(value) if part.strip()]
     return bool(parts) and all(part in ALLOWED_LICENSES for part in parts)
 
 
