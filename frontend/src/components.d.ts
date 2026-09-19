@@ -77,6 +77,7 @@ declare module 'vue' {
     UserEditDialog: typeof import('./components/UserEditDialog.vue')['default']
     UserMobileCard: typeof import('./components/UserMobileCard.vue')['default']
     UserPointsDialog: typeof import('./components/UserPointsDialog.vue')['default']
+    UsersListSection: typeof import('./components/UsersListSection.vue')['default']
     UsersSummaryCards: typeof import('./components/UsersSummaryCards.vue')['default']
   }
 }

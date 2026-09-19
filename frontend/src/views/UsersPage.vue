@@ -24,43 +24,16 @@
     </section>
 
     <section class="toolbar-card users-list-card">
-      <div class="users-list-head">
-        <div>
-          <h3 class="section-title compact">用户列表</h3>
-          <p class="section-description compact">按住左侧 <strong>⋮⋮</strong> 拖拽即可调整顺序，松手后自动保存。</p>
-        </div>
-        <div v-if="sorting" class="users-sort-saving">正在保存顺序…</div>
-      </div>
-
-      <el-skeleton v-if="loading" :rows="8" animated />
-
-      <template v-else>
-        <el-empty v-if="!items.length" description="暂无用户数据" />
-
-        <div v-else ref="mobileListRef" class="users-mobile-list">
-          <UserMobileCard
-            v-for="(item, index) in items"
-            :key="item.wechat_id"
-            :item="item"
-            :index="index"
-            :deleting-wechat-id="deletingWechatId"
-            @edit="openEdit"
-            @view-points="viewPoints"
-            @remove="removeUser"
-          />
-        </div>
-
-        <div v-if="items.length" class="users-desktop-table-wrap">
-          <UserDesktopTable
-            ref="desktopTableRef"
-            :items="items"
-            :deleting-wechat-id="deletingWechatId"
-            @edit="openEdit"
-            @view-points="viewPoints"
-            @remove="removeUser"
-          />
-        </div>
-      </template>
+      <UsersListSection
+        ref="usersListSectionRef"
+        :loading="loading"
+        :sorting="sorting"
+        :items="items"
+        :deleting-wechat-id="deletingWechatId"
+        @edit="openEdit"
+        @view-points="viewPoints"
+        @remove="removeUser"
+      />
     </section>
 
     <UserEditDialog
@@ -92,10 +65,9 @@ import { Plus } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import api from '../api'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
-import UserDesktopTable from '../components/UserDesktopTable.vue'
 import UserEditDialog from '../components/UserEditDialog.vue'
 import UserPointsDialog from '../components/UserPointsDialog.vue'
-import UserMobileCard from '../components/UserMobileCard.vue'
+import UsersListSection from '../components/UsersListSection.vue'
 import UsersSummaryCards from '../components/UsersSummaryCards.vue'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 import { displayName, displayPhone } from '../utils/user'
@@ -113,8 +85,7 @@ const currentRow = ref(null)
 const pointsUser = ref(null)
 const editDialogReturnFocus = ref(null)
 const pointsDialogReturnFocus = ref(null)
-const mobileListRef = ref(null)
-const desktopTableRef = ref(null)
+const usersListSectionRef = ref(null)
 const usersRequestController = useAbortableRequest()
 const pointsRequestController = useAbortableRequest()
 
@@ -362,14 +333,16 @@ function onSortEnd(evt, mode) {
   let orderedIds = []
 
   if (mode === 'mobile') {
-    const root = mobileListRef.value
+    const root = usersListSectionRef.value?.getMobileListElement?.()
     if (!root) return
     orderedIds = Array.from(root.querySelectorAll('.users-mobile-card'))
       .map((el) => el.getAttribute('data-wechat-id'))
       .filter(Boolean)
   } else {
     // Sortable mutates tbody DOM; read row-key order back out.
-    const tbody = desktopTableRef.value?.$el?.querySelector?.('.el-table__body-wrapper tbody')
+    const tbody = usersListSectionRef.value
+      ?.getDesktopTableInstance?.()
+      ?.$el?.querySelector?.('.el-table__body-wrapper tbody')
     if (!tbody) return
     orderedIds = Array.from(tbody.querySelectorAll('tr.el-table__row'))
       .map((tr) => {
@@ -399,7 +372,7 @@ function initMobileSortable() {
     mobileSortable.destroy()
     mobileSortable = null
   }
-  const el = mobileListRef.value
+  const el = usersListSectionRef.value?.getMobileListElement?.()
   if (!el || !items.value.length) return
   mobileSortable = Sortable.create(el, {
     animation: 180,
@@ -420,7 +393,7 @@ function initDesktopSortable() {
     desktopSortable.destroy()
     desktopSortable = null
   }
-  const tableVm = desktopTableRef.value
+  const tableVm = usersListSectionRef.value?.getDesktopTableInstance?.()
   const tbody = tableVm?.$el?.querySelector?.('.el-table__body-wrapper tbody')
   if (!tbody || !items.value.length) return
 
@@ -480,8 +453,7 @@ onBeforeUnmount(() => {
   container-type: inline-size;
 }
 
-.users-hero-head,
-.users-list-head {
+.users-hero-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -502,61 +474,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 10px 22px rgba(216, 154, 60, 0.18);
 }
 
-.users-list-head {
-  margin-bottom: 14px;
-}
-
-.users-sort-saving {
-  flex: 0 0 auto;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(96, 165, 250, 0.14);
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.users-desktop-table-wrap {
-  display: block;
-}
-
-.users-mobile-list {
-  display: none;
-}
-
-@container (max-width: 1200px) {
-  .users-list-head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .users-desktop-table-wrap {
-    display: none;
-  }
-
-  .users-mobile-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-}
-
 @media (max-width: 900px) {
-  .users-hero-head,
-  .users-list-head {
+  .users-hero-head {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .users-desktop-table-wrap {
-    display: none;
-  }
-
-  .users-mobile-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
   }
 }
 
