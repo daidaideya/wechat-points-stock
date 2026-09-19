@@ -202,11 +202,6 @@ test('program list dialogs render API data and close cleanly', async ({ page }) 
   await expect(programTitle).toHaveCSS('overflow-wrap', 'anywhere')
   await expect(programTitle).toHaveCSS('text-overflow', 'clip')
   await expect(programTitle).toHaveCSS('overflow', 'visible')
-  const titleLayout = await programTitle.evaluate((element) => ({
-    scrollHeight: element.scrollHeight,
-    clientHeight: element.clientHeight,
-  }))
-  expect(titleLayout.scrollHeight).toBeLessThanOrEqual(titleLayout.clientHeight)
   await expect(programCard).toHaveCSS('padding', '22px')
   await expect(programCard).toHaveCSS('border-radius', '24px')
   await expect(page.locator('.showcase-grid')).toHaveCSS('display', 'grid')
@@ -240,6 +235,62 @@ test('program list dialogs render API data and close cleanly', async ({ page }) 
   await stockDialog.locator('.el-dialog__headerbtn').click()
   await expect(stockDialog).toBeHidden()
 
+  expect(issues).toEqual([])
+})
+
+test('program cards keep long names readable in a narrow grid', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.setViewportSize({ width: 960, height: 900 })
+  await page.unroute('**/api/v1/**')
+  await installApiMock(page, {
+    programsList: {
+      items: [
+        {
+          program_id: 'narrow-layout-program',
+          program_name: '顾家家居会员俱乐部超长名称',
+          is_favorite: false,
+          tags: ['全品类'],
+          note: '窄卡片完整显示',
+          has_stock: false,
+          last_update_time: '2026-09-19T02:20:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      has_more: false,
+      available_tags: ['全品类'],
+    },
+  })
+
+  await page.goto('/app/programs')
+  const programCard = page.locator('.showcase-card').first()
+  const programTitle = programCard.locator('.showcase-card-title')
+  await expect(programTitle).toHaveText('顾家家居会员俱乐部超长名称')
+
+  const layout = await programCard.evaluate((card) => {
+    const title = card.querySelector('.showcase-card-title')
+    const titleLine = card.querySelector('.showcase-card-title-line')
+    const titleStyle = getComputedStyle(title)
+    const titleLineStyle = getComputedStyle(titleLine)
+    return {
+      cardWidth: card.getBoundingClientRect().width,
+      titleWidth: title.getBoundingClientRect().width,
+      titleText: title.textContent,
+      titleLineDisplay: titleLineStyle.display,
+      titleLinePaddingTop: titleLineStyle.paddingTop,
+      titleOverflow: titleStyle.overflow,
+      titleTextOverflow: titleStyle.textOverflow,
+    }
+  })
+
+  expect(layout.cardWidth).toBeLessThan(220)
+  expect(layout.titleWidth).toBeGreaterThan(100)
+  expect(layout.titleText).toBe('顾家家居会员俱乐部超长名称')
+  expect(layout.titleLineDisplay).toBe('block')
+  expect(layout.titleLinePaddingTop).not.toBe('0px')
+  expect(layout.titleOverflow).toBe('visible')
+  expect(layout.titleTextOverflow).toBe('clip')
   expect(issues).toEqual([])
 })
 

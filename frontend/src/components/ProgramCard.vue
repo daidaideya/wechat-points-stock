@@ -175,6 +175,7 @@ function emitCommand(command) {
 .showcase-card {
   position: relative;
   display: flex;
+  container-type: inline-size;
   width: 100%;
   flex-direction: column;
   min-height: 0;
@@ -498,6 +499,31 @@ function emitCommand(command) {
   font-size: 12px;
   line-height: 1.35;
   font-weight: 600;
+}
+
+@container (max-width: 220px) {
+  .showcase-card-title-line {
+    position: relative;
+    display: block;
+    padding-top: 30px;
+  }
+
+  .showcase-card-index {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin-top: 0;
+  }
+
+  .showcase-card-title {
+    width: 100%;
+  }
+
+  .ql-status-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
 }
 
 @media (max-width: 768px) {
