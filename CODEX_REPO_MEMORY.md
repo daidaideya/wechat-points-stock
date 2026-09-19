@@ -24,21 +24,22 @@
 - 本次推进：OPT-014 第三十七批新增 `QinglongCronTimeline.vue`，将青龙当前时间线卡片、分组、禁用开关和行组合从 `QinglongCronsPage.vue` 拆出，父页继续保留任务请求、筛选、时间建议和批量写入；OPT-017 第四十八批新增时间线组件测试，Vitest 提升到 `61 passed`，三浏览器 smoke 保持 `30 passed`。
 - 本次推进：OPT-014 第三十八批新增 `ProgramMaintenanceDialogs.vue`，将 Programs/Apps 的备注和标签维护弹窗、本地草稿及响应式展示从 `ProgramsPage.vue` 拆出，父页继续保留 PUT 请求、列表标签聚合和 pending；OPT-017 第四十九批新增维护弹窗组件测试及保存 smoke，Vitest 提升到 `64 passed`，三浏览器 smoke 保持 `30 passed`，Vite 代理支持隔离后端目标。
 - 本次推进：OPT-014 第三十九批新增 `StockManagementDrawers.vue`，将 Stock 页已隐藏/已下架商品抽屉、搜索、加载/空态、恢复显示/恢复上架和分页展示从 `StockPage.vue` 拆出，父页继续保留请求取消、分页聚合、缓存失效和商品状态副作用；OPT-017 第五十批新增管理抽屉组件测试，Vitest 提升到 `67 passed`，三浏览器 smoke 保持 `30 passed`，隔离真实后端 Chromium smoke 保持 `1 passed`。
+- 本次推进：OPT-014 第四十批新增 `QinglongCronEditDialog.vue`，将青龙任务执行时间编辑弹窗、cron 输入预览、非法表达式提示和响应式宽度从 `QinglongCronsPage.vue` 拆出，父页继续保留 cron 解析、保存 API、loading 和成功刷新；OPT-017 第五十一批新增编辑弹窗组件测试，Vitest 提升到 `70 passed`，三浏览器 smoke 保持 `30 passed`。
 - 本次推进：OPT-017 第四十批将 `ProgramDetailPage.vue` 完成首轮 Prettier 格式收敛，并把 `ProgramDetailPage.vue`、`FavoritesPage.vue`、`SettingsPage.vue` 纳入 `npm run format:check`；页面业务编排保持不变。
 - 本次推进：OPT-018 第五批新增 `docs/API.md` 业务接口参考，补齐鉴权、上报、查询、库存 ETag、设置/备份/上传和健康检查语义，并在 README 增加入口；OpenAPI 基线仍由代码生成和 CI 漂移检查负责。
 
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`b7fa968`（2026-09-19）
-- 最新代码提交：`cecdd44`，新增 `StockManagementDrawers.vue` 统一承载 Stock 页已隐藏/已下架商品抽屉、搜索、加载/空态、恢复显示/恢复上架和分页展示；`StockPage.vue` 收敛为库存中心请求、筛选分页、标准化和商品状态副作用编排，页面约 1263 行降至 1057 行；此前 ProgramMaintenanceDialogs、QingLong 时间线、Stock 筛选工具栏、Points 详情双抽屉、金额精度和共享日期工具仍保持不变；路线图本批提交为 `618d897`，仓库记忆快照提交为 `b7fa968`。
+- 快照提交：待本次记忆文件提交后回填（2026-09-19）
+- 最新代码提交：`fca6e63`，新增 `QinglongCronEditDialog.vue` 统一承载青龙任务执行时间编辑弹窗、cron 输入预览、非法表达式提示和响应式宽度；`QinglongCronsPage.vue` 收敛为任务请求、筛选、排除、时间建议、批量整理和保存 API 编排，页面约 1063 行降至 1021 行；此前 StockManagementDrawers、ProgramMaintenanceDialogs、QingLong 时间线、Stock 筛选工具栏、Points 详情双抽屉、金额精度和共享日期工具仍保持不变；路线图本批提交为 `dac850f`，仓库记忆快照提交待本次收尾后回填。
 - 最新修复：ProgramsPage 请求取消边界补齐，Users 页面窄内容区不再显示被裁切的宽表格；三浏览器 E2E smoke 当前为 `30 passed`。此前 QingLong 任务数据绑定、Stock 卡片布局和 Points 导航问题已保留在历史提交中。
 - 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、程序卡片第二十三批、详情弹窗、库存弹窗、Stock 商品卡片第五批、Stock 筛选工具栏第三十六批、Qinglong 时间线行第六批、整理预览弹窗第二十批、Settings 分区导航第二十一批、Settings 共享卡片第二十二批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Dashboard 指标卡第二十四批、Points 账号展示卡第二十五批、Points 账号详情抽屉第三十五批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批、ProgramFilterBar 筛选语义第十批和 Settings 分区导航语义第十一批、QingLong 读取取消第十二批和 Stock 抽屉读取取消第十三批、Programs 共享视口第十四批；OPT-016 已完成当前余额快照第一批和库存快照可信度第二批，库存上报支持完整性元数据并阻止不完整报告误下架；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批、ProgramFilterBar 组件测试第十三批、ProgramMetricStrip 快照告警测试第十四批、QinglongCronPlanDialog 整理预览测试/页面格式门禁第十五批、SettingsSectionNav 导航语义测试第十六批、SettingsSectionCard 共享投影测试第十七批、ProgramCard 程序卡片展示/事件测试第十八批、ProgramDetailDialog 详情弹窗展示/事件测试第十九批、ProgramStockDialog 库存弹窗展示/交互测试第二十批、UserPointsDialog 积分详情弹窗展示/交互测试第二十一批、StockProductCard 库存商品卡展示/交互测试第二十二批、UserMobileCard Users 移动卡片展示/交互测试第二十三批、UserEditDialog 用户编辑弹窗展示/交互测试第二十四批、UserDesktopTable Users 桌面表格展示/交互测试第二十五批、QinglongCronRow 青龙时间线行展示/交互测试第二十六批、四个 Settings 业务区段展示/字段/写操作/文件选择边界测试第二十七批、Dashboard 指标卡展示/激活事件测试第二十八批、Points 账号卡展示/状态/指标/入口事件测试第二十九批、Points 账号详情双抽屉测试第四十六批和 StockFilterToolbar 筛选工具栏测试第四十七批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 的金额精度、标签/身份模型、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 本次推进：OPT-014 追加 Users 窄内容区响应式布局修复（第二十九批），OPT-017 追加 Users 卡片布局回归（第三十三批）；同时保留 QingLong 任务行数据绑定和 Stock 商品卡布局修复。
 - 本次推进：OPT-018 追加业务 API 参考文档（第五批），README 已增加文档入口；本批未改动运行时代码，继续以 OpenAPI 生成基线和现有前后端门禁验证文档没有造成契约漂移。
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `123 passed`；前端 Node 测试 `npm test` 为 `36 passed`，Vitest 组件测试为 `67 passed`，Playwright mock Chromium + Firefox + WebKit smoke 共 `30 passed`，使用临时 SQLite、独立 `8001` 后端和 `VITE_API_PROXY_TARGET` 的真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、扩展后的 `npm run format:check`、`npm run check:resources`、`npm run build`、`py -3.11 scripts/export_openapi.py --check` 和 compileall 均通过；npm audit、pip-audit 和许可证检查继续通过。
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `123 passed`；前端 Node 测试 `npm test` 为 `36 passed`，Vitest 组件测试为 `70 passed`，Playwright mock Chromium + Firefox + WebKit smoke 共 `30 passed`，使用临时 SQLite、独立 `8001` 后端和 `VITE_API_PROXY_TARGET` 的真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、扩展后的 `npm run format:check`、`npm run check:resources`、`npm run build`、`py -3.11 scripts/export_openapi.py --check` 和 compileall 均通过；npm audit、pip-audit 和许可证检查继续通过。
 - CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run test:components` → `npm run lint` → `npm run format:check` → `npm run check:api-types` → `npm run check:resources` → `npm run build` 执行；独立 `dependency-audit` job 执行 npm audit、pip-audit 和许可证检查；独立 `frontend-e2e` job 安装 Chromium + Firefox + WebKit 后执行 mock `npm run test:e2e`；独立 `frontend-real-e2e` job 使用临时 SQLite、seed 脚本和 FastAPI 后执行真实后端 Chromium smoke；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -143,6 +144,8 @@
 | `frontend/src/components/StockProductCard.vue` | Stock 页主库存列表的商品卡片展示；通过 `hide` 事件回到页面执行隐藏操作 |
 | `frontend/src/components/QinglongCronTimeline.vue` | QingLong 当前时间线卡片、启用/禁用开关、按小时分组、loading/empty 和行组合；父页通过 props 注入计算函数并接收交互事件 |
 | `frontend/src/components/QinglongCronTimeline.component.spec.js` | QingLong 时间线分组、间隔说明、行状态参数、开关/行事件以及 loading/empty 边界组件测试 |
+| `frontend/src/components/QinglongCronEditDialog.vue` | QingLong 任务执行时间编辑、cron 预览、非法表达式提示和响应式弹窗；通过 `v-model`、`v-model:schedule` 和 `save` 事件回到页面编排 |
+| `frontend/src/components/QinglongCronEditDialog.component.spec.js` | 编辑弹窗任务展示、响应式宽度、输入/保存/关闭、非法表达式和 applying 边界组件测试 |
 | `frontend/src/components/QinglongCronRow.vue` | QingLong 时间线单行的状态标签、执行时间、cron 表达式和编辑/排除操作展示；通过 `edit`、`toggle-exclude` 事件回到页面编排 |
 | `frontend/src/components/UserPointsDialog.vue` | Users 页积分详情的加载/空态、桌面表格、移动卡片和展示格式化；通过 `v-model` 接收弹窗状态 |
 | `frontend/src/components/UserMobileCard.vue` | Users 页移动端用户卡片展示；通过 `edit`、`view-points`、`remove` 事件回到页面编排 |
@@ -461,6 +464,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - `StockManagementDrawers.vue` 负责 Stock 页已隐藏/已下架商品抽屉的搜索、加载/空态、商品列表和恢复操作展示；`StockPage.vue` 保留隐藏/下架 API、`useAbortableRequest` 取消、服务端分页聚合、缓存失效和恢复/重新上架副作用，组件通过受控输入与白名单事件回传。
 - `QinglongCronRow.vue` 负责 QingLong 时间线单行的禁用/排除/间隔状态、执行时间、cron 表达式和操作按钮展示；`QinglongCronsPage.vue` 保留 API、筛选、排除名单、新脚本时间建议和批量整理编排，组件通过 `edit`、`toggle-exclude` 事件回传。
 - `QinglongCronTimeline.vue` 负责 QingLong 当前时间线卡片、按小时分组、显示禁用开关和 `QinglongCronRow` 组合；`QinglongCronsPage.vue` 继续保留任务 API、筛选、排除名单、拥挤度、最新脚本 ID/占用分钟/小时溢出时间建议和批量整理编排，时间线组件通过 `show-disabled`、`edit`、`toggle-exclude` 回传交互。
+- `QinglongCronEditDialog.vue` 负责 QingLong 任务执行时间编辑弹窗、cron 输入、每日执行预览、非法表达式提示和响应式宽度；`QinglongCronsPage.vue` 保留当前任务、`parseDailyMinutes` 预览、`applySingleEdit` 保存 API、loading 和成功刷新，组件通过 `v-model`、`v-model:schedule` 和 `save` 回传交互。
 - `frontend/vite.config.js` 的 `/api` 和 `/static` 代理默认指向 `http://127.0.0.1:8000`，本地隔离真实后端 smoke 可用 `VITE_API_PROXY_TARGET` 覆盖目标，不改变 CI/开发默认入口。
 - `UserPointsDialog.vue` 负责 Users 页积分详情的加载态、空态、桌面/移动展示和积分/现金/日期格式化；`UsersPage.vue` 保留用户与积分详情 API、当前用户标题和弹窗状态编排，组件通过 `v-model` 接收可见性。
 - `frontend/src/utils/user.js` 统一处理 Users 页手机号兼容、微信号/昵称主标识和确定性头像展示；`UserMobileCard.vue` 负责移动卡片展示与操作事件，`UsersPage.vue` 继续持有列表容器、桌面表格和 Sortable 拖拽保存。
@@ -513,6 +517,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 2026-09-19 将 QingLong 当前时间线卡片、禁用开关、按小时分组、loading/empty 和 `QinglongCronRow` 组合提取为 `QinglongCronTimeline.vue`，父页继续保留任务请求、筛选、排除、时间建议和批量写入；新增时间线组件测试，三浏览器 Playwright `30 passed`、Vitest `61 passed`；代码提交为 `57d7a29`，路线图提交为 `e9137a3`，记忆快照提交为 `3b817b2`。
 - 2026-09-19 将 Programs/Apps 备注和标签维护弹窗提取为 `ProgramMaintenanceDialogs.vue`，父页继续保留当前程序、列表标签聚合、PUT 请求和 pending；新增组件测试及三浏览器保存 smoke，Vite 代理增加可选隔离后端目标；代码提交为 `96e264c`，路线图提交为 `a9fe0bd`，记忆快照提交为 `b348974`。
 - 2026-09-19 将 Stock 页已隐藏/已下架商品抽屉提取为 `StockManagementDrawers.vue`，父页继续保留请求取消、服务端分页聚合、缓存失效和恢复/重新上架副作用；新增管理抽屉组件测试，Vitest `67 passed`、三浏览器 Playwright `30 passed`、真实后端 Chromium `1 passed`；代码提交为 `cecdd44`，路线图提交为 `618d897`，记忆快照提交为 `b7fa968`。
+- 2026-09-19 将 QingLong 任务执行时间编辑弹窗提取为 `QinglongCronEditDialog.vue`，父页继续保留 cron 解析预览、保存 API、loading 和成功刷新；新增编辑弹窗组件测试，Vitest `70 passed`、三浏览器 Playwright `30 passed`；代码提交为 `fca6e63`，路线图提交为 `dac850f`，记忆快照提交待本次收尾后回填。
 - 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
 - 2026-09-19 将 FastAPI 升级到 `0.141.1` 后重新生成 `docs/openapi.json`；文件上传和校验错误 schema 的变化已通过 `scripts/export_openapi.py --check` 固化，避免依赖升级造成 API 基线漂移。
 - `frontend/package.json` 提供 `npm test`、`npm run test:components`、`npm run test:e2e`、`npm run lint`、`npm run format:check`、`npm run generate:api-types`、`npm run check:api-types` 和 `npm run build`；ESLint/Prettier/Vitest/Playwright 配置与用例格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
