@@ -48,6 +48,16 @@ async function installApiMock(page, options = {}) {
       return
     }
 
+    if (apiPath === '/programs/demo' && options.programDetail) {
+      await mockJson(route, options.programDetail)
+      return
+    }
+
+    if (apiPath === '/programs/demo/stock' && options.programStock) {
+      await mockJson(route, options.programStock)
+      return
+    }
+
     // Keep the smoke test deterministic and data-independent. Empty but valid
     // payloads exercise the real Vue route/component lifecycle without a
     // running SQLite database or QingLong instance.
@@ -91,6 +101,49 @@ test('desktop primary routes render their page shell without browser errors', as
     await expect(page.locator('.route-view-frame')).toBeVisible()
     await page.waitForLoadState('networkidle')
   }
+
+  expect(issues).toEqual([])
+})
+
+test('program detail renders overview, ranking and stock data', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.unroute('**/api/v1/**')
+  await installApiMock(page, {
+    programDetail: {
+      program_id: 'demo',
+      program_name: '示例详情小程序',
+      is_favorite: true,
+      tags: ['积分', '热门'],
+      note: '详情页备注',
+      last_update_time: '2026-09-19T02:20:00Z',
+      ranking: [
+        {
+          nickname: '排行用户',
+          wechat_id: 'wx-ranking',
+          device: 'iPhone',
+          points: 888,
+          report_time: '2026-09-19T02:20:00Z',
+        },
+      ],
+    },
+    programStock: {
+      max_user_points: 999,
+      max_user_cash: 12.5,
+      products: [{ product_name: '真实详情商品', points: 300, cash: 9.9, stock: 2 }],
+    },
+  })
+
+  await page.goto('/app/programs/demo')
+  await expect(page.locator('h1.detail-title')).toHaveText('示例详情小程序')
+  await expect(page.locator('.favorite-chip')).toHaveText('已收藏')
+  await expect(page.locator('.info-tag-row')).toContainText('积分')
+  await expect(page.locator('.info-note')).toHaveText('详情页备注')
+  await expect(page.getByText('积分排行榜', { exact: true })).toBeVisible()
+  await expect(page.getByText('排行用户', { exact: true })).toBeVisible()
+  await expect(page.getByText('库存详情', { exact: true })).toBeVisible()
+  await expect(page.getByText('真实详情商品', { exact: true })).toBeVisible()
+  await expect(page.getByText('¥12.5', { exact: true })).toBeVisible()
 
   expect(issues).toEqual([])
 })
