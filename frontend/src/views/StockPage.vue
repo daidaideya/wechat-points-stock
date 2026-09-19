@@ -224,13 +224,13 @@
         </div>
 
         <div v-else class="stock-gallery-list">
-          <StockProductCard
+          <div
             v-for="item in visibleProducts"
             :key="`${item.program_id}-${item.product_id}`"
-            :item="item"
-            :hiding="hidingProductId === item.id"
-            @hide="hideProduct"
-          />
+            class="stock-gallery-card-shell"
+          >
+            <StockProductCard :item="item" :hiding="hidingProductId === item.id" @hide="hideProduct" />
+          </div>
         </div>
 
         <div v-if="totalResults" class="stock-pagination-row stock-infinite-row">
@@ -1192,6 +1192,11 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
+  container-type: inline-size;
+}
+.stock-gallery-card-shell {
+  min-width: 0;
+  container-type: inline-size;
 }
 .stock-detail-image,
 .stock-detail-image-empty,

@@ -23,13 +23,18 @@ function mockJson(route, data, status = 200) {
   })
 }
 
-async function installApiMock(page) {
+async function installApiMock(page, options = {}) {
   await page.route('**/api/v1/**', async (route) => {
     const { pathname } = new URL(route.request().url())
     const apiPath = pathname.replace(/^\/api\/v1/, '')
 
     if (apiPath === '/access/status') {
       await mockJson(route, { enabled: false, authenticated: false })
+      return
+    }
+
+    if (apiPath === '/stock/center' && options.stockCenter) {
+      await mockJson(route, options.stockCenter)
       return
     }
 
@@ -160,6 +165,93 @@ test('Points account data opens and closes both detail drawers', async ({ page }
   ).toHaveCount(1)
   await unregisteredDrawer.getByRole('button', { name: '关闭' }).click()
   await expect(unregisteredDrawer).toBeHidden()
+
+  expect(issues).toEqual([])
+})
+
+test('stock cards keep their metrics readable in a narrow desktop grid', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.setViewportSize({ width: 1120, height: 900 })
+  await page.unroute('**/api/v1/**')
+  await installApiMock(page, {
+    stockCenter: {
+      items: [
+        {
+          id: 1,
+          product_id: 'layout-product-1',
+          product_name: '窄屏布局回归商品',
+          program_id: 'layout-program',
+          program_name: '布局回归小程序',
+          points: 120,
+          cash: 3.5,
+          stock: 8,
+          max_user_points: 999,
+          max_user_cash: 3.5,
+        },
+        {
+          id: 2,
+          product_id: 'layout-product-2',
+          product_name: '窄屏布局回归商品二',
+          program_id: 'layout-program',
+          program_name: '布局回归小程序',
+          points: 2930,
+          cash: 0,
+          stock: 2,
+          max_user_points: 2930,
+          max_user_cash: 0,
+        },
+      ],
+      total: 2,
+      page: 1,
+      has_more: false,
+      available_tags: [],
+      summary: {
+        totalProducts: 2,
+        inStockProducts: 2,
+        outOfStockProducts: 0,
+        redeemableProducts: 2,
+        pointsOnlyProducts: 1,
+        mixedProducts: 1,
+      },
+    },
+  })
+
+  await page.goto('/app/stock')
+  const cards = page.locator('.stock-gallery-item')
+  await expect(cards).toHaveCount(2)
+  await expect(cards.first()).toBeVisible()
+
+  const layouts = await cards.evaluateAll((elements) =>
+    elements.map((card) => {
+      const image = card.querySelector('.stock-gallery-image-wrap').getBoundingClientRect()
+      const main = card.querySelector('.stock-gallery-main').getBoundingClientRect()
+      const core = card.querySelector('.stock-gallery-core-row').getBoundingClientRect()
+      const coreItems = [...card.querySelectorAll('.stock-gallery-core-item')].map((item) => {
+        const rect = item.getBoundingClientRect()
+        return { left: rect.left, right: rect.right, width: rect.width }
+      })
+
+      return {
+        cardGrid: getComputedStyle(card).gridTemplateColumns,
+        imageBottom: image.bottom,
+        mainTop: main.top,
+        mainWidth: main.width,
+        coreWidth: core.width,
+        coreItems,
+      }
+    }),
+  )
+
+  for (const layout of layouts) {
+    expect(layout.cardGrid.split(' ')).toHaveLength(1)
+    expect(layout.mainWidth).toBeGreaterThan(200)
+    expect(layout.coreWidth).toBeGreaterThan(200)
+    expect(layout.mainTop).toBeGreaterThanOrEqual(layout.imageBottom)
+    expect(layout.coreItems.every((item) => item.width > 0)).toBe(true)
+    expect(layout.coreItems[1].left).toBeGreaterThanOrEqual(layout.coreItems[0].right - 1)
+    expect(layout.coreItems[2].left).toBeGreaterThanOrEqual(layout.coreItems[1].right - 1)
+  }
 
   expect(issues).toEqual([])
 })
