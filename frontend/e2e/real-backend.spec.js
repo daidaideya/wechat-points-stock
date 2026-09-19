@@ -25,7 +25,11 @@ test('real backend data flows through the dashboard and program pages', async ({
   await page.waitForLoadState('networkidle')
 
   await page.goto('/app/users')
-  await expect(page.getByText('真实用户', { exact: true }).first()).toBeVisible()
+  const visibleUserName = page
+    .locator('.users-mobile-card .users-mobile-title:visible, .users-desktop-table-wrap .users-table-nickname:visible')
+    .filter({ hasText: '真实用户' })
+    .first()
+  await expect(visibleUserName).toContainText('真实用户')
 
   expect(issues).toEqual([])
 })

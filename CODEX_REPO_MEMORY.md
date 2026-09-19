@@ -6,6 +6,8 @@
 
 ## 0. 快照信息
 
+- 本次 CI 修复：真实后端 Users smoke 改为只匹配当前可见的响应式节点，避免隐藏桌面表格节点造成误报；临时 SQLite Chromium smoke 已复现通过。
+
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
