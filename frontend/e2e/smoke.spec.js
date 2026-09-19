@@ -38,6 +38,11 @@ async function installApiMock(page, options = {}) {
       return
     }
 
+    if (apiPath === '/qinglong/crons' && options.qinglongCrons) {
+      await mockJson(route, options.qinglongCrons)
+      return
+    }
+
     // Keep the smoke test deterministic and data-independent. Empty but valid
     // payloads exercise the real Vue route/component lifecycle without a
     // running SQLite database or QingLong instance.
@@ -252,6 +257,51 @@ test('stock cards keep their metrics readable in a narrow desktop grid', async (
     expect(layout.coreItems[1].left).toBeGreaterThanOrEqual(layout.coreItems[0].right - 1)
     expect(layout.coreItems[2].left).toBeGreaterThanOrEqual(layout.coreItems[1].right - 1)
   }
+
+  expect(issues).toEqual([])
+})
+
+test('QingLong cron rows render names from the API payload', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.unroute('**/api/v1/**')
+  await installApiMock(page, {
+    qinglongCrons: {
+      status: 'success',
+      total: 2,
+      items: [
+        {
+          id: 101,
+          name: 'code版_积分同步任务',
+          command: 'python /scripts/code/sync_points.py',
+          schedule: '0 7 * * *',
+          is_disabled: 0,
+          is_system: 0,
+          is_pinned: 0,
+          earliest_minute: 420,
+        },
+        {
+          id: 102,
+          name: 'code版_库存同步任务',
+          command: 'python /scripts/code/sync_stock.py',
+          schedule: '30 7 * * *',
+          is_disabled: 0,
+          is_system: 0,
+          is_pinned: 0,
+          earliest_minute: 450,
+        },
+      ],
+    },
+  })
+
+  await page.goto('/app/qinglong-crons')
+  const rows = page.locator('.ql-cron-row')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(0).locator('.ql-cron-name')).toHaveText('code版_积分同步任务')
+  await expect(rows.nth(1).locator('.ql-cron-name')).toHaveText('code版_库存同步任务')
+  await expect(rows.nth(0).locator('.ql-cron-command')).toHaveText('python /scripts/code/sync_points.py')
+  await expect(rows.nth(1).locator('.ql-cron-command')).toHaveText('python /scripts/code/sync_stock.py')
+  await expect(page.getByText('(未命名)', { exact: true })).toHaveCount(0)
 
   expect(issues).toEqual([])
 })

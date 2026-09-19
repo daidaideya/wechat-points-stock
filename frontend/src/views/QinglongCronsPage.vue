@@ -223,6 +223,7 @@
             <QinglongCronRow
               v-for="cron in group.crons"
               :key="cronKey(cron)"
+              :cron="cron"
               :excluded="isExcluded(cron)"
               :crowded="isCrowded(cron)"
               :sparse="isSparse(cron)"
