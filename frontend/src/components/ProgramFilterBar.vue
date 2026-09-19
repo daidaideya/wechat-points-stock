@@ -39,11 +39,12 @@
       <div class="filter-control-row">
         <div class="filter-group">
           <span class="filter-group-label">状态</span>
-          <div class="segmented-group">
+          <div class="segmented-group" role="group" aria-label="状态筛选">
             <button
               type="button"
               class="segmented-item"
               :class="{ active: props.statusFilter === 'active' }"
+              :aria-pressed="props.statusFilter === 'active'"
               @click="onStatus('active')"
             >
               活跃
@@ -52,6 +53,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.statusFilter === 'archived' }"
+              :aria-pressed="props.statusFilter === 'archived'"
               @click="onStatus('archived')"
             >
               归档
@@ -60,6 +62,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.statusFilter === 'all' }"
+              :aria-pressed="props.statusFilter === 'all'"
               @click="onStatus('all')"
             >
               全部
@@ -69,11 +72,12 @@
 
         <div class="filter-group">
           <span class="filter-group-label">收藏</span>
-          <div class="segmented-group">
+          <div class="segmented-group" role="group" aria-label="收藏筛选">
             <button
               type="button"
               class="segmented-item"
               :class="{ active: props.favoriteFilter === 'all' }"
+              :aria-pressed="props.favoriteFilter === 'all'"
               @click="onFavorite('all')"
             >
               全部
@@ -82,6 +86,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.favoriteFilter === 'favorite' }"
+              :aria-pressed="props.favoriteFilter === 'favorite'"
               @click="onFavorite('favorite')"
             >
               收藏
@@ -90,6 +95,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.favoriteFilter === 'unfavorite' }"
+              :aria-pressed="props.favoriteFilter === 'unfavorite'"
               @click="onFavorite('unfavorite')"
             >
               未藏
@@ -99,11 +105,12 @@
 
         <div class="filter-group">
           <span class="filter-group-label">青龙</span>
-          <div class="segmented-group">
+          <div class="segmented-group" role="group" aria-label="青龙状态筛选">
             <button
               type="button"
               class="segmented-item"
               :class="{ active: props.qlStatusFilter === 'all' }"
+              :aria-pressed="props.qlStatusFilter === 'all'"
               @click="onQlStatus('all')"
             >
               全部
@@ -112,6 +119,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.qlStatusFilter === 'enabled' }"
+              :aria-pressed="props.qlStatusFilter === 'enabled'"
               @click="onQlStatus('enabled')"
             >
               启用
@@ -120,6 +128,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.qlStatusFilter === 'disabled' }"
+              :aria-pressed="props.qlStatusFilter === 'disabled'"
               @click="onQlStatus('disabled')"
             >
               禁用
@@ -128,6 +137,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.qlStatusFilter === 'unknown' }"
+              :aria-pressed="props.qlStatusFilter === 'unknown'"
               @click="onQlStatus('unknown')"
             >
               未关联
@@ -137,11 +147,12 @@
 
         <div class="filter-group">
           <span class="filter-group-label">排序</span>
-          <div class="segmented-group">
+          <div class="segmented-group" role="group" aria-label="排序筛选">
             <button
               type="button"
               class="segmented-item"
               :class="{ active: props.sortFilter === 'default' }"
+              :aria-pressed="props.sortFilter === 'default'"
               @click="onSort('default')"
             >
               默认
@@ -150,6 +161,7 @@
               type="button"
               class="segmented-item"
               :class="{ active: props.sortFilter === 'cron' }"
+              :aria-pressed="props.sortFilter === 'cron'"
               @click="onSort('cron')"
             >
               定时
@@ -165,8 +177,14 @@
           <span v-if="props.availableTags.length" class="filter-tags-count">{{ props.availableTags.length }}</span>
         </div>
 
-        <div class="tag-list content filter-tag-list showcase compact">
-          <button type="button" class="filter-chip" :class="{ active: props.currentTag === '' }" @click="onTag('')">
+        <div class="tag-list content filter-tag-list showcase compact" role="group" aria-label="标签筛选">
+          <button
+            type="button"
+            class="filter-chip"
+            :class="{ active: props.currentTag === '' }"
+            :aria-pressed="props.currentTag === ''"
+            @click="onTag('')"
+          >
             全部
           </button>
           <button
@@ -175,6 +193,7 @@
             type="button"
             class="filter-chip"
             :class="{ active: props.currentTag === tag }"
+            :aria-pressed="props.currentTag === tag"
             @click="onTag(tag)"
           >
             {{ tag }}
@@ -185,7 +204,7 @@
 
       <div v-if="props.activeFilterChips.length" class="active-filter-bar">
         <span class="active-filter-label">当前筛选</span>
-        <div class="active-filter-list">
+        <div class="active-filter-list" role="group" aria-label="当前筛选条件">
           <button
             v-for="chip in props.activeFilterChips"
             :key="chip.key"
