@@ -256,12 +256,15 @@ import {
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useProgramFilters } from '../composables/useProgramFilters'
 import { usePageStateCache } from '../composables/usePageStateCache'
+import { useViewport } from '../composables/useViewport'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 
 const route = useRoute()
 const pageSize = 20
 const loadMoreSentinel = ref(null)
 const programsPageStateCache = usePageStateCache({ version: 2, ttlMs: 15 * 60 * 1000 })
+const { width: viewportWidthRef } = useViewport({ mobileMax: 900 })
+const viewportWidth = computed(() => viewportWidthRef.value || 1200)
 
 // Reuse this page for both 小程序列表 (kind=mini) and APP列表 (kind=app).
 const listKind = computed(() => (route.meta?.listKind === 'app' ? 'app' : 'mini'))
@@ -318,9 +321,7 @@ let restoringState = false
 let programsRequestController = null
 let programsRequestSequence = 0
 
-const TOUCH_LAYOUT_MAX = 768
-const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
-const isTouchLayout = computed(() => viewportWidth.value <= TOUCH_LAYOUT_MAX)
+const isTouchLayout = computed(() => viewportWidth.value <= 768)
 const isCompactDialog = computed(() => viewportWidth.value <= 640)
 const dialogWidth = computed(() => {
   if (viewportWidth.value <= 640) return '100%'
@@ -328,10 +329,6 @@ const dialogWidth = computed(() => {
   return '1040px'
 })
 const dialogTop = computed(() => (viewportWidth.value <= 900 ? '2vh' : '5vh'))
-
-function handleViewportResize() {
-  viewportWidth.value = window.innerWidth
-}
 
 const stockMaxUserPoints = computed(() => Number(stockData.value?.max_user_points) || 0)
 const stockMaxUserCash = computed(() => {
@@ -915,9 +912,6 @@ watch(
 )
 
 onMounted(async () => {
-  window.addEventListener('resize', handleViewportResize, { passive: true })
-  handleViewportResize()
-
   const validStatus = new Set(['active', 'archived', 'all'])
   const queryStatus = typeof route.query.status === 'string' ? route.query.status : ''
   const hasExplicitStatusQuery = validStatus.has(queryStatus)
@@ -937,7 +931,6 @@ onBeforeUnmount(() => {
   if (!restoringState) savePageState()
   programsRequestSequence += 1
   programsRequestController?.abort()
-  window.removeEventListener('resize', handleViewportResize)
 })
 </script>
 
