@@ -50,6 +50,7 @@ declare module 'vue' {
     ProgramDetailDialog: typeof import('./components/ProgramDetailDialog.vue')['default']
     ProgramDetailOverview: typeof import('./components/ProgramDetailOverview.vue')['default']
     ProgramFilterBar: typeof import('./components/ProgramFilterBar.vue')['default']
+    ProgramMaintenanceDialogs: typeof import('./components/ProgramMaintenanceDialogs.vue')['default']
     ProgramMetricStrip: typeof import('./components/ProgramMetricStrip.vue')['default']
     ProgramStockDialog: typeof import('./components/ProgramStockDialog.vue')['default']
     QinglongCronPlanDialog: typeof import('./components/QinglongCronPlanDialog.vue')['default']
