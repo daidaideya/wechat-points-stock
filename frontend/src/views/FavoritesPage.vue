@@ -51,18 +51,12 @@ import { ElMessage } from 'element-plus'
 import api from '../api'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { formatApiDate as formatDate } from '../utils/date'
 
 const router = useRouter()
 const loading = ref(false)
 const items = ref([])
 const requestController = useAbortableRequest()
-
-function formatDate(value) {
-  if (!value) return '暂无数据'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
 
 async function loadFavorites() {
   const request = requestController.start()

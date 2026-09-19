@@ -53,6 +53,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { formatApiDate as formatDate } from '../utils/date'
 
 const props = defineProps({
   modelValue: {
@@ -79,13 +80,6 @@ const dialogModel = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 })
-
-function formatDate(value) {
-  if (!value) return '暂无'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
 
 function formatPointsCell(value) {
   if (value === '未注册') return '未注册'

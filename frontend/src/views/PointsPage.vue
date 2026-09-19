@@ -322,6 +322,7 @@ import PointsAccountCard from '../components/PointsAccountCard.vue'
 import { useViewport } from '../composables/useViewport'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { formatApiDate as formatDate, getApiDateKey, parseApiDate } from '../utils/date'
 
 const loading = ref(false)
 const items = ref([])
@@ -339,19 +340,6 @@ const unregisteredVisible = ref(false)
 
 const { isMobile: isNarrowViewport } = useViewport({ mobileMax: 768 })
 const drawerSize = computed(() => (isNarrowViewport.value ? '100%' : '720px'))
-
-function parseDate(value) {
-  if (!value) return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function formatDate(value) {
-  if (!value) return '暂无'
-  const date = parseDate(value)
-  if (!date) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
 
 function formatNumber(value) {
   if (typeof value !== 'number') return value
@@ -432,9 +420,8 @@ function normalizeAccountItem(item) {
       .filter(Boolean)
       .sort((a, b) => new Date(b) - new Date(a))[0] || null
 
-  const latestDate = parseDate(latestReport)
-  const now = new Date()
-  const stale = !latestDate || latestDate.toDateString() !== now.toDateString()
+  const latestDate = parseApiDate(latestReport)
+  const stale = !latestDate || getApiDateKey(latestDate) !== getApiDateKey(new Date())
 
   const topPrograms = [...registeredPoints]
     .sort((a, b) => {

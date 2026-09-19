@@ -84,6 +84,7 @@ import SettingsGeneralSection from '../components/SettingsGeneralSection.vue'
 import SettingsSectionNav from '../components/SettingsSectionNav.vue'
 import SettingsQinglongSection from '../components/SettingsQinglongSection.vue'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { formatApiDate as formatDate } from '../utils/date'
 
 const route = useRoute()
 const router = useRouter()
@@ -149,39 +150,6 @@ const barkForm = reactive({
   bark_device_key: '',
   bark_push_time: '20:00',
 })
-
-function parseApiDate(value) {
-  if (!value) return null
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value
-  }
-  // Backend historically stores naive utcnow(); ISO without offset must be treated as UTC.
-  // e.g. "2026-07-16T16:33:45" → UTC → Asia/Shanghai 00:33
-  let raw = String(value).trim()
-  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(raw)) {
-    raw = raw.replace(' ', 'T')
-    if (!raw.endsWith('Z')) raw = `${raw}Z`
-  }
-  const date = new Date(raw)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function formatDate(value) {
-  if (!value) return '暂无'
-  const date = parseApiDate(value)
-  if (!date) return String(value)
-  // Always show China wall time — do not depend on OS/browser/Docker TZ.
-  return date.toLocaleString('zh-CN', {
-    hour12: false,
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
 
 function normalizeSection(value) {
   const key = String(value || '')

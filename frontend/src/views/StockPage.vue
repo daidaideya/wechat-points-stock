@@ -463,6 +463,7 @@ import StockProductCard from '../components/StockProductCard.vue'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { formatApiDate as formatHiddenAt } from '../utils/date'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { CASH_CAP_PRESETS, useStockFilters } from '../composables/useStockFilters'
@@ -586,13 +587,6 @@ function normalizeStockCenterResponse(data) {
       tags: Array.isArray(item.tags) ? item.tags : [],
     }),
   )
-}
-
-function formatHiddenAt(value) {
-  if (!value) return '未知'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
 }
 
 async function fetchStockCenter(params, forceRefresh = false) {

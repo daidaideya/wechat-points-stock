@@ -33,6 +33,7 @@ import ProgramDetailDataSections from '../components/ProgramDetailDataSections.v
 import ProgramDetailOverview from '../components/ProgramDetailOverview.vue'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { formatApiDate as formatDate } from '../utils/date'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,13 +42,6 @@ const loading = ref(false)
 const detail = ref(null)
 const stock = ref(null)
 const requestController = useAbortableRequest()
-
-function formatDate(value) {
-  if (!value) return '暂无'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
 
 function goBackToPrograms() {
   router.push({ path: '/programs', query: { restore: '1' } })

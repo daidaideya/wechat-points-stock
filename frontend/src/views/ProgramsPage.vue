@@ -258,6 +258,7 @@ import { useProgramFilters } from '../composables/useProgramFilters'
 import { usePageStateCache } from '../composables/usePageStateCache'
 import { useViewport } from '../composables/useViewport'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { formatApiDate as formatDate } from '../utils/date'
 
 const route = useRoute()
 const pageSize = 20
@@ -489,13 +490,6 @@ async function openDetailDialog(program) {
   } finally {
     detailLoading.value = false
   }
-}
-
-function formatDate(value) {
-  if (!value) return '暂无数据'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', { hour12: false })
 }
 
 function formatQlScheduleTooltip(program) {
