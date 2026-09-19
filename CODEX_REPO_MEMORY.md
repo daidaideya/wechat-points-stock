@@ -9,11 +9,11 @@
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`b263bff`（2026-09-19）
-- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批和 ProgramFilterBar 筛选语义第十批；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批和 ProgramFilterBar 组件测试第十三批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 当前余额快照第一批已落地，金额精度、标签/身份模型、库存快照可信度、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
+- 快照提交：`b663f1e`（2026-09-19）
+- 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批和 ProgramFilterBar 筛选语义第十批；OPT-016 已完成当前余额快照第一批和库存快照可信度第二批，库存上报支持完整性元数据并阻止不完整报告误下架；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批、ProgramFilterBar 组件测试第十三批和 ProgramMetricStrip 快照告警测试第十四批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 的金额精度、标签/身份模型、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `109 passed`；前端 Node 测试 `npm test` 为 `30 passed`，Vitest 组件测试为 `5 passed`，API 类型漂移检查、Playwright mock Chromium + Firefox + WebKit smoke 共 `12 passed`（含 dialog ARIA/焦点回收和 ProgramFilterBar 筛选状态断言），真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、`npm run format:check`、`npm run check:resources` 和 `npm run build` 通过；npm audit、pip-audit 和许可证检查均通过（新增依赖后检查 335 个 npm 包）
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `112 passed`；前端 Node 测试 `npm test` 为 `30 passed`，Vitest 组件测试为 `6 passed`，API 类型漂移检查、Playwright mock Chromium + Firefox + WebKit smoke 共 `12 passed`（含 dialog ARIA/焦点回收、ProgramFilterBar 筛选状态和 ProgramMetricStrip 快照告警断言），真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、`npm run format:check`、`npm run check:resources` 和 `npm run build` 通过；npm audit、pip-audit 和许可证检查均通过（新增依赖后检查 335 个 npm 包）
 - CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run test:components` → `npm run lint` → `npm run format:check` → `npm run check:api-types` → `npm run check:resources` → `npm run build` 执行；独立 `dependency-audit` job 执行 npm audit、pip-audit 和许可证检查；独立 `frontend-e2e` job 安装 Chromium + Firefox + WebKit 后执行 mock `npm run test:e2e`；独立 `frontend-real-e2e` job 使用临时 SQLite、seed 脚本和 FastAPI 后执行真实后端 Chromium smoke；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -153,6 +153,7 @@ SystemSettings：单行全局设置
 | `mini_programs` | `tags` | 实际保存为 JSON 数组字符串；读取时兼容数组、逗号分隔、中文逗号 |
 | `mini_programs` | `is_archived` | 归档标记；默认列表隐藏，归档时同时清除收藏 |
 | `mini_programs` | `ql_*` | QingLong 任务匹配缓存，只读镜像，不是数据上报来源 |
+| `mini_programs` | `stock_snapshot_*` | 最近库存报告的 ID、时间、完整性、状态和商品数量；用于阻止不完整快照自动下架，并向 UI 暴露需复核状态 |
 | `points_history` | `points` / `cash` | 账户余额历史；均可为 `NULL`，`NULL` 表示该次没有上报该维度，不等于 0 |
 | `points_history` | `batch_id` | 一次积分上报请求生成一个 UUID，便于识别批次 |
 | `current_point_balances` | `points` / `cash` | 每个账号/程序最新历史行的当前镜像；保持 `NULL` 维度语义，不参与趋势/审计替代 |
@@ -259,9 +260,10 @@ Authorization: Bearer <INGEST_TOKEN>
 2. 商品按 `(program_id, product_id)` upsert；名称、积分价、现金价每次刷新，图片 URL 只有传非空值时覆盖。
 3. 新商品或库存变化会写 `StockHistory`；库存一直不变不重复写历史。
 4. 当前请求中出现的商品会自动清除 `is_unlisted`，但不会清除用户的 `is_hidden`。
-5. 当前在架商品如果本次全量快照没有出现，会被标记 `is_unlisted=1`。再次出现会自动恢复上架。
-6. `products=[]` 的空报告跳过下架检测，防止采集脚本异常返回空列表导致全量误下架。
-7. 上报结束后按同一套日志保留设置裁剪库存历史。
+5. 只有非空、`snapshot_complete=true` 且 `expected_product_count`（如提供）与实际数量匹配的报告才按全量快照下架缺失商品；再次出现会自动恢复上架。
+6. `snapshot_complete=false`、数量不匹配或 `products=[]` 时跳过下架检测，保留旧商品，并在响应和程序卡片中标记库存快照需复核；列出的商品仍会更新。
+7. `snapshot_id` 可由脚本提供；未提供时服务端生成 ID。快照质量元数据写入 `mini_programs.stock_snapshot_*`，旧库通过 `ensure_mini_program_columns` 按需补列。
+8. 上报结束后按同一套日志保留设置裁剪库存历史。
 
 因此脚本侧必须：每个小程序报全量在架商品、保持 `product_id` 稳定、没库存报 `stock: 0`、不要过滤掉积分加钱购商品。
 
@@ -408,7 +410,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 前端 Node 内置测试目前共 `14 passed`，其中包含 Stock 筛选参数和状态切换测试。
 - `ProgramsPage.vue` 与 `/apps` 共用 `frontend/src/composables/useProgramFilters.js` 管理搜索、状态、收藏、青龙状态、排序和标签筛选；页面保留 API 请求、分页、sessionStorage 恢复和归档/删除等业务编排。
 - `ProgramFilterBar.vue` 负责 Programs/Apps 页筛选栏展示和事件派发；`ProgramsPage.vue` 保留筛选状态、请求、分页、缓存恢复和业务操作。
-- `ProgramMetricStrip.vue` 负责 Programs/Apps 卡片的库存、最高积分/现金和库存变化指标格式化、可见性判断与 scoped 样式；`ProgramsPage.vue` 保留列表状态、请求和库存弹窗编排，组件通过 `open-stock` 事件触发查看库存。
+- `ProgramMetricStrip.vue` 负责 Programs/Apps 卡片的库存、最高积分/现金、库存变化和不完整库存快照告警格式化、可见性判断与 scoped 样式；`ProgramsPage.vue` 保留列表状态、请求和库存弹窗编排，组件通过 `open-stock` 事件触发查看库存。
 - `ProgramDetailDialog.vue` 负责 Programs/Apps 详情弹窗的概要、标签/备注、积分排行、手机号/微信号和响应式展示；`ProgramsPage.vue` 保留详情 API 请求与数据状态，组件通过 `v-model` 和 `open-stock` 事件回传页面编排。
 - `ProgramStockDialog.vue` 负责 Programs/Apps 库存摘要、变化明细、商品表格和移动端展示；`ProgramsPage.vue` 保留库存 API、排序/兑换业务计算与状态，组件通过 `v-model` 和 `update:change-expanded` 回传交互状态。
 - `StockProductCard.vue` 负责 Stock 页标准化商品对象的图片、状态、价格、库存、最高积分和隐藏操作展示；`StockPage.vue` 保留请求、筛选、分页、商品标准化和隐藏 API，卡片通过 `hide` 事件回传。
@@ -434,6 +436,7 @@ Vue Router 使用 `createWebHistory('/app/')`，主要路由：
 - 2026-09-19 新增 `frontend/vitest.config.js` 和 `ProgramMetricStrip.component.spec.js`，使用 Vitest `4.1.11`、Vue Test Utils `2.5.1` 与 happy-dom 覆盖共享指标组件的空渲染、格式化、事件和异常值；Playwright Vite readiness probe 改为等待动态 `ProgramsPage.vue` 模块并使用 `--force`，避免依赖安装后首个 Chromium 的 `504 Outdated Optimize Dep`。
 - 2026-09-19 将 `frontend/src/views/UsersPage.vue` 完成首轮 Prettier 格式收敛，并将该大型页面纳入 `npm run format:check`；本批只调整格式，不改变用户列表、弹窗焦点恢复或请求编排，其他大型页面继续按 OPT-014 拆分边界逐页纳入。
 - 2026-09-19 将 `ProgramFilterBar.vue` 的状态、收藏、青龙、排序和标签筛选区补为带中文名称的 `role=group`，互斥按钮补 `aria-pressed`，并新增组件测试覆盖状态和事件映射；Vitest 组件测试从 `3 passed` 增至 `5 passed`，官方 registry npm audit 为 `0 vulnerabilities`。
+- 2026-09-19 库存上报新增 `snapshot_id`、`snapshot_complete` 和 `expected_product_count`；旧库按需增加 `mini_programs.stock_snapshot_*` 字段。只有完整且数量匹配的非空报告才自动下架缺失商品，部分/数量异常/空报告会保留旧商品并在程序卡片显示需复核；新增输入约束、完整/部分快照回归测试和 `ProgramMetricStrip` 组件告警测试，Vitest 组件测试达到 `6 passed`，后端全量达到 `112 passed`。
 - 2026-09-18 新增 `scripts/export_openapi.py` 与 `docs/openapi.json`；脚本从 FastAPI `app.openapi()` 生成排序稳定的 39-path API 基线，`--check` 用于 CI 漂移阻断，不启动数据库或后台调度器。
 - 2026-09-19 将 FastAPI 升级到 `0.141.1` 后重新生成 `docs/openapi.json`；文件上传和校验错误 schema 的变化已通过 `scripts/export_openapi.py --check` 固化，避免依赖升级造成 API 基线漂移。
 - `frontend/package.json` 提供 `npm test`、`npm run test:components`、`npm run test:e2e`、`npm run lint`、`npm run format:check`、`npm run generate:api-types`、`npm run check:api-types` 和 `npm run build`；ESLint/Prettier/Vitest/Playwright 配置与用例格式检查已接入 CI，现有代码基线通过 lint 和格式门禁。
