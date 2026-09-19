@@ -376,6 +376,13 @@ test('stock cards keep their metrics readable in a narrow desktop grid', async (
   expect(filterToolbarStyle.borderRadius).not.toBe('0px')
   expect(filterToolbarStyle.padding).not.toBe('0px')
 
+  await cards.first().getByRole('button', { name: '查看详情' }).click()
+  const productDetailDrawer = page.locator('.stock-product-detail-drawer')
+  await expect(productDetailDrawer).toBeVisible()
+  await expect(productDetailDrawer).toContainText('窄屏布局回归商品')
+  await page.keyboard.press('Escape')
+  await expect(productDetailDrawer).toBeHidden()
+
   const layouts = await cards.evaluateAll((elements) =>
     elements.map((card) => {
       const image = card.querySelector('.stock-gallery-image-wrap').getBoundingClientRect()

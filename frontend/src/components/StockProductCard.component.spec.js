@@ -114,11 +114,21 @@ describe('StockProductCard', () => {
     expect(wrapper.get('.tag-stub').attributes('data-type')).toBe('danger')
   })
 
+  it('forwards the product when opening details', async () => {
+    const wrapper = mountCard()
+    const detailButton = wrapper.findAll('.button-stub').find((button) => button.text() === '查看详情')
+
+    await detailButton.trigger('click')
+
+    expect(wrapper.emitted('open-detail')).toEqual([[product]])
+  })
+
   it('forwards the product when hiding and exposes the loading boundary', async () => {
     const wrapper = mountCard({ hiding: true })
+    const hideButton = wrapper.findAll('.button-stub').find((button) => button.text() === '不感兴趣')
 
-    expect(wrapper.get('.button-stub').attributes('aria-busy')).toBe('true')
-    await wrapper.get('.button-stub').trigger('click')
+    expect(hideButton.attributes('aria-busy')).toBe('true')
+    await hideButton.trigger('click')
 
     expect(wrapper.emitted('hide')).toEqual([[product]])
   })

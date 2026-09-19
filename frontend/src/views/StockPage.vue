@@ -79,7 +79,12 @@
             :key="`${item.program_id}-${item.product_id}`"
             class="stock-gallery-card-shell"
           >
-            <StockProductCard :item="item" :hiding="hidingProductId === item.id" @hide="hideProduct" />
+            <StockProductCard
+              :item="item"
+              :hiding="hidingProductId === item.id"
+              @hide="hideProduct"
+              @open-detail="openDetailDrawer"
+            />
           </div>
         </div>
 
@@ -99,68 +104,12 @@
       </el-card>
     </section>
 
-    <el-drawer v-model="detailDrawerVisible" :title="detailProduct?.product_name || '商品详情'" size="520px">
-      <template v-if="detailProduct">
-        <div class="stock-detail-stack">
-          <div class="stock-detail-hero">
-            <el-image
-              v-if="detailProduct.image_url || detailProduct.image_local_path"
-              :src="detailProduct.image_url || detailProduct.image_local_path"
-              class="stock-detail-image"
-              fit="cover"
-              :preview-src-list="[detailProduct.image_url || detailProduct.image_local_path]"
-              preview-teleported
-            />
-            <div v-else class="stock-detail-image stock-detail-image-empty">暂无图片</div>
-            <div class="stock-detail-info">
-              <div class="stock-detail-name">{{ detailProduct.product_name || detailProduct.product_id }}</div>
-              <div class="stock-detail-subline">{{ detailProduct.product_id || '未设置商品ID' }}</div>
-              <div class="stock-detail-tag-row">
-                <el-tag round effect="plain">{{ detailProduct.program_name || detailProduct.program_id }}</el-tag>
-                <el-tag round effect="plain" :type="detailProduct.statusTagType">{{
-                  detailProduct.statusLabel
-                }}</el-tag>
-                <el-tag round effect="plain" :type="detailProduct.redeemable ? 'success' : 'info'">
-                  {{ detailProduct.redeemable ? '可兑换' : '不可兑换' }}
-                </el-tag>
-              </div>
-            </div>
-          </div>
-
-          <div class="stock-detail-grid">
-            <div class="stock-detail-item">
-              <span class="stock-detail-label">当前库存</span>
-              <strong>{{ detailProduct.stock ?? 0 }}</strong>
-            </div>
-            <div class="stock-detail-item">
-              <span class="stock-detail-label">兑换价格</span>
-              <strong>{{ formatProductPrice(detailProduct) }}</strong>
-            </div>
-            <div class="stock-detail-item">
-              <span class="stock-detail-label">最高积分</span>
-              <strong>{{ detailProduct.maxUserPoints ?? 0 }}</strong>
-            </div>
-            <div class="stock-detail-item">
-              <span class="stock-detail-label">最高现金</span>
-              <strong>{{ formatCashAmount(detailProduct.maxUserCash) }}</strong>
-            </div>
-            <div class="stock-detail-item">
-              <span class="stock-detail-label">兑换判断</span>
-              <strong>{{ detailProduct.redeemable ? '当前可兑换' : '当前不可兑换' }}</strong>
-            </div>
-            <div class="stock-detail-item wide">
-              <span class="stock-detail-label">所属小程序</span>
-              <strong>{{ detailProduct.program_name || detailProduct.program_id }}</strong>
-              <span class="stock-detail-subtext">{{ detailProduct.program_id }}</span>
-            </div>
-            <div class="stock-detail-item wide">
-              <span class="stock-detail-label">图片来源</span>
-              <strong>{{ detailProduct.image_url || detailProduct.image_local_path || '暂无图片' }}</strong>
-            </div>
-          </div>
-        </div>
-      </template>
-    </el-drawer>
+    <StockProductDetailDrawer
+      v-model="detailDrawerVisible"
+      :product="detailProduct"
+      :format-product-price="formatProductPrice"
+      :format-cash-amount="formatCashAmount"
+    />
 
     <StockManagementDrawers
       v-model:hidden-visible="hiddenDrawerVisible"
@@ -192,6 +141,7 @@ import api from '../api'
 import StockFilterToolbar from '../components/StockFilterToolbar.vue'
 import StockManagementDrawers from '../components/StockManagementDrawers.vue'
 import StockProductCard from '../components/StockProductCard.vue'
+import StockProductDetailDrawer from '../components/StockProductDetailDrawer.vue'
 import { invalidateStockCache } from '../stockCache'
 import { formatCashAmount, formatProductPrice, isRedeemable } from '../utils/product'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
@@ -427,6 +377,11 @@ function clearCashCap() {
 function resetFilters() {
   resetFilterState()
   void loadStockCenter({ forceRefresh: true })
+}
+
+function openDetailDrawer(product) {
+  detailProduct.value = product || null
+  detailDrawerVisible.value = Boolean(product)
 }
 
 async function loadMore() {
@@ -904,83 +859,12 @@ onMounted(async () => {
   min-width: 0;
   container-type: inline-size;
 }
-.stock-detail-image,
-.stock-detail-image-empty {
-  width: 100%;
-  height: 168px;
-  border-radius: 18px;
-  object-fit: cover;
-}
-.stock-detail-image-empty,
-.hidden-product-thumb-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(250, 240, 224, 0.9);
-  color: #9b7e5c;
-  font-size: 13px;
-}
 .stock-pagination-row {
   margin-top: 18px;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   color: #9b7e5c;
-}
-.stock-detail-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.stock-detail-hero {
-  display: flex;
-  gap: 16px;
-}
-.stock-detail-image,
-.stock-detail-image-empty {
-  width: 160px;
-  height: 160px;
-}
-.stock-detail-info {
-  flex: 1;
-}
-.stock-detail-name {
-  font-size: 22px;
-  font-weight: 800;
-  color: #2f2418;
-}
-.stock-detail-subline,
-.stock-detail-subtext {
-  margin-top: 6px;
-  color: #9b7e5c;
-  font-size: 13px;
-}
-.stock-detail-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-.stock-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.stock-detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
-}
-.stock-detail-item.wide {
-  grid-column: 1 / -1;
-}
-.stock-detail-label {
-  color: #9b7e5c;
-  font-size: 13px;
 }
 .stock-state-card {
   padding: 24px 8px;
@@ -1009,8 +893,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
-  .stock-search-bar,
-  .stock-detail-hero {
+  .stock-search-bar {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1047,10 +930,6 @@ onMounted(async () => {
   }
 
   .stock-gallery-list {
-    grid-template-columns: 1fr;
-  }
-
-  .stock-detail-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -70,6 +70,7 @@ declare module 'vue' {
     StockFilterToolbar: typeof import('./components/StockFilterToolbar.vue')['default']
     StockManagementDrawers: typeof import('./components/StockManagementDrawers.vue')['default']
     StockProductCard: typeof import('./components/StockProductCard.vue')['default']
+    StockProductDetailDrawer: typeof import('./components/StockProductDetailDrawer.vue')['default']
     UserDesktopTable: typeof import('./components/UserDesktopTable.vue')['default']
     UserEditDialog: typeof import('./components/UserEditDialog.vue')['default']
     UserMobileCard: typeof import('./components/UserMobileCard.vue')['default']

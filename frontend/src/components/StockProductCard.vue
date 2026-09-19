@@ -26,6 +26,7 @@
               <el-tag size="small" round effect="plain" :type="props.item.redeemable ? 'success' : 'info'">
                 {{ props.item.redeemable ? '可兑换' : '不可兑换' }}
               </el-tag>
+              <el-button size="small" plain @click="handleOpenDetail">查看详情</el-button>
               <el-button size="small" plain type="danger" :loading="props.hiding" @click="handleHide">
                 不感兴趣
               </el-button>
@@ -66,7 +67,11 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['hide'])
+const emit = defineEmits(['hide', 'open-detail'])
+
+function handleOpenDetail() {
+  emit('open-detail', props.item)
+}
 
 function handleHide() {
   emit('hide', props.item)
