@@ -133,184 +133,13 @@
 
     <el-empty v-else description="没有符合筛选条件的账号" class="toolbar-card" />
 
-    <el-drawer v-model="detailVisible" class="points-detail-drawer" :size="drawerSize" :with-header="false">
-      <template v-if="selectedAccount">
-        <div class="points-detail-stack">
-          <section class="points-detail-hero">
-            <div class="points-detail-hero-main">
-              <div class="points-detail-title-row">
-                <h2 class="points-detail-title">
-                  {{ selectedAccount.account.nickname || selectedAccount.account.wechat_id }}
-                </h2>
-                <el-tag v-if="selectedAccount.stale" type="warning" effect="light">今日未更新</el-tag>
-              </div>
-              <div class="points-detail-subtitle">
-                <span>{{ selectedAccount.account.wechat_id }}</span>
-                <span v-if="selectedAccount.account.phone">手机号：{{ selectedAccount.account.phone }}</span>
-                <span v-if="selectedAccount.account.device">设备：{{ selectedAccount.account.device }}</span>
-              </div>
-            </div>
-            <div class="points-detail-hero-actions">
-              <el-button @click="detailVisible = false">关闭</el-button>
-            </div>
-          </section>
-
-          <section class="points-detail-summary">
-            <div class="points-detail-summary-item">
-              <span>总积分</span>
-              <strong>{{ formatNumber(selectedAccount.totalPoints) }}</strong>
-            </div>
-            <div class="points-detail-summary-item">
-              <span>总现金</span>
-              <strong>{{ formatCash(selectedAccount.totalCash) }}</strong>
-            </div>
-            <div class="points-detail-summary-item">
-              <span>今日积分变化</span>
-              <strong :class="diffClass(selectedAccount.totalDiff)">{{
-                formatSigned(selectedAccount.totalDiff)
-              }}</strong>
-            </div>
-            <div class="points-detail-summary-item">
-              <span>今日现金变化</span>
-              <strong :class="diffClass(selectedAccount.totalCashDiff)">{{
-                formatSignedCash(selectedAccount.totalCashDiff)
-              }}</strong>
-            </div>
-            <div class="points-detail-summary-item">
-              <span>活跃项目</span>
-              <strong>{{ selectedAccount.activeProgramCount }}</strong>
-            </div>
-            <div class="points-detail-summary-item">
-              <span>最近更新时间</span>
-              <strong>{{ formatDate(selectedAccount.latestReportTime) }}</strong>
-            </div>
-          </section>
-
-          <section class="toolbar-card points-detail-toolbar-card">
-            <div class="points-detail-toolbar">
-              <el-input v-model="detailKeyword" clearable placeholder="搜索小程序名称 / program_id">
-                <template #prefix>
-                  <el-icon><Search /></el-icon>
-                </template>
-              </el-input>
-
-              <el-select v-model="detailSortMode">
-                <el-option label="按积分排序" value="points" />
-                <el-option label="按今日变化排序" value="diff" />
-                <el-option label="按更新时间排序" value="report_time" />
-                <el-option label="按名称排序" value="name" />
-              </el-select>
-
-              <el-switch v-model="detailOnlyChanged" inline-prompt active-text="仅异常" inactive-text="全部" />
-            </div>
-          </section>
-
-          <section class="points-detail-programs">
-            <article
-              v-for="program in detailPrograms"
-              :key="`${selectedAccount.account.wechat_id}-${program.program_id}`"
-              class="points-detail-program-card"
-            >
-              <div class="points-detail-program-main">
-                <div class="points-detail-program-name">{{ program.program_name }}</div>
-                <div class="points-detail-program-id">{{ program.program_id }}</div>
-              </div>
-              <div class="points-detail-program-side">
-                <div class="points-detail-program-points">积分 {{ formatPointsValue(program.points) }}</div>
-                <div class="points-detail-program-points">现金 {{ formatCash(program.cash) }}</div>
-                <div class="points-detail-program-diff" :class="diffClass(program.diff)">
-                  积分 {{ formatSigned(program.diff) }}
-                </div>
-                <div class="points-detail-program-diff" :class="diffClass(program.cash_diff)">
-                  现金 {{ formatSignedCash(program.cash_diff) }}
-                </div>
-              </div>
-              <div class="points-detail-program-foot">
-                <span>更新时间：{{ formatDate(program.report_time) }}</span>
-                <el-tag v-if="program.points === '未注册' && program.cash === '未注册'" type="info" effect="light">
-                  未注册
-                </el-tag>
-                <el-tag
-                  v-else-if="(program.diff || 0) > 0 || (program.cash_diff || 0) > 0"
-                  type="success"
-                  effect="light"
-                >
-                  上涨
-                </el-tag>
-                <el-tag
-                  v-else-if="(program.diff || 0) < 0 || (program.cash_diff || 0) < 0"
-                  type="danger"
-                  effect="light"
-                >
-                  下降
-                </el-tag>
-                <el-tag v-else type="info" effect="light">平稳</el-tag>
-              </div>
-            </article>
-
-            <el-empty v-if="!detailPrograms.length" description="没有符合条件的小程序数据" :image-size="88" />
-          </section>
-        </div>
-      </template>
-    </el-drawer>
-
-    <el-drawer v-model="unregisteredVisible" class="points-unregistered-drawer" :size="drawerSize" :with-header="false">
-      <template v-if="selectedAccount">
-        <div class="points-detail-stack">
-          <section class="points-detail-hero points-unregistered-hero">
-            <div class="points-detail-hero-main">
-              <div class="points-detail-title-row">
-                <h2 class="points-detail-title">未注册小程序</h2>
-                <el-tag type="warning" effect="light">{{ selectedAccount.unregisteredProgramCount }} 个待处理</el-tag>
-              </div>
-              <div class="points-detail-subtitle">
-                <span>{{ selectedAccount.account.nickname || selectedAccount.account.wechat_id }}</span>
-                <span>{{ selectedAccount.account.wechat_id }}</span>
-              </div>
-            </div>
-            <div class="points-detail-hero-actions">
-              <el-button @click="unregisteredVisible = false">关闭</el-button>
-            </div>
-          </section>
-
-          <section class="toolbar-card points-unregistered-summary-card">
-            <div class="points-unregistered-summary">
-              <div class="points-unregistered-summary-item">
-                <span>未注册数量</span>
-                <strong>{{ selectedAccount.unregisteredProgramCount }}</strong>
-              </div>
-              <div class="points-unregistered-summary-item">
-                <span>账号设备</span>
-                <strong>{{ selectedAccount.account.device || '未填写' }}</strong>
-              </div>
-              <div class="points-unregistered-summary-item">
-                <span>手机号</span>
-                <strong>{{ selectedAccount.account.phone || '未填写' }}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section v-if="unregisteredPrograms.length" class="points-unregistered-list">
-            <article
-              v-for="program in unregisteredPrograms"
-              :key="`${selectedAccount.account.wechat_id}-unregistered-${program.program_id}`"
-              class="points-unregistered-card"
-            >
-              <div class="points-unregistered-main">
-                <div class="points-unregistered-name">{{ program.program_name || '未命名小程序' }}</div>
-                <div class="points-unregistered-id">{{ program.program_id }}</div>
-              </div>
-              <div class="points-unregistered-side">
-                <el-tag type="warning" effect="light">未注册</el-tag>
-                <span class="points-unregistered-time">最近记录：{{ formatDate(program.report_time) }}</span>
-              </div>
-            </article>
-          </section>
-
-          <el-empty v-else description="当前账号没有未注册小程序" :image-size="88" />
-        </div>
-      </template>
-    </el-drawer>
+    <PointsAccountDetailsDrawer
+      v-model:detail-visible="detailVisible"
+      v-model:unregistered-visible="unregisteredVisible"
+      :account="selectedAccount"
+      :drawer-size="drawerSize"
+      :formatters="formatters"
+    />
   </div>
 </template>
 
@@ -319,6 +148,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Clock, Coin, Grid, RefreshRight, Search, TrendCharts, UserFilled, Warning } from '@element-plus/icons-vue'
 import api from '../api'
 import PointsAccountCard from '../components/PointsAccountCard.vue'
+import PointsAccountDetailsDrawer from '../components/PointsAccountDetailsDrawer.vue'
 import { useViewport } from '../composables/useViewport'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
@@ -333,9 +163,6 @@ const quickFilter = ref('all')
 
 const detailVisible = ref(false)
 const selectedAccount = ref(null)
-const detailKeyword = ref('')
-const detailSortMode = ref('points')
-const detailOnlyChanged = ref(false)
 const unregisteredVisible = ref(false)
 
 const { isMobile: isNarrowViewport } = useViewport({ mobileMax: 768 })
@@ -519,45 +346,8 @@ const filteredItems = computed(() => {
   })
 })
 
-const detailPrograms = computed(() => {
-  if (!selectedAccount.value) return []
-
-  const keyword = detailKeyword.value.trim().toLowerCase()
-  const source = selectedAccount.value.points.filter((program) => {
-    const matchedKeyword = !keyword || `${program.program_name} ${program.program_id}`.toLowerCase().includes(keyword)
-    if (!matchedKeyword) return false
-    if (!detailOnlyChanged.value) return true
-    return program.diff !== 0 || program.points === '未注册'
-  })
-
-  return [...source].sort((a, b) => {
-    switch (detailSortMode.value) {
-      case 'diff':
-        return (b.diff || 0) - (a.diff || 0)
-      case 'report_time': {
-        const timeA = a.report_time ? new Date(a.report_time).getTime() : 0
-        const timeB = b.report_time ? new Date(b.report_time).getTime() : 0
-        return timeB - timeA
-      }
-      case 'name':
-        return `${a.program_name}`.localeCompare(`${b.program_name}`, 'zh-CN')
-      case 'points':
-      default: {
-        const pointsA = typeof a.points === 'number' ? a.points : -1
-        const pointsB = typeof b.points === 'number' ? b.points : -1
-        return pointsB - pointsA
-      }
-    }
-  })
-})
-
-const unregisteredPrograms = computed(() => selectedAccount.value?.unregisteredPrograms || [])
-
 function openDetails(item) {
   selectedAccount.value = item
-  detailKeyword.value = ''
-  detailSortMode.value = 'points'
-  detailOnlyChanged.value = false
   detailVisible.value = true
 }
 
