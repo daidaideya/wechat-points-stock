@@ -3,6 +3,8 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator
 from datetime import datetime
 
+from app.money import normalize_cash_amount
+
 # --- Stock Management Schemas ---
 
 class StockSchemaBase(BaseModel):
@@ -30,12 +32,17 @@ class ProductBase(StockSchemaBase):
     def normalize_optional_image_url(cls, value: Any):
         return normalize_optional_text(value)
 
-    @field_validator("points", "stock", "cash", mode="before")
+    @field_validator("points", "stock", mode="before")
     @classmethod
     def reject_boolean_numbers(cls, value: Any):
         if isinstance(value, bool):
             raise ValueError("numeric fields must not be boolean")
         return value
+
+    @field_validator("cash", mode="before")
+    @classmethod
+    def normalize_cash(cls, value: Any):
+        return normalize_cash_amount(value, default=0.0)
 
 
 class ProductCreateUpdate(ProductBase):

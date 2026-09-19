@@ -1,6 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app import models, schemas
+from app.money import normalize_cash_amount
 from app.services import cleanup_service
 from app.routers.stock import ensure_product_columns
 from datetime import datetime
@@ -153,14 +154,15 @@ def process_points_report(db: Session, report: schemas.PointsReportRequest):
                     db.add(program)
             
             # 3. Record Points History (points and/or cash)
-            # Round to 4 decimal places to avoid float noise while supporting 0.1-style balances.
+            # Cash is normalized at the API boundary to cents; repeat the
+            # normalization here so direct service callers get the same rule.
             # Missing dimension stays NULL so "not reported" ≠ "zero".
             points_value = None
             if point_data.current_points is not None:
                 points_value = round(float(point_data.current_points), 4)
             cash_value = None
             if point_data.current_cash is not None:
-                cash_value = round(float(point_data.current_cash), 4)
+                cash_value = normalize_cash_amount(point_data.current_cash, "current_cash")
 
             history = models.PointsHistory(
                 wechat_id=account.wechat_id,
@@ -245,7 +247,7 @@ def process_stock_report(db: Session, report: schemas.StockReportRequest):
 
         # Normalize mixed redeem cost: points + optional cash (yuan).
         product_points = int(prod_data.points or 0)
-        product_cash = float(prod_data.cash or 0)
+        product_cash = normalize_cash_amount(prod_data.cash, "cash", default=0.0)
 
         if not product:
             is_new = True

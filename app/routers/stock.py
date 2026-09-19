@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas_stock
 from app.database import get_db
 from app.dependencies import require_ui_access
+from app.money import normalize_cash_amount
 from app.routers.web import (
     ensure_indexes,
     get_all_distinct_tags,
@@ -286,7 +287,7 @@ def create_or_update_product(
         product.product_name = product_in.product_name
         product.image_url = product_in.image_url
         product.points = product_in.points
-        product.cash = float(product_in.cash or 0)
+        product.cash = normalize_cash_amount(product_in.cash, default=0.0)
         if product_in.stock is not None and product.stock != product_in.stock:
             history = models.StockHistory(
                 program_id=product.program_id,
@@ -304,7 +305,7 @@ def create_or_update_product(
             product_name=product_in.product_name,
             image_url=product_in.image_url,
             points=product_in.points,
-            cash=float(product_in.cash or 0),
+            cash=normalize_cash_amount(product_in.cash, default=0.0),
             stock=product_in.stock if product_in.stock is not None else 0,
             is_hidden=0,
             hidden_at=None,
@@ -387,6 +388,11 @@ def get_stock_center(
         raise HTTPException(status_code=422, detail=f"Invalid stock status: {status}")
     if price_mode not in allowed_price_modes:
         raise HTTPException(status_code=422, detail=f"Invalid price mode: {price_mode}")
+
+    try:
+        cash_max = normalize_cash_amount(cash_max, "cash_max")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     keyword = (q or "").strip()
     selected_tag = (tag or "").strip()

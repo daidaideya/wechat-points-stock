@@ -65,6 +65,16 @@ def stock_center_db():
         is_hidden=0,
         is_unlisted=0,
     ))
+    db.add(models.Product(
+        program_id=program.program_id,
+        product_id="cash-product",
+        product_name="现金商品",
+        points=50,
+        cash=1.01,
+        stock=10,
+        is_hidden=0,
+        is_unlisted=0,
+    ))
     db.commit()
 
     try:
@@ -125,7 +135,7 @@ def test_stock_center_etag_changes_for_source_data_mutations(stock_center_db):
     _payload, response = call_center(stock_center_db)
     previous_etag = response.headers["etag"]
 
-    product = stock_center_db.query(models.Product).one()
+    product = stock_center_db.query(models.Product).filter_by(product_id="cache-product").one()
     product.stock = 3
     stock_center_db.commit()
     _payload, response = call_center(stock_center_db)
@@ -225,6 +235,23 @@ def test_stock_center_filter_parameters_are_isolated(stock_center_db):
     assert filtered_payload["total"] == 0
     assert filtered_response.status_code == 200
     assert filtered_response.headers["etag"] != all_etag
+
+
+def test_stock_center_rounds_cash_max_before_filtering(stock_center_db):
+    payload = stock.get_stock_center(
+        page=1,
+        size=20,
+        q=None,
+        tag=None,
+        status="all",
+        price_mode="points_plus_cash",
+        cash_max=1.005,
+        db=stock_center_db,
+    )
+
+    assert payload["total"] == 1
+    assert payload["items"][0]["product_id"] == "cash-product"
+    assert payload["items"][0]["cash"] == 1.01
 
 
 def test_stock_center_wildcard_and_weak_etag_match(stock_center_db):

@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
+from app.money import normalize_cash_amount
+
 
 # These limits are intentionally high enough for normal QingLong reports while
 # preventing an accidentally unbounded JSON array from monopolising the worker.
@@ -125,7 +127,8 @@ class ProgramPointsData(SchemaBase):
     @field_validator("current_cash", mode="before")
     @classmethod
     def coerce_current_cash(cls, value: Union[int, float, str, None]):
-        return coerce_numeric_balance(value, "current_cash")
+        coerced = coerce_numeric_balance(value, "current_cash")
+        return normalize_cash_amount(coerced, "current_cash")
 
     @model_validator(mode="after")
     def require_points_or_cash(self):
@@ -196,7 +199,7 @@ class ProductData(SchemaBase):
         if value is None or value == "":
             return 0.0
         coerced = coerce_numeric_balance(value, "cash")
-        return 0.0 if coerced is None else float(coerced)
+        return normalize_cash_amount(coerced, "cash", default=0.0)
 
     @field_validator("points", mode="before")
     @classmethod
