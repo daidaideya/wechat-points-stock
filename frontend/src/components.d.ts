@@ -62,6 +62,7 @@ declare module 'vue' {
     SettingsQinglongSection: typeof import('./components/SettingsQinglongSection.vue')['default']
     SettingsSectionCard: typeof import('./components/SettingsSectionCard.vue')['default']
     SettingsSectionNav: typeof import('./components/SettingsSectionNav.vue')['default']
+    StockFilterToolbar: typeof import('./components/StockFilterToolbar.vue')['default']
     StockProductCard: typeof import('./components/StockProductCard.vue')['default']
     UserDesktopTable: typeof import('./components/UserDesktopTable.vue')['default']
     UserEditDialog: typeof import('./components/UserEditDialog.vue')['default']

@@ -20,186 +20,37 @@
     <section v-else class="page-stack stock-content-stack">
       <el-card shadow="never" class="stock-table-card stock-gallery-card">
         <template #header>
-          <div class="stock-table-header stock-table-header-stack">
-            <div class="stock-search-bar">
-              <el-input
-                v-model="keywordInput"
-                clearable
-                size="large"
-                placeholder="搜索商品名称 / 商品ID / 小程序名称 / program_id，回车直接搜索"
-                @keyup.enter="applySearch"
-                @clear="applySearch"
-              >
-                <template #append>
-                  <el-button @click="applySearch">搜索</el-button>
-                </template>
-              </el-input>
-              <el-button plain @click="hiddenDrawerVisible = true"> 已隐藏 {{ hiddenTotal }} </el-button>
-              <el-button plain @click="offShelfDrawerVisible = true"> 已下架 {{ offShelfTotal }} </el-button>
-              <el-button type="primary" plain @click="refreshStockCenter" :loading="refreshing">刷新数据</el-button>
-            </div>
-
-            <div class="stock-filter-toolbar">
-              <div class="stock-filter-label-wrap">
-                <div class="stock-filter-badge">标签筛选</div>
-                <div class="stock-filter-title-group">
-                  <span class="stock-filter-label">按小程序标签筛选库存商品</span>
-                  <span class="stock-filter-tip">可快速定位同类商品，点击标签立即切换</span>
-                </div>
-              </div>
-              <div class="stock-tag-list">
-                <button
-                  type="button"
-                  class="stock-tag-chip stock-tag-chip-all"
-                  :class="{ active: currentTag === '' }"
-                  @click="selectTag('')"
-                >
-                  <span class="stock-tag-chip-dot"></span>
-                  <span>全部</span>
-                </button>
-                <button
-                  v-for="tag in availableTags"
-                  :key="tag"
-                  type="button"
-                  class="stock-tag-chip"
-                  :class="{ active: currentTag === tag }"
-                  @click="selectTag(tag)"
-                >
-                  <span class="stock-tag-chip-dot"></span>
-                  <span>{{ tag }}</span>
-                </button>
-                <span v-if="!availableTags.length" class="stock-tag-empty">暂无可筛选标签</span>
-              </div>
-            </div>
-
-            <div class="stock-filter-toolbar stock-price-filter-toolbar">
-              <div class="stock-filter-label-wrap">
-                <div class="stock-filter-badge stock-filter-badge-price">价格筛选</div>
-                <div class="stock-filter-title-group">
-                  <span class="stock-filter-label">按兑换价格类型筛选</span>
-                  <span class="stock-filter-tip">纯积分 / 积分加钱购，可限定加钱金额上限</span>
-                </div>
-              </div>
-              <div class="stock-price-filter-body">
-                <div class="stock-price-mode-list">
-                  <button
-                    type="button"
-                    class="stock-tag-chip stock-tag-chip-all"
-                    :class="{ active: priceMode === 'all' }"
-                    @click="selectPriceMode('all')"
-                  >
-                    <span class="stock-tag-chip-dot"></span>
-                    <span>全部商品 {{ summary.totalProducts }}</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="stock-tag-chip"
-                    :class="{ active: priceMode === 'points_only' }"
-                    @click="selectPriceMode('points_only')"
-                  >
-                    <span class="stock-tag-chip-dot"></span>
-                    <span>纯积分 {{ summary.pointsOnlyProducts }}</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="stock-tag-chip"
-                    :class="{ active: priceMode === 'points_plus_cash' }"
-                    @click="selectPriceMode('points_plus_cash')"
-                  >
-                    <span class="stock-tag-chip-dot"></span>
-                    <span>积分加钱购 {{ summary.mixedProducts }}</span>
-                  </button>
-                </div>
-                <div v-if="priceMode === 'points_plus_cash'" class="stock-cash-cap-panel">
-                  <span class="stock-cash-cap-label">现金上限</span>
-                  <div class="stock-cash-cap-presets">
-                    <button
-                      v-for="preset in CASH_CAP_PRESETS"
-                      :key="preset"
-                      type="button"
-                      class="stock-cash-cap-chip"
-                      :class="{ active: isCashCapPresetActive(preset) }"
-                      @click="applyCashCapPreset(preset)"
-                    >
-                      ≤ ¥{{ formatMoney(preset) }}
-                    </button>
-                    <button
-                      type="button"
-                      class="stock-cash-cap-chip"
-                      :class="{ active: cashCapInput === '' && cashCapValue === null }"
-                      @click="clearCashCap"
-                    >
-                      不限
-                    </button>
-                  </div>
-                  <div class="stock-cash-cap-custom">
-                    <span class="stock-cash-cap-prefix">自定义 ≤ ¥</span>
-                    <el-input
-                      v-model="cashCapInput"
-                      clearable
-                      size="small"
-                      class="stock-cash-cap-input"
-                      placeholder="如 1 / 9.9"
-                      @keyup.enter="applyCashCap"
-                      @clear="clearCashCap"
-                    />
-                    <el-button size="small" type="primary" plain @click="applyCashCap">应用</el-button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="stock-table-summary">
-              <button
-                type="button"
-                class="stock-summary-item"
-                :class="{ active: activeStatus === 'all' }"
-                @click="applyMetricFilter('all')"
-              >
-                总商品 {{ summary.totalProducts }}
-              </button>
-              <button
-                type="button"
-                class="stock-summary-item success"
-                :class="{ active: activeStatus === 'in_stock' }"
-                @click="applyMetricFilter('in_stock')"
-              >
-                有库存 {{ summary.inStockProducts }}
-              </button>
-              <button
-                type="button"
-                class="stock-summary-item danger"
-                :class="{ active: activeStatus === 'out_of_stock' }"
-                @click="applyMetricFilter('out_of_stock')"
-              >
-                无库存 {{ summary.outOfStockProducts }}
-              </button>
-              <button
-                type="button"
-                class="stock-summary-item brand"
-                :class="{ active: activeStatus === 'redeemable' }"
-                @click="applyMetricFilter('redeemable')"
-              >
-                可兑换 {{ summary.redeemableProducts }}
-              </button>
-            </div>
-
-            <div class="stock-toolbar-meta stock-toolbar-meta-compact">
-              <div class="stock-meta-left">
-                <el-tag round effect="plain" type="info">当前结果 {{ totalResults }}</el-tag>
-                <el-tag round effect="plain" type="info">已加载 {{ visibleProducts.length }} 条</el-tag>
-                <el-tag v-if="searchKeyword" round effect="plain" type="warning">关键词：{{ searchKeyword }}</el-tag>
-                <el-tag v-if="currentTag" round effect="plain" type="success">标签：{{ currentTag }}</el-tag>
-                <el-tag v-if="priceMode !== 'all'" round effect="plain" type="warning">
-                  {{ priceModeLabel }}
-                </el-tag>
-                <el-tag v-if="loadedFromCache" round effect="plain" type="success">缓存命中</el-tag>
-              </div>
-              <div class="stock-meta-right">
-                <span class="stock-meta-text">每次下拉自动加载 {{ PAGE_SIZE }} 条</span>
-              </div>
-            </div>
-          </div>
+          <StockFilterToolbar
+            v-model:keyword-input="keywordInput"
+            v-model:cash-cap-input="cashCapInput"
+            :cash-cap-value="cashCapValue"
+            :hidden-total="hiddenTotal"
+            :off-shelf-total="offShelfTotal"
+            :refreshing="refreshing"
+            :available-tags="availableTags"
+            :current-tag="currentTag"
+            :price-mode="priceMode"
+            :price-mode-label="priceModeLabel"
+            :active-status="activeStatus"
+            :search-keyword="searchKeyword"
+            :loaded-from-cache="loadedFromCache"
+            :total-results="totalResults"
+            :visible-count="visibleProducts.length"
+            :page-size="PAGE_SIZE"
+            :cash-cap-presets="CASH_CAP_PRESETS"
+            :summary="summary"
+            :is-cash-cap-preset-active="isCashCapPresetActive"
+            @apply-search="applySearch"
+            @open-hidden="hiddenDrawerVisible = true"
+            @open-off-shelf="offShelfDrawerVisible = true"
+            @refresh="refreshStockCenter"
+            @select-tag="selectTag"
+            @select-price-mode="selectPriceMode"
+            @apply-cash-cap="applyCashCap"
+            @apply-cash-cap-preset="applyCashCapPreset"
+            @clear-cash-cap="clearCashCap"
+            @apply-metric-filter="applyMetricFilter"
+          />
         </template>
 
         <div v-if="loadError" class="program-state-card compact stock-state-card">
@@ -459,9 +310,10 @@
 import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
+import StockFilterToolbar from '../components/StockFilterToolbar.vue'
 import StockProductCard from '../components/StockProductCard.vue'
 import { invalidateStockCache } from '../stockCache'
-import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
+import { formatCashAmount, formatProductPrice, isRedeemable } from '../utils/product'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 import { formatApiDate as formatHiddenAt } from '../utils/date'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
