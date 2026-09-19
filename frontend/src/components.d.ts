@@ -46,6 +46,7 @@ declare module 'vue' {
     PointsAccountCard: typeof import('./components/PointsAccountCard.vue')['default']
     PointsAccountDetailsDrawer: typeof import('./components/PointsAccountDetailsDrawer.vue')['default']
     ProgramCard: typeof import('./components/ProgramCard.vue')['default']
+    ProgramCardActions: typeof import('./components/ProgramCardActions.vue')['default']
     ProgramDetailDataSections: typeof import('./components/ProgramDetailDataSections.vue')['default']
     ProgramDetailDialog: typeof import('./components/ProgramDetailDialog.vue')['default']
     ProgramDetailOverview: typeof import('./components/ProgramDetailOverview.vue')['default']
