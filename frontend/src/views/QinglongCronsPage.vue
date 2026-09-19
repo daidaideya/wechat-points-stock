@@ -87,7 +87,7 @@
         </span>
         <span v-if="excludedCronNames.size" class="points-meta-chip ql-excluded-meta-chip">
           <el-icon><Remove /></el-icon>
-          已排除 {{ excludedCronNames.size }} 个脚本
+          黑名单 {{ excludedCronNames.size }} 个脚本
           <el-button link size="small" type="primary" class="ql-clear-excluded-btn" @click="clearAllExcluded">
             清空
           </el-button>
@@ -266,14 +266,40 @@ const keyword = ref('')
 const showDisabled = ref(false)
 const commandTypeFilter = ref('code') // all | code | other
 
-// 排除名单（不参与一键整理），持久化到 localStorage
+// 黑名单（不参与时间整理），持久化到 localStorage；优先使用青龙任务 ID，避免改名后失效。
 const EXCLUDED_KEY = 'ql_crons_excluded_names'
 const excludedCronNames = ref(loadExcludedNames())
+
+function cronExcludeKey(cron) {
+  const id = cron?.id
+  if (id !== undefined && id !== null && String(id).trim()) return `id:${id}`
+  const name = String(cron?.name || '').trim()
+  return name ? `name:${name}` : ''
+}
+
+function cronExcludeKeys(cron) {
+  const keys = []
+  const primaryKey = cronExcludeKey(cron)
+  if (primaryKey) keys.push(primaryKey)
+  const name = String(cron?.name || '').trim()
+  if (name) {
+    const nameKey = `name:${name}`
+    if (!keys.includes(nameKey)) keys.push(nameKey)
+  }
+  return keys
+}
 
 function loadExcludedNames() {
   try {
     const raw = localStorage.getItem(EXCLUDED_KEY)
-    return raw ? new Set(JSON.parse(raw)) : new Set()
+    const values = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(values)) return new Set()
+    return new Set(
+      values
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+        .map((value) => (value.startsWith('id:') || value.startsWith('name:') ? value : `name:${value}`)),
+    )
   } catch {
     return new Set()
   }
@@ -300,20 +326,21 @@ const planOverflow = ref(false)
 const cronsRequestController = useAbortableRequest()
 
 function isExcluded(cron) {
-  return excludedCronNames.value.has(cron.name || '')
+  return cronExcludeKeys(cron).some((key) => excludedCronNames.value.has(key))
 }
 
 function toggleExclude(cron) {
-  const name = cron.name || ''
-  if (!name) return
-  if (excludedCronNames.value.has(name)) {
-    excludedCronNames.value.delete(name)
-    ElMessage.success(`已将「${name}」移出排除名单，将参与整理`)
+  const keys = cronExcludeKeys(cron)
+  if (!keys.length) return
+  const label = cron.name || cron.id || '未命名任务'
+  if (keys.some((key) => excludedCronNames.value.has(key))) {
+    keys.forEach((key) => excludedCronNames.value.delete(key))
+    ElMessage.success(`已将「${label}」移出黑名单，将参与整理`)
   } else {
-    excludedCronNames.value.add(name)
-    ElMessage.info(`已排除「${name}」，不参与时间整理`)
+    excludedCronNames.value.add(keys[0])
+    ElMessage.info(`已将「${label}」加入黑名单，今后不参与时间整理`)
   }
-  // 触发响应式并持久化
+  // 触发响应式并持久化，刷新页面或重新拉取青龙任务后仍然有效。
   excludedCronNames.value = new Set(excludedCronNames.value)
   saveExcludedNames()
 }
@@ -321,7 +348,7 @@ function toggleExclude(cron) {
 function clearAllExcluded() {
   excludedCronNames.value = new Set()
   saveExcludedNames()
-  ElMessage.success('已清空全部排除名单')
+  ElMessage.success('已清空全部黑名单')
 }
 
 const codeCronsCount = computed(() => scriptCrons.value.filter(isCodeCron).length)

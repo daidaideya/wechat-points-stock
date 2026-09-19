@@ -243,3 +243,336 @@ const cashCapInput = computed({
 const cashCapValue = computed(() => props.cashCapValue)
 const isCashCapPresetActive = (preset) => props.isCashCapPresetActive(preset)
 </script>
+
+<style scoped>
+/* 这些样式属于筛选工具栏本身；组件拆分后不能再依赖 StockPage 的 scoped 样式。 */
+.stock-search-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.stock-search-bar :deep(.el-input) {
+  flex: 1;
+}
+
+.stock-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255, 248, 238, 0.98), rgba(255, 253, 248, 0.92));
+  border: 1px solid rgba(236, 219, 193, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 12px 26px rgba(125, 95, 58, 0.06);
+}
+
+.stock-filter-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.stock-filter-badge {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f5c77e, #e7a95c);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: 0 10px 20px rgba(225, 163, 79, 0.22);
+}
+
+.stock-filter-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stock-filter-label {
+  color: #5f452b;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.stock-filter-tip {
+  color: #9b7e5c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stock-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.stock-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(226, 207, 181, 0.95);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #7c6143;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow: 0 6px 14px rgba(130, 100, 64, 0.05);
+}
+
+.stock-tag-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(226, 175, 102, 0.95);
+  background: rgba(255, 249, 241, 0.96);
+  color: #9a6224;
+  box-shadow: 0 10px 22px rgba(198, 146, 72, 0.14);
+}
+
+.stock-tag-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(233, 184, 110, 0.95), rgba(216, 145, 58, 0.95));
+  box-shadow: 0 0 0 4px rgba(244, 207, 157, 0.3);
+}
+
+.stock-tag-chip.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #f1c983, #df9f50);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(213, 153, 72, 0.28);
+}
+
+.stock-tag-chip.active .stock-tag-chip-dot {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22);
+}
+
+.stock-tag-chip-all {
+  background: rgba(255, 250, 244, 0.92);
+}
+
+.stock-filter-badge-price {
+  background: linear-gradient(135deg, #8ec5ff, #5b9cf5);
+}
+
+.stock-price-filter-toolbar {
+  align-items: flex-start;
+}
+
+.stock-price-filter-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.stock-price-mode-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.stock-cash-cap-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 251, 245, 0.92));
+  box-shadow: inset 0 0 0 1px rgba(186, 214, 248, 0.9);
+}
+
+.stock-cash-cap-label {
+  color: #3b6ea8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stock-cash-cap-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-cash-cap-chip {
+  border: 1px solid rgba(163, 201, 245, 0.95);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f5f98;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.stock-cash-cap-chip:hover {
+  border-color: rgba(91, 156, 245, 0.95);
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.stock-cash-cap-chip.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #74b0f8, #4f8fe8);
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(79, 143, 232, 0.22);
+}
+
+.stock-cash-cap-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stock-cash-cap-prefix {
+  color: #6b8eb8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stock-cash-cap-input {
+  width: 110px;
+}
+
+.stock-cash-cap-input :deep(.el-input__wrapper) {
+  border-radius: 999px;
+}
+
+.stock-tag-empty {
+  color: #ab8d6a;
+  font-size: 13px;
+}
+
+.stock-table-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stock-summary-item {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 245, 229, 0.9);
+  color: #8b5e34;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stock-summary-item.active {
+  background: linear-gradient(135deg, #f0c37c, #d9a25f);
+  color: #fff;
+}
+
+.stock-summary-item.success {
+  background: rgba(220, 252, 231, 0.88);
+  color: #166534;
+}
+
+.stock-summary-item.danger {
+  background: rgba(254, 226, 226, 0.9);
+  color: #b91c1c;
+}
+
+.stock-summary-item.brand {
+  background: rgba(219, 234, 254, 0.88);
+  color: #1d4ed8;
+}
+
+.stock-toolbar-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stock-meta-left {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stock-meta-right {
+  color: #9b7e5c;
+  font-size: 13px;
+}
+
+@media (max-width: 1200px) {
+  .stock-filter-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stock-price-filter-body,
+  .stock-price-mode-list,
+  .stock-cash-cap-panel {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .stock-tag-list {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .stock-search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stock-filter-toolbar {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .stock-filter-label-wrap {
+    align-items: flex-start;
+  }
+
+  .stock-filter-badge {
+    padding: 7px 12px;
+  }
+
+  .stock-tag-list {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .stock-tag-chip {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+
+  .stock-cash-cap-panel {
+    padding: 12px;
+  }
+
+  .stock-cash-cap-input {
+    width: 96px;
+  }
+}
+</style>

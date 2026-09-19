@@ -12,7 +12,7 @@
       <div class="ql-cron-name-row">
         <span class="ql-cron-name">{{ props.cron.name || '(未命名)' }}</span>
         <el-tag v-if="props.cron.is_disabled === 1" size="small" type="danger" effect="plain">已禁用</el-tag>
-        <el-tag v-if="props.excluded" size="small" type="info" effect="plain">已排除</el-tag>
+        <el-tag v-if="props.excluded" size="small" type="info" effect="plain">黑名单</el-tag>
         <el-tag v-if="props.crowded" size="small" type="warning" effect="plain">
           间隔 {{ props.minuteGap }} 分钟
         </el-tag>
@@ -36,7 +36,7 @@
     <div class="ql-cron-actions">
       <el-button size="small" text type="primary" @click="handleEdit">修改时间</el-button>
       <el-button size="small" text :type="props.excluded ? 'warning' : 'info'" @click="handleToggleExclude">
-        {{ props.excluded ? '取消排除' : '排除' }}
+        {{ props.excluded ? '移出黑名单' : '加入黑名单' }}
       </el-button>
     </div>
   </div>

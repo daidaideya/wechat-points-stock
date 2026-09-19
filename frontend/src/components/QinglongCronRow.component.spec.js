@@ -59,7 +59,7 @@ describe('QinglongCronRow', () => {
       '+2',
     ])
     expect(wrapper.text()).toContain('已禁用')
-    expect(wrapper.text()).toContain('已排除')
+    expect(wrapper.text()).toContain('黑名单')
     expect(wrapper.text()).toContain('间隔 3 分钟')
   })
 
@@ -83,7 +83,7 @@ describe('QinglongCronRow', () => {
 
     expect(buttons).toHaveLength(2)
     expect(buttons[0].text()).toBe('修改时间')
-    expect(buttons[1].text()).toBe('排除')
+    expect(buttons[1].text()).toBe('加入黑名单')
 
     await buttons[0].trigger('click')
     await buttons[1].trigger('click')

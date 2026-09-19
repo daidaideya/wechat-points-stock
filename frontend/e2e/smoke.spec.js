@@ -365,6 +365,17 @@ test('stock cards keep their metrics readable in a narrow desktop grid', async (
   await expect(cards).toHaveCount(2)
   await expect(cards.first()).toBeVisible()
 
+  const filterToolbarStyle = await page
+    .locator('.stock-filter-toolbar')
+    .first()
+    .evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { display: style.display, borderRadius: style.borderRadius, padding: style.padding }
+    })
+  expect(filterToolbarStyle.display).toBe('flex')
+  expect(filterToolbarStyle.borderRadius).not.toBe('0px')
+  expect(filterToolbarStyle.padding).not.toBe('0px')
+
   const layouts = await cards.evaluateAll((elements) =>
     elements.map((card) => {
       const image = card.querySelector('.stock-gallery-image-wrap').getBoundingClientRect()
@@ -399,7 +410,7 @@ test('stock cards keep their metrics readable in a narrow desktop grid', async (
   expect(issues).toEqual([])
 })
 
-test('QingLong cron rows render names from the API payload', async ({ page }) => {
+test('QingLong cron rows render names and persist blacklist choices', async ({ page }) => {
   const issues = collectBrowserIssues(page)
 
   await page.unroute('**/api/v1/**')
@@ -440,6 +451,15 @@ test('QingLong cron rows render names from the API payload', async ({ page }) =>
   await expect(rows.nth(0).locator('.ql-cron-command')).toHaveText('python /scripts/code/sync_points.py')
   await expect(rows.nth(1).locator('.ql-cron-command')).toHaveText('python /scripts/code/sync_stock.py')
   await expect(page.getByText('(未命名)', { exact: true })).toHaveCount(0)
+
+  await rows.nth(0).getByRole('button', { name: '加入黑名单' }).click()
+  await expect(rows.nth(0)).toHaveClass(/excluded/)
+  await expect(rows.nth(0)).toContainText('黑名单')
+
+  await page.reload()
+  const reloadedRows = page.locator('.ql-cron-row')
+  await expect(reloadedRows.nth(0)).toHaveClass(/excluded/)
+  await expect(reloadedRows.nth(0).getByRole('button', { name: '移出黑名单' })).toBeVisible()
 
   expect(issues).toEqual([])
 })
