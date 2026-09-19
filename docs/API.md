@@ -93,6 +93,8 @@ Authorization: Bearer <INGEST_TOKEN>
 - `current_points` 与 `current_cash` 至少提供一个；只上报积分的旧脚本仍兼容。
 - 数值必须是有限且非负的数字或数字字符串；缺失的维度会保存为“未上报”，不等于
   `0`。
+- `current_cash` 以元为单位，服务端按两位小数、`ROUND_HALF_UP` 归一化（例如
+  `1.005` 保存为 `1.01`）；旧库仍兼容现有 REAL/Float 列，本规则只约束新写入边界。
 - 单次最多 100 个账号、每个账号最多 500 个程序、总积分行最多 5000 行。
 - `auth_type` 支持 `code`、`token`、`app`；未传时保留已有类型或使用默认类型。
 - 服务端同时写入历史记录和当前余额快照，并按设置裁剪旧历史。
@@ -139,6 +141,7 @@ Authorization: Bearer <INGEST_TOKEN>
 
 - `product_id` 可省略，省略时使用 `product_name` 作为兼容 ID。
 - `cash` 为元；省略或 `0` 表示纯积分商品。
+- 现金金额和库存中心的 `cash_max` 统一按两位小数、`ROUND_HALF_UP` 归一化；旧库中的历史值不会在请求时批量改写。
 - 单次最多 2000 个商品，商品积分、库存、现金价必须非负。
 - 完整快照需要 `snapshot_complete=true`（默认）且数量与
   `expected_product_count` 一致；空快照、部分快照或数量不一致不会自动下架旧商品。
