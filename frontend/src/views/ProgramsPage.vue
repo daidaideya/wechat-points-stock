@@ -254,6 +254,7 @@ import {
   isRedeemable,
 } from '../utils/product'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { useProgramFilters } from '../composables/useProgramFilters'
 import { usePageStateCache } from '../composables/usePageStateCache'
 import { useViewport } from '../composables/useViewport'
@@ -319,8 +320,9 @@ const customTagInput = ref('')
 const stockData = ref(null)
 
 let restoringState = false
-let programsRequestController = null
-let programsRequestSequence = 0
+const programsRequest = useAbortableRequest()
+const detailRequest = useAbortableRequest()
+const stockRequest = useAbortableRequest()
 
 const isTouchLayout = computed(() => viewportWidth.value <= 768)
 const isCompactDialog = computed(() => viewportWidth.value <= 640)
@@ -464,6 +466,7 @@ async function restorePageState() {
 
 async function openDetailDialog(program) {
   if (!program?.program_id) return
+  const request = detailRequest.start()
   detailDialogVisible.value = true
   detailLoading.value = true
   detailData.value = {
@@ -478,17 +481,22 @@ async function openDetailDialog(program) {
     ranking: [],
   }
   try {
-    const { data } = await api.get(`/programs/${program.program_id}`)
+    const { data } = await api.get(`/programs/${program.program_id}`, { signal: request.signal })
+    if (!request.isCurrent()) return
     detailData.value = {
       ...detailData.value,
       ...data,
       has_stock: data?.has_stock ?? program.has_stock,
     }
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(isAppList.value ? '加载 APP 详情失败' : '加载小程序详情失败')
   } finally {
-    detailLoading.value = false
+    if (request.isCurrent()) {
+      detailLoading.value = false
+      request.finish()
+    }
   }
 }
 
@@ -566,18 +574,15 @@ async function fetchPrograms(nextPage = 1, append = false) {
     loading.value = true
   }
 
-  const requestSequence = ++programsRequestSequence
-  if (!append) programsRequestController?.abort()
-  const controller = new AbortController()
-  programsRequestController = controller
+  const request = programsRequest.start()
 
   try {
     loadError.value = false
     const { data } = await api.get('/programs', {
       params: buildProgramParams(nextPage),
-      signal: controller.signal,
+      signal: request.signal,
     })
-    if (requestSequence !== programsRequestSequence) return
+    if (!request.isCurrent()) return
     total.value = data.total || 0
     hasMore.value = Boolean(data.has_more)
     page.value = data.page || nextPage
@@ -587,16 +592,16 @@ async function fetchPrograms(nextPage = 1, append = false) {
     await nextTick()
     initInfiniteScroll()
   } catch (error) {
-    if (requestSequence !== programsRequestSequence || controller.signal.aborted || isRequestCanceled(error)) return
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     loadError.value = true
     if (!append) programs.value = []
     ElMessage.error(isAppList.value ? '加载 APP 列表失败' : '加载小程序列表失败')
   } finally {
-    if (requestSequence === programsRequestSequence) {
+    if (request.isCurrent()) {
       loading.value = false
       loadingMore.value = false
-      programsRequestController = null
+      request.finish()
     }
   }
 }
@@ -791,18 +796,25 @@ function stockRowClassName({ row }) {
 }
 
 async function openStockDialog(program) {
+  if (!program?.program_id) return
+  const request = stockRequest.start()
   stockDialogVisible.value = true
   stockLoading.value = true
   stockData.value = null
   stockChangeExpanded.value = false
   try {
-    const { data } = await api.get(`/programs/${program.program_id}/stock`)
+    const { data } = await api.get(`/programs/${program.program_id}/stock`, { signal: request.signal })
+    if (!request.isCurrent()) return
     stockData.value = data
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     ElMessage.error(getApiErrorMessage(error, '加载库存详情失败'))
   } finally {
-    stockLoading.value = false
+    if (request.isCurrent()) {
+      stockLoading.value = false
+      request.finish()
+    }
   }
 }
 
@@ -892,6 +904,20 @@ watch(
   },
 )
 
+watch(detailDialogVisible, (visible) => {
+  if (!visible) {
+    detailRequest.cancel()
+    detailLoading.value = false
+  }
+})
+
+watch(stockDialogVisible, (visible) => {
+  if (!visible) {
+    stockRequest.cancel()
+    stockLoading.value = false
+  }
+})
+
 // Same component for /programs and /apps — reload when kind switches.
 watch(
   () => listKind.value,
@@ -923,8 +949,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (!restoringState) savePageState()
-  programsRequestSequence += 1
-  programsRequestController?.abort()
 })
 </script>
 

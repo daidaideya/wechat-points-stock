@@ -43,6 +43,11 @@ async function installApiMock(page, options = {}) {
       return
     }
 
+    if (apiPath === '/programs' && options.programsList) {
+      await mockJson(route, options.programsList)
+      return
+    }
+
     if (apiPath === '/accounts' && options.accounts) {
       await mockJson(route, options.accounts)
       return
@@ -144,6 +149,66 @@ test('program detail renders overview, ranking and stock data', async ({ page })
   await expect(page.getByText('库存详情', { exact: true })).toBeVisible()
   await expect(page.getByText('真实详情商品', { exact: true })).toBeVisible()
   await expect(page.getByText('¥12.5', { exact: true })).toBeVisible()
+
+  expect(issues).toEqual([])
+})
+
+test('program list dialogs render API data and close cleanly', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.unroute('**/api/v1/**')
+  await installApiMock(page, {
+    programsList: {
+      items: [
+        {
+          program_id: 'demo',
+          program_name: '弹窗详情小程序',
+          is_favorite: false,
+          tags: ['积分'],
+          note: '弹窗备注',
+          has_stock: true,
+          last_update_time: '2026-09-19T02:20:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      has_more: false,
+      available_tags: ['积分'],
+    },
+    programDetail: {
+      program_id: 'demo',
+      program_name: '弹窗详情小程序',
+      is_favorite: true,
+      tags: ['积分', '热门'],
+      note: '详情弹窗备注',
+      last_update_time: '2026-09-19T02:20:00Z',
+      has_stock: true,
+      ranking: [{ nickname: '弹窗排行用户', wechat_id: 'wx-dialog', points: 888 }],
+    },
+    programStock: {
+      product_count: 1,
+      max_user_points: 999,
+      max_user_cash: 12.5,
+      products: [{ product_name: '弹窗库存商品', points: 300, cash: 9.9, stock: 2 }],
+    },
+  })
+
+  await page.goto('/app/programs')
+  await expect(page.getByText('弹窗详情小程序', { exact: true }).first()).toBeVisible()
+
+  await page.getByTitle('查看详情').click()
+  const detailDialog = page.locator('.showcase-detail-dialog')
+  await expect(detailDialog).toBeVisible()
+  await expect(detailDialog).toContainText('弹窗排行用户')
+  await detailDialog.getByRole('button', { name: '关闭' }).click()
+  await expect(detailDialog).toBeHidden()
+
+  await page.locator('.showcase-card .showcase-icon-button[title="查看库存"]').click()
+  const stockDialog = page.locator('.showcase-stock-dialog')
+  await expect(stockDialog).toBeVisible()
+  await expect(stockDialog).toContainText('弹窗库存商品')
+  await stockDialog.locator('.el-dialog__headerbtn').click()
+  await expect(stockDialog).toBeHidden()
 
   expect(issues).toEqual([])
 })
