@@ -460,16 +460,16 @@ import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import StockProductCard from '../components/StockProductCard.vue'
-import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
+import { invalidateStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 import { formatApiDate as formatHiddenAt } from '../utils/date'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
+import { useStockCenterRequest } from '../composables/useStockCenterRequest'
 import { CASH_CAP_PRESETS, useStockFilters } from '../composables/useStockFilters'
 
 const PAGE_SIZE = 20
-const STOCK_CACHE_TTL = 60 * 1000
 const HIDDEN_PAGE_SIZE = 100
 const OFF_SHELF_PAGE_SIZE = 50
 
@@ -533,10 +533,8 @@ const {
 
 const hiddenRequestController = useAbortableRequest()
 const offShelfRequestController = useAbortableRequest()
+const stockCenterRequestController = useStockCenterRequest({ apiClient: api })
 
-let stockCenterRequest = null
-let stockCenterRequestKey = ''
-let stockCenterAbortController = null
 let stockLoadSequence = 0
 
 const summary = computed(() => serverSummary.value)
@@ -590,51 +588,9 @@ function normalizeStockCenterResponse(data) {
 }
 
 async function fetchStockCenter(params, forceRefresh = false) {
-  const key = JSON.stringify(params)
-  if (!forceRefresh && params.page === 1) {
-    const cached = readStockCache(key, STOCK_CACHE_TTL)
-    if (cached) {
-      loadedFromCache.value = true
-      return cached
-    }
-  }
-
-  if (!forceRefresh && stockCenterRequest && stockCenterRequestKey === key) {
-    loadedFromCache.value = true
-    return stockCenterRequest
-  }
-
-  if (stockCenterRequest && (forceRefresh || stockCenterRequestKey !== key)) {
-    stockCenterAbortController?.abort()
-  }
-
-  loadedFromCache.value = false
-  stockCenterRequestKey = key
-  const controller = new AbortController()
-  stockCenterAbortController = controller
-  const request = api.get('/stock/center', { params, signal: controller.signal }).then(({ data }) => {
-    if (params.page === 1) writeStockCache(key, data)
-    return data
-  })
-  stockCenterRequest = request
-  request.then(
-    () => {
-      if (stockCenterRequest === request) {
-        stockCenterRequest = null
-        stockCenterRequestKey = ''
-        stockCenterAbortController = null
-      }
-    },
-    () => {
-      if (stockCenterRequest === request) {
-        stockCenterRequest = null
-        stockCenterRequestKey = ''
-        stockCenterAbortController = null
-      }
-    },
-  )
-
-  return stockCenterRequest
+  const result = await stockCenterRequestController.fetch(params, forceRefresh)
+  loadedFromCache.value = result.fromCache
+  return result.data
 }
 
 async function loadStockCenter(options = {}) {
@@ -676,7 +632,7 @@ async function loadStockCenter(options = {}) {
       }
     }
   } catch (error) {
-    if (loadSequence === stockLoadSequence) {
+    if (loadSequence === stockLoadSequence && !isRequestCanceled(error)) {
       console.error(error)
       if (!silent || !allProducts.value.length) {
         loadError.value = true
