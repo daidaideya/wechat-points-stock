@@ -14,19 +14,20 @@
 - 本次推进：OPT-015 第十六批将 App 根布局的移动导航断点迁移到共享 `useViewport`，并用桌面加载后切换到 390px 的 Playwright smoke 覆盖动态断点更新；OPT-017 第三十八批记录该跨断点回归，保留 App 既有模板格式边界。
 - 本次推进：OPT-015 第十七批新增 `useViewport` 生命周期组件测试，覆盖初始宽度、跨阈值 resize 和卸载清理；OPT-017 第三十九批将 Vitest 组件测试提升到 `49 passed`。
 - 本次推进：OPT-014 第三十批将 `ProgramDetailPage.vue` 拆为 `ProgramDetailOverview.vue` 与 `ProgramDetailDataSections.vue`，父页收敛为 API/加载/路由编排；OPT-017 第四十一批新增对应组件测试，Vitest 提升到 `53 passed`。
+- 本次推进：OPT-014 第三十一批新增共享 `date.js`，收口 Dashboard、Favorites、Programs、ProgramDetail、Points、Stock、Settings 和 Users 积分详情的 API 日期展示；OPT-015 第十八批让历史无时区时间按 UTC 转 Asia/Shanghai，并让 Points 今日判断复用本地日期 key；OPT-017 第四十二批新增日期工具单测，Node 测试提升到 `33 passed`。
 - 本次推进：OPT-017 第四十批将 `ProgramDetailPage.vue` 完成首轮 Prettier 格式收敛，并把 `ProgramDetailPage.vue`、`FavoritesPage.vue`、`SettingsPage.vue` 纳入 `npm run format:check`；页面业务编排保持不变。
 
 - 仓库：`https://github.com/daidaideya/wechat-points-stock`
 - 本地路径：`D:\mycode\wechat-points-stock`
 - 分支：`main`
-- 快照提交：`d507db6`（2026-09-19）
-- 最新代码提交：`d507db6`，程序详情页已拆分为概览与数据区段组件，父页保留请求、加载、错误和路由编排，并复用商品价格共享纯函数；新增组件测试后 Vitest 为 `53 passed`。共享 `useViewport` 仍有初始宽度、跨阈值 resize 和卸载清理测试，App 根布局移动导航仍覆盖桌面到 390px 的动态断点切换，真实后端 smoke 稳定性、Programs/Apps 共享视口、Stock/QingLong 读取保护和 Users smoke 修复继续保留。
+- 快照提交：`4226751`（2026-09-19）
+- 最新代码提交：`4226751`，API 日期解析、Asia/Shanghai 展示和本地日期判断已由 `frontend/src/utils/date.js` 统一提供，历史无时区 UTC 数据与 Points 今日状态共用同一边界；程序详情页拆分、共享 `useViewport` 测试、真实后端 smoke 稳定性、Programs/Apps 共享视口、Stock/QingLong 读取保护和 Users smoke 修复继续保留。
 - 最新修复：Users 页面按列表卡片自身宽度切换布局，窄桌面不再显示被裁切的宽表格；代码提交为 `4e0ec57`，三浏览器 E2E smoke 当前为 `24 passed`。此前 QingLong 任务数据绑定、Stock 卡片布局和 Points 导航问题已保留在历史提交中。
 - 工作区：OPT-014 已完成 Programs/Apps 指标展示组件、程序卡片第二十三批、详情弹窗、库存弹窗、Stock 商品卡片第五批、Qinglong 时间线行第六批、整理预览弹窗第二十批、Settings 分区导航第二十一批、Settings 共享卡片第二十二批、Users 积分详情弹窗第七批、移动卡片第八批、桌面表格第九批、编辑弹窗第十批、Settings 数据库备份/恢复区第十三批、基础设置区第十四批、青龙联动区第十五批、Bark 推送区第十六批、Dashboard 指标卡第二十四批、Points 账号展示卡第二十五批、Chromium/Firefox/WebKit 跨浏览器第十八批验证和真实后端 Chromium 第十九批验证，并完成八个主页面的首轮桌面视觉 smoke、Settings 四个查询分区 smoke 及 390px 移动导航 Playwright smoke；OPT-015 已完成主要页面错误边界第三批、Dashboard/Favorites/Points/Users 请求取消第四批、ProgramDetail/Settings 读取取消第五批、移动导航可访问性第六批、Settings 导入/刷新 pending 第七批、Settings 页面级写操作 busy 边界第八批、复杂弹窗可访问性第九批、ProgramFilterBar 筛选语义第十批和 Settings 分区导航语义第十一批、QingLong 读取取消第十二批和 Stock 抽屉读取取消第十三批、Programs 共享视口第十四批；OPT-016 已完成当前余额快照第一批和库存快照可信度第二批，库存上报支持完整性元数据并阻止不完整报告误下架；OPT-017 已完成共享层 Prettier 门禁第二批、Users 展示规则测试第三批、本地桌面手工 smoke 第四批、API mock Playwright/CI 第五批、Chromium/Firefox 双浏览器第六批、三浏览器第七批、依赖安全/许可证门禁第八批、真实后端数据 Playwright/CI 第九批、OpenAPI 前端声明生成/漂移门禁第十批、Vitest/Vue Test Utils 组件测试第十一批、UsersPage 格式收敛第十二批、ProgramFilterBar 组件测试第十三批、ProgramMetricStrip 快照告警测试第十四批、QinglongCronPlanDialog 整理预览测试/页面格式门禁第十五批、SettingsSectionNav 导航语义测试第十六批、SettingsSectionCard 共享投影测试第十七批、ProgramCard 程序卡片展示/事件测试第十八批、ProgramDetailDialog 详情弹窗展示/事件测试第十九批、ProgramStockDialog 库存弹窗展示/交互测试第二十批、UserPointsDialog 积分详情弹窗展示/交互测试第二十一批、StockProductCard 库存商品卡展示/交互测试第二十二批、UserMobileCard Users 移动卡片展示/交互测试第二十三批、UserEditDialog 用户编辑弹窗展示/交互测试第二十四批、UserDesktopTable Users 桌面表格展示/交互测试第二十五批、QinglongCronRow 青龙时间线行展示/交互测试第二十六批、四个 Settings 业务区段展示/字段/写操作/文件选择边界测试第二十七批、Dashboard 指标卡展示/激活事件测试第二十八批和 Points 账号卡展示/状态/指标/入口事件测试第二十九批；OPT-018 已完成代码生成的 OpenAPI 基线、CI 漂移检查、PR 模板、前端静态资源引用门禁和 FastAPI 升级后的 OpenAPI 基线同步第四批；OPT-016 的金额精度、标签/身份模型、QingLong 映射及路线图剩余项仍未闭环，后续继续按 `docs/优化路线图.md` 推进
 - 后端静态检查：`python -m compileall -q app tests` 通过
 - 本次推进：OPT-014 追加 Users 窄内容区响应式布局修复（第二十九批），OPT-017 追加 Users 卡片布局回归（第三十三批）；同时保留 QingLong 任务行数据绑定和 Stock 商品卡布局修复。
 - 前端构建：已执行 `npm run build` 通过；构建会生成/刷新 `frontend/dist`
-- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `112 passed`；前端 Node 测试 `npm test` 为 `30 passed`，Vitest 组件测试为 `53 passed`，API 类型漂移检查、Playwright mock Chromium + Firefox + WebKit smoke 共 `24 passed`（含 dialog ARIA/焦点回收、ProgramFilterBar 筛选状态、ProgramMetricStrip 快照告警、ProgramCard 展示与事件、ProgramDetailDialog 加载/关闭/库存入口、ProgramStockDialog 库存摘要/变动展开/加载态、UserPointsDialog 积分/现金格式/空态/加载态、StockProductCard 图片/价格/库存/隐藏事件、Stock 商品卡窄桌面布局和指标无重叠、QingLong 任务名称/命令/时间线回归、Users 窄内容区卡片布局和无横向溢出、UserMobileCard 身份/回退/计数/操作事件、UserEditDialog 编辑/新增/字段/保存/关闭事件、UserDesktopTable 多行/回退/计数/操作事件、QinglongCronRow 状态/时间/操作事件、Qinglong 整理预览、Settings 导航语义和共享卡片投影、Settings 四个业务区段字段/状态/操作事件、DashboardMetricCard 展示/激活事件、PointsAccountCard 状态/指标/Top 小程序/入口事件断言、Points 双抽屉和移动导航回归），真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、扩展后的 `npm run format:check`、`npm run check:resources` 和 `npm run build` 通过；`py -3.11 scripts/export_openapi.py --check` 通过；npm audit、pip-audit 和许可证检查均通过（新增依赖后检查 335 个 npm 包）
+- 回归测试：Python 3.11 下 `py -3.11 -m pytest -q` 为 `112 passed`；前端 Node 测试 `npm test` 为 `33 passed`，Vitest 组件测试为 `53 passed`，Playwright mock Chromium + Firefox + WebKit smoke 共 `24 passed`，真实后端 Chromium smoke 共 `1 passed`，`npm run lint`、扩展后的 `npm run format:check`、`npm run check:resources`、`npm run build`、`py -3.11 scripts/export_openapi.py --check` 和 compileall 均通过；npm audit、pip-audit 和许可证检查继续通过。
 - CI：后端 job 按 compileall → `scripts/export_openapi.py --check` → pytest 执行；前端 job 按 `npm ci` → `npm test` → `npm run test:components` → `npm run lint` → `npm run format:check` → `npm run check:api-types` → `npm run check:resources` → `npm run build` 执行；独立 `dependency-audit` job 执行 npm audit、pip-audit 和许可证检查；独立 `frontend-e2e` job 安装 Chromium + Firefox + WebKit 后执行 mock `npm run test:e2e`；独立 `frontend-real-e2e` job 使用临时 SQLite、seed 脚本和 FastAPI 后执行真实后端 Chromium smoke；secret scan 仍为独立 job
 - 运行可靠性：FastAPI 使用 lifespan 管理 Bark/QingLong 调度器；调度线程可由 Event 唤醒并在关闭时 join
 - 可观测性：API/健康请求返回 `X-Request-ID`，并记录 route、status、duration_ms 等安全 key-value 日志
@@ -93,6 +94,8 @@
 | `frontend/src/composables/useViewport.js` | 统一响应式视口宽度和移动断点监听 |
 | `frontend/src/utils/cron.js` | QingLong cron 解析、时间格式化、类型判断和新任务时间建议等无副作用纯函数 |
 | `frontend/src/utils/cron.test.js` | QingLong cron 纯函数的 Node 内置单元测试 |
+| `frontend/src/utils/date.js` | API 时间戳解析、Asia/Shanghai 展示和本地日期 key，兼容历史无时区 UTC 数据 |
+| `frontend/src/utils/date.test.js` | 日期解析、格式化、空值回退和本地日期判断的 Node 内置单元测试 |
 | `frontend/src/utils/product.js` | 商品金额/价格格式化、可兑换判断和阻断文案等共享纯函数 |
 | `frontend/src/utils/product.test.js` | 商品共享纯函数的 Node 内置单元测试 |
 | `frontend/src/utils/user.js` | 用户手机号兼容判断、微信号/昵称主标识和确定性头像展示函数 |
