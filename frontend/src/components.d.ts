@@ -53,6 +53,7 @@ declare module 'vue' {
     ProgramMaintenanceDialogs: typeof import('./components/ProgramMaintenanceDialogs.vue')['default']
     ProgramMetricStrip: typeof import('./components/ProgramMetricStrip.vue')['default']
     ProgramStockDialog: typeof import('./components/ProgramStockDialog.vue')['default']
+    QinglongCronEditDialog: typeof import('./components/QinglongCronEditDialog.vue')['default']
     QinglongCronPlanDialog: typeof import('./components/QinglongCronPlanDialog.vue')['default']
     QinglongCronRow: typeof import('./components/QinglongCronRow.vue')['default']
     QinglongCronTimeline: typeof import('./components/QinglongCronTimeline.vue')['default']

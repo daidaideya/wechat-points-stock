@@ -212,34 +212,15 @@
       @toggle-exclude="toggleExclude"
     />
 
-    <el-dialog
+    <QinglongCronEditDialog
       v-model="editDialogVisible"
-      title="修改执行时间"
-      :width="isMobile ? '92%' : '480px'"
-      :top="isMobile ? '5vh' : '15vh'"
-    >
-      <div v-if="editingCron" class="ql-edit-dialog">
-        <div class="ql-edit-name">{{ editingCron.name }}</div>
-        <div class="ql-edit-command">{{ editingCron.command }}</div>
-        <el-input
-          id="ql-edit-schedule"
-          v-model="editScheduleText"
-          aria-label="Cron 执行表达式"
-          aria-describedby="ql-edit-schedule-help"
-          placeholder="如 59 14,21 * * *"
-        />
-        <div id="ql-edit-schedule-help" class="ql-edit-preview" role="status" aria-live="polite">
-          <span v-if="editPreviewTimes.length">每日执行：{{ editPreviewTimes.join('、') }}</span>
-          <span v-else class="ql-edit-invalid">无法解析该表达式（支持 分 时 * * *）</span>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="applying" :disabled="!editPreviewTimes.length" @click="applySingleEdit">
-          保存
-        </el-button>
-      </template>
-    </el-dialog>
+      v-model:schedule="editScheduleText"
+      :is-mobile="isMobile"
+      :cron="editingCron"
+      :preview-times="editPreviewTimes"
+      :applying="applying"
+      @save="applySingleEdit"
+    />
 
     <QinglongCronPlanDialog
       v-model="planDialogVisible"
@@ -268,6 +249,7 @@ import {
   Warning,
 } from '@element-plus/icons-vue'
 import api from '../api'
+import QinglongCronEditDialog from '../components/QinglongCronEditDialog.vue'
 import QinglongCronPlanDialog from '../components/QinglongCronPlanDialog.vue'
 import QinglongCronTimeline from '../components/QinglongCronTimeline.vue'
 import { cronKey, formatMinute, getNextCronSlot, isCodeCron, parseDailyMinutes, parseTimeToMinute } from '../utils/cron'
@@ -897,30 +879,6 @@ onMounted(() => {
 
 .ql-plan-alert {
   margin-top: 16px;
-}
-
-.ql-edit-dialog {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ql-edit-name {
-  font-weight: 600;
-}
-
-.ql-edit-command {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.ql-edit-preview {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
-.ql-edit-invalid {
-  color: var(--el-color-danger);
 }
 
 @media (max-width: 900px) {
