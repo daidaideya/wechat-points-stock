@@ -31,8 +31,8 @@
     <el-table-column prop="active_app_count" label="活跃APP" width="100" align="center" />
     <el-table-column label="操作" width="240" fixed="right">
       <template #default="scope">
-        <el-button size="small" @click="emit('edit', scope.row)">编辑</el-button>
-        <el-button size="small" @click="emit('view-points', scope.row)">积分</el-button>
+        <el-button size="small" @click="emit('edit', scope.row, $event)">编辑</el-button>
+        <el-button size="small" @click="emit('view-points', scope.row, $event)">积分</el-button>
         <el-button
           size="small"
           type="danger"

@@ -42,7 +42,14 @@
         </div>
       </div>
 
-      <div v-if="props.loading" class="stock-loading dialog-panel">
+      <div
+        v-if="props.loading"
+        class="stock-loading dialog-panel"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="正在加载库存详情"
+      >
         <el-skeleton :rows="6" animated />
       </div>
       <template v-else>
@@ -80,6 +87,7 @@
             type="button"
             class="stock-change-toggle"
             :aria-expanded="props.changeExpanded ? 'true' : 'false'"
+            aria-controls="stock-change-list"
             @click="toggleChangeExpanded"
           >
             <div class="stock-change-toggle-main">
@@ -99,7 +107,14 @@
             <span class="stock-change-toggle-arrow" :class="{ open: props.changeExpanded }">▾</span>
           </button>
 
-          <div v-show="props.changeExpanded" class="stock-change-list">
+          <div
+            id="stock-change-list"
+            v-show="props.changeExpanded"
+            class="stock-change-list"
+            role="region"
+            aria-label="今日库存变动明细"
+            :aria-hidden="props.changeExpanded ? 'false' : 'true'"
+          >
             <div
               v-for="item in props.stockData.changed_products"
               :key="`${item.change_type}-${item.product_id}`"
@@ -139,6 +154,7 @@
                 <el-image
                   v-if="scope.row.image_url"
                   :src="scope.row.image_url"
+                  :alt="scope.row.product_name || '商品图片'"
                   fit="cover"
                   class="product-thumb"
                   :preview-src-list="[scope.row.image_url]"

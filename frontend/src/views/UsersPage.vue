@@ -9,7 +9,7 @@
           </p>
         </div>
         <div class="users-hero-actions">
-          <el-button type="primary" :icon="Plus" class="users-primary-button" @click="openEdit(null)">
+          <el-button type="primary" :icon="Plus" class="users-primary-button" @click="openEdit(null, $event)">
             新增用户
           </el-button>
         </div>
@@ -88,15 +88,24 @@
     </section>
 
     <UserEditDialog
-      v-model="dialogVisible"
+      :model-value="dialogVisible"
       :editing="Boolean(currentRow)"
       :form="form"
       :saving="saving"
+      @update:model-value="setEditDialogVisible"
+      @closed="restoreEditDialogFocus"
       @update-field="updateFormField"
       @save="saveUser"
     />
 
-    <UserPointsDialog v-model="pointsVisible" :title="pointsTitle" :loading="pointsLoading" :items="pointItems" />
+    <UserPointsDialog
+      :model-value="pointsVisible"
+      :title="pointsTitle"
+      :loading="pointsLoading"
+      :items="pointItems"
+      @update:model-value="setPointsDialogVisible"
+      @closed="restorePointsDialogFocus"
+    />
   </div>
 </template>
 
@@ -125,6 +134,8 @@ const items = ref([])
 const pointItems = ref([])
 const currentRow = ref(null)
 const pointsUser = ref(null)
+const editDialogReturnFocus = ref(null)
+const pointsDialogReturnFocus = ref(null)
 const mobileListRef = ref(null)
 const desktopTableRef = ref(null)
 const usersRequestController = useAbortableRequest()
@@ -158,7 +169,21 @@ function resetForm() {
   form.phone = ''
 }
 
-function openEdit(row) {
+function captureActiveElement() {
+  if (typeof document === 'undefined') return null
+  const activeElement = document.activeElement
+  return activeElement instanceof HTMLElement && activeElement !== document.body ? activeElement : null
+}
+
+function restoreFocus(target) {
+  if (!target) return
+  nextTick(() => {
+    if (target.isConnected && typeof target.focus === 'function') target.focus()
+  })
+}
+
+function openEdit(row, event) {
+  editDialogReturnFocus.value = event?.currentTarget instanceof HTMLElement ? event.currentTarget : captureActiveElement()
   currentRow.value = row
   if (row) {
     form.wechat_id = row.wechat_id || ''
@@ -169,6 +194,26 @@ function openEdit(row) {
     resetForm()
   }
   dialogVisible.value = true
+}
+
+function setEditDialogVisible(value) {
+  dialogVisible.value = value
+}
+
+function restoreEditDialogFocus() {
+  const target = editDialogReturnFocus.value
+  editDialogReturnFocus.value = null
+  restoreFocus(target)
+}
+
+function setPointsDialogVisible(value) {
+  pointsVisible.value = value
+}
+
+function restorePointsDialogFocus() {
+  const target = pointsDialogReturnFocus.value
+  pointsDialogReturnFocus.value = null
+  restoreFocus(target)
 }
 
 function updateFormField(field, value) {
@@ -208,7 +253,7 @@ async function saveUser() {
       device: form.device,
       phone: form.phone,
     })
-    dialogVisible.value = false
+    setEditDialogVisible(false)
     ElMessage.success('保存成功')
     await loadUsersAndBindSort()
   } catch (error) {
@@ -250,8 +295,9 @@ async function removeUser(row) {
   }
 }
 
-async function viewPoints(row) {
+async function viewPoints(row, event) {
   const request = pointsRequestController.start()
+  pointsDialogReturnFocus.value = event?.currentTarget instanceof HTMLElement ? event.currentTarget : captureActiveElement()
   pointsVisible.value = true
   pointsLoading.value = true
   pointsUser.value = row

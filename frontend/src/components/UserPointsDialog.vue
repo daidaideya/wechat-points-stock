@@ -1,6 +1,14 @@
 <template>
-  <el-dialog v-model="dialogModel" :title="props.title" width="900px" class="users-points-dialog">
-    <el-skeleton v-if="props.loading" :rows="6" animated />
+  <el-dialog
+    v-model="dialogModel"
+    :title="props.title"
+    width="900px"
+    class="users-points-dialog"
+    @closed="emit('closed')"
+  >
+    <div v-if="props.loading" role="status" aria-live="polite" aria-busy="true" aria-label="正在加载积分详情">
+      <el-skeleton :rows="6" animated />
+    </div>
     <template v-else>
       <el-empty v-if="!props.items.length" description="暂无积分详情" />
       <div v-else class="users-points-mobile-list">
@@ -65,7 +73,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'closed'])
 
 const dialogModel = computed({
   get: () => props.modelValue,

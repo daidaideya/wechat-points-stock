@@ -4,6 +4,7 @@
     :title="props.editing ? '编辑用户' : '新增用户'"
     width="520px"
     class="users-edit-dialog"
+    @closed="emit('closed')"
   >
     <el-form label-width="90px" class="users-form">
       <el-form-item label="微信号">
@@ -54,7 +55,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'update-field', 'save'])
+const emit = defineEmits(['update:modelValue', 'update-field', 'save', 'closed'])
 
 const dialogModel = computed({
   get: () => props.modelValue,

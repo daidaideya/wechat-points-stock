@@ -22,7 +22,14 @@
         </div>
       </div>
 
-      <div v-if="props.loading" class="stock-loading dialog-panel">
+      <div
+        v-if="props.loading"
+        class="stock-loading dialog-panel"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="正在加载详情"
+      >
         <el-skeleton :rows="6" animated />
       </div>
       <template v-else>

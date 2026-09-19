@@ -249,8 +249,14 @@
       <div v-if="editingCron" class="ql-edit-dialog">
         <div class="ql-edit-name">{{ editingCron.name }}</div>
         <div class="ql-edit-command">{{ editingCron.command }}</div>
-        <el-input v-model="editScheduleText" placeholder="如 59 14,21 * * *" />
-        <div class="ql-edit-preview">
+        <el-input
+          id="ql-edit-schedule"
+          v-model="editScheduleText"
+          aria-label="Cron 执行表达式"
+          aria-describedby="ql-edit-schedule-help"
+          placeholder="如 59 14,21 * * *"
+        />
+        <div id="ql-edit-schedule-help" class="ql-edit-preview" role="status" aria-live="polite">
           <span v-if="editPreviewTimes.length">每日执行：{{ editPreviewTimes.join('、') }}</span>
           <span v-else class="ql-edit-invalid">无法解析该表达式（支持 分 时 * * *）</span>
         </div>
@@ -268,7 +274,7 @@
       :top="isMobile ? '2vh' : '8vh'"
       class="ql-plan-dialog"
     >
-      <div class="ql-plan-summary">
+      <div class="ql-plan-summary" role="status" aria-live="polite">
         <span>
           上午 {{ planForm.startTime }} / 下午 {{ planForm.afternoonStartTime }}，间隔 {{ planForm.intervalMinutes }} 分钟，
           共 {{ planItems.length }} 个{{ planForm.codeOnly ? ' code 版' : '启用' }}脚本（每日 2 次）
@@ -308,6 +314,7 @@
               size="small"
               text
               type="primary"
+              :aria-label="`应用 ${row.name || '该脚本'}`"
               :loading="row.applying"
               @click="applySinglePlanItem(row)"
             >应用</el-button>

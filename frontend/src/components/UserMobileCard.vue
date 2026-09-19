@@ -43,8 +43,8 @@
 
     <div class="users-mobile-actions">
       <div class="users-mobile-actions-main">
-        <el-button size="small" @click="emit('edit', props.item)">编辑</el-button>
-        <el-button size="small" @click="emit('view-points', props.item)">积分</el-button>
+        <el-button size="small" @click="emit('edit', props.item, $event)">编辑</el-button>
+        <el-button size="small" @click="emit('view-points', props.item, $event)">积分</el-button>
         <el-button
           size="small"
           type="danger"

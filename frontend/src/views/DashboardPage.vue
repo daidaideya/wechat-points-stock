@@ -101,7 +101,14 @@
     </section>
 
     <el-dialog v-model="unreportedDialogVisible" title="今天没报的小程序" width="960px" class="dashboard-unreported-dialog">
-      <div v-if="unreportedDialogLoading" class="dashboard-dialog-loading">
+      <div
+        v-if="unreportedDialogLoading"
+        class="dashboard-dialog-loading"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="正在加载未上报小程序"
+      >
         <el-skeleton :rows="8" animated />
       </div>
       <el-empty v-else-if="!allUnreportedPrograms.length" description="今天全部已上报" />
