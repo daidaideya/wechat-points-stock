@@ -4,7 +4,10 @@
       <el-card v-for="item in 4" :key="item" shadow="hover" class="program-card skeleton-card compact">
         <el-skeleton animated>
           <template #template>
-            <el-skeleton-item variant="image" style="width: 100%; height: 168px; border-radius: 18px; margin-bottom: 14px" />
+            <el-skeleton-item
+              variant="image"
+              style="width: 100%; height: 168px; border-radius: 18px; margin-bottom: 14px"
+            />
             <el-skeleton-item variant="h3" style="width: 74%; height: 24px; margin-bottom: 12px" />
             <el-skeleton-item variant="text" style="width: 92%; margin-bottom: 8px" />
             <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 12px" />
@@ -31,12 +34,8 @@
                   <el-button @click="applySearch">搜索</el-button>
                 </template>
               </el-input>
-              <el-button plain @click="hiddenDrawerVisible = true">
-                已隐藏 {{ hiddenTotal }}
-              </el-button>
-              <el-button plain @click="offShelfDrawerVisible = true">
-                已下架 {{ offShelfTotal }}
-              </el-button>
+              <el-button plain @click="hiddenDrawerVisible = true"> 已隐藏 {{ hiddenTotal }} </el-button>
+              <el-button plain @click="offShelfDrawerVisible = true"> 已下架 {{ offShelfTotal }} </el-button>
               <el-button type="primary" plain @click="refreshStockCenter" :loading="refreshing">刷新数据</el-button>
             </div>
 
@@ -267,7 +266,9 @@
               <div class="stock-detail-subline">{{ detailProduct.product_id || '未设置商品ID' }}</div>
               <div class="stock-detail-tag-row">
                 <el-tag round effect="plain">{{ detailProduct.program_name || detailProduct.program_id }}</el-tag>
-                <el-tag round effect="plain" :type="detailProduct.statusTagType">{{ detailProduct.statusLabel }}</el-tag>
+                <el-tag round effect="plain" :type="detailProduct.statusTagType">{{
+                  detailProduct.statusLabel
+                }}</el-tag>
                 <el-tag round effect="plain" :type="detailProduct.redeemable ? 'success' : 'info'">
                   {{ detailProduct.redeemable ? '可兑换' : '不可兑换' }}
                 </el-tag>
@@ -310,12 +311,7 @@
       </template>
     </el-drawer>
 
-    <el-drawer
-      v-model="hiddenDrawerVisible"
-      title="已隐藏商品"
-      size="560px"
-      @open="fetchHiddenProducts()"
-    >
+    <el-drawer v-model="hiddenDrawerVisible" title="已隐藏商品" size="560px">
       <div class="hidden-products-drawer">
         <div class="hidden-products-toolbar">
           <el-input
@@ -355,7 +351,9 @@
             <div v-else class="hidden-product-thumb hidden-product-thumb-empty">无图</div>
             <div class="hidden-product-main">
               <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
-              <div class="hidden-product-meta">{{ item.program_name || item.program_id }} · {{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}</div>
+              <div class="hidden-product-meta">
+                {{ item.program_name || item.program_id }} · {{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}
+              </div>
               <div class="hidden-product-time">隐藏时间：{{ formatHiddenAt(item.hidden_at) }}</div>
             </div>
             <el-button
@@ -372,11 +370,7 @@
       </div>
     </el-drawer>
 
-    <el-drawer
-      v-model="offShelfDrawerVisible"
-      title="已下架商品"
-      size="680px"
-    >
+    <el-drawer v-model="offShelfDrawerVisible" title="已下架商品" size="680px">
       <div class="hidden-products-drawer">
         <div class="hidden-products-toolbar">
           <el-input
@@ -414,7 +408,11 @@
             </div>
 
             <div class="off-shelf-product-list">
-              <div v-for="item in group.products" :key="`${group.program_id}-${item.product_id}`" class="off-shelf-product-item">
+              <div
+                v-for="item in group.products"
+                :key="`${group.program_id}-${item.product_id}`"
+                class="off-shelf-product-item"
+              >
                 <el-image
                   v-if="item.image_url || item.image_local_path"
                   :src="item.image_url || item.image_local_path"
@@ -427,7 +425,9 @@
                 <div class="hidden-product-main">
                   <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
                   <div class="hidden-product-meta">{{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}</div>
-                  <div class="hidden-product-time">下架时间：{{ formatHiddenAt(item.unlisted_at || item.hidden_at) }}</div>
+                  <div class="hidden-product-time">
+                    下架时间：{{ formatHiddenAt(item.unlisted_at || item.hidden_at) }}
+                  </div>
                 </div>
                 <div class="off-shelf-product-actions">
                   <el-button
@@ -436,7 +436,9 @@
                     plain
                     :loading="relistingId === item.id"
                     @click="relistProduct(item, group)"
-                  >恢复上架</el-button>
+                  >
+                    <span>恢复上架</span>
+                  </el-button>
                 </div>
               </div>
             </div>
@@ -460,7 +462,8 @@ import api from '../api'
 import StockProductCard from '../components/StockProductCard.vue'
 import { invalidateStockCache, readStockCache, writeStockCache } from '../stockCache'
 import { formatCashAmount, formatMoney, formatProductPrice, isRedeemable } from '../utils/product'
-import { getApiErrorMessage } from '../utils/apiError'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { CASH_CAP_PRESETS, useStockFilters } from '../composables/useStockFilters'
 
@@ -527,6 +530,9 @@ const {
   resetFilters: resetFilterState,
 } = useStockFilters({ pageSize: PAGE_SIZE })
 
+const hiddenRequestController = useAbortableRequest()
+const offShelfRequestController = useAbortableRequest()
+
 let stockCenterRequest = null
 let stockCenterRequestKey = ''
 let stockCenterAbortController = null
@@ -574,10 +580,12 @@ function normalizeStockCenterResponse(data) {
   availableTags.value = Array.isArray(data?.available_tags) ? data.available_tags : []
 
   const items = Array.isArray(data?.items) ? data.items : []
-  return items.map((item) => normalizeProduct({
-    ...item,
-    tags: Array.isArray(item.tags) ? item.tags : [],
-  }))
+  return items.map((item) =>
+    normalizeProduct({
+      ...item,
+      tags: Array.isArray(item.tags) ? item.tags : [],
+    }),
+  )
 }
 
 function formatHiddenAt(value) {
@@ -610,11 +618,10 @@ async function fetchStockCenter(params, forceRefresh = false) {
   stockCenterRequestKey = key
   const controller = new AbortController()
   stockCenterAbortController = controller
-  const request = api.get('/stock/center', { params, signal: controller.signal })
-    .then(({ data }) => {
-      if (params.page === 1) writeStockCache(key, data)
-      return data
-    })
+  const request = api.get('/stock/center', { params, signal: controller.signal }).then(({ data }) => {
+    if (params.page === 1) writeStockCache(key, data)
+    return data
+  })
   stockCenterRequest = request
   request.then(
     () => {
@@ -753,20 +760,26 @@ const { observe: initObserver } = useInfiniteScroll({
 })
 
 async function fetchHiddenProducts(page = 1) {
+  const request = hiddenRequestController.start()
   hiddenLoading.value = true
   try {
     const keyword = hiddenKeywordInput.value.trim()
     const params = { page, size: HIDDEN_PAGE_SIZE }
     if (keyword) params.q = keyword
-    const { data } = await api.get('/stock/hidden', { params })
+    const { data } = await api.get('/stock/hidden', { params, signal: request.signal })
+    if (!request.isCurrent()) return
     hiddenProducts.value = Array.isArray(data.items) ? data.items.map(normalizeProduct) : []
     hiddenTotal.value = Number(data.total || 0)
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     hiddenProducts.value = []
     ElMessage.error(getApiErrorMessage(error, '加载已隐藏商品失败'))
   } finally {
-    hiddenLoading.value = false
+    if (request.isCurrent()) {
+      hiddenLoading.value = false
+      request.finish()
+    }
   }
 }
 
@@ -778,12 +791,14 @@ async function fetchOffShelfProducts(options = {}) {
   } else {
     offShelfLoading.value = true
   }
+  const request = offShelfRequestController.start()
   try {
     const keyword = offShelfKeywordInput.value.trim()
     const page = append ? offShelfPage.value + 1 : 1
     const params = { page, size: OFF_SHELF_PAGE_SIZE }
     if (keyword) params.q = keyword
-    const { data } = await api.get('/stock/off-shelf', { params })
+    const { data } = await api.get('/stock/off-shelf', { params, signal: request.signal })
+    if (!request.isCurrent()) return
     const nextGroups = Array.isArray(data.items)
       ? data.items.map((group) => ({
           ...group,
@@ -811,6 +826,7 @@ async function fetchOffShelfProducts(options = {}) {
     const loadedCount = offShelfPrograms.value.reduce((sum, group) => sum + (group.products || []).length, 0)
     offShelfHasMore.value = loadedCount < offShelfTotal.value
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     console.error(error)
     if (!append) {
       offShelfPrograms.value = []
@@ -819,8 +835,11 @@ async function fetchOffShelfProducts(options = {}) {
     }
     ElMessage.error(getApiErrorMessage(error, '加载已下架商品失败'))
   } finally {
-    offShelfLoading.value = false
-    offShelfLoadingMore.value = false
+    if (request.isCurrent()) {
+      offShelfLoading.value = false
+      offShelfLoadingMore.value = false
+      request.finish()
+    }
   }
 }
 
@@ -921,12 +940,16 @@ watch(
 watch(hiddenDrawerVisible, (visible) => {
   if (visible) {
     fetchHiddenProducts(1)
+  } else {
+    hiddenRequestController.cancel()
   }
 })
 
 watch(offShelfDrawerVisible, (visible) => {
   if (visible) {
     fetchOffShelfProducts()
+  } else {
+    offShelfRequestController.cancel()
   }
 })
 
@@ -972,7 +995,9 @@ onMounted(async () => {
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(255, 248, 238, 0.98), rgba(255, 253, 248, 0.92));
   border: 1px solid rgba(236, 219, 193, 0.92);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 12px 26px rgba(125, 95, 58, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 12px 26px rgba(125, 95, 58, 0.06);
 }
 .stock-filter-label-wrap {
   display: flex;
