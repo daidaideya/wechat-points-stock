@@ -499,6 +499,10 @@ onBeforeUnmount(() => {
   border-radius: 24px;
 }
 
+.users-list-card {
+  container-type: inline-size;
+}
+
 .users-hero-head,
 .users-list-head {
   display: flex;
@@ -600,6 +604,23 @@ onBeforeUnmount(() => {
 
 .users-mobile-list {
   display: none;
+}
+
+@container (max-width: 1200px) {
+  .users-list-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .users-desktop-table-wrap {
+    display: none;
+  }
+
+  .users-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
 }
 
 @media (max-width: 900px) {

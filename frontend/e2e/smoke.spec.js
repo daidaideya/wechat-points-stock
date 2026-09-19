@@ -43,6 +43,11 @@ async function installApiMock(page, options = {}) {
       return
     }
 
+    if (apiPath === '/accounts' && options.accounts) {
+      await mockJson(route, options.accounts)
+      return
+    }
+
     // Keep the smoke test deterministic and data-independent. Empty but valid
     // payloads exercise the real Vue route/component lifecycle without a
     // running SQLite database or QingLong instance.
@@ -302,6 +307,53 @@ test('QingLong cron rows render names from the API payload', async ({ page }) =>
   await expect(rows.nth(0).locator('.ql-cron-command')).toHaveText('python /scripts/code/sync_points.py')
   await expect(rows.nth(1).locator('.ql-cron-command')).toHaveText('python /scripts/code/sync_stock.py')
   await expect(page.getByText('(未命名)', { exact: true })).toHaveCount(0)
+
+  expect(issues).toEqual([])
+})
+
+test('Users switches to readable cards when the content area is narrow', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.setViewportSize({ width: 1120, height: 900 })
+  await page.unroute('**/api/v1/**')
+  await installApiMock(page, {
+    accounts: {
+      items: [
+        {
+          wechat_id: 'wx-layout-1',
+          nickname: '窄内容区用户',
+          phone: '13800000000',
+          device: 'iPhone',
+          active_program_count: 3,
+          active_app_count: 2,
+        },
+        {
+          wechat_id: 'wx-layout-2',
+          nickname: '第二个用户',
+          phone: '',
+          device: 'Android',
+          active_program_count: 1,
+          active_app_count: 0,
+        },
+      ],
+    },
+  })
+
+  await page.goto('/app/users')
+  const cards = page.locator('.users-mobile-card')
+  await expect(cards).toHaveCount(2)
+  await expect(cards.first()).toBeVisible()
+  await expect(cards.first().locator('.users-mobile-title')).toContainText('窄内容区用户')
+  await expect(cards.first().locator('.users-mobile-meta-value').filter({ hasText: '13800000000' })).toBeVisible()
+  await expect(page.locator('.users-desktop-table-wrap')).toBeHidden()
+
+  const layout = await page.locator('.users-list-card').evaluate((card) => ({
+    clientWidth: card.clientWidth,
+    scrollWidth: card.scrollWidth,
+    cardWidth: card.querySelector('.users-mobile-card').getBoundingClientRect().width,
+  }))
+  expect(layout.cardWidth).toBeLessThanOrEqual(layout.clientWidth)
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1)
 
   expect(issues).toEqual([])
 })
