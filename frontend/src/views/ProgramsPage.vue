@@ -63,224 +63,29 @@
         </el-empty>
       </div>
 
-      <article
+      <ProgramCard
         v-for="(program, index) in programs"
         v-else
         :key="program.program_id"
-        class="showcase-card masonry-card"
-        :class="{
-          'is-favorite': program.is_favorite,
-          'has-stock': program.has_stock,
-          'is-archived': program.is_archived,
-        }"
-      >
-        <div v-if="program.is_archived" class="archived-badge">已归档</div>
-        <div class="showcase-card-top">
-          <div class="showcase-card-brand no-avatar-brand">
-            <div class="showcase-card-brand-text full-width-brand-text">
-              <div class="showcase-card-title-line">
-                <span class="showcase-card-index" :title="`第 ${index + 1} 个`">{{ index + 1 }}</span>
-                <h3
-                  class="showcase-card-title is-copyable"
-                  :class="titleSizeClass(program.program_name || program.program_id)"
-                  :title="`${program.program_name || program.program_id}（点击复制名称）`"
-                  role="button"
-                  tabindex="0"
-                  @click.stop="copyProgramName(program)"
-                  @keydown.enter.prevent="copyProgramName(program)"
-                  @keydown.space.prevent="copyProgramName(program)"
-                >
-                  {{ program.program_name || program.program_id }}
-                </h3>
-                <el-tooltip
-                  v-if="program.ql_status === 'enabled'"
-                  :content="program.ql_cron_name ? `青龙已启用：${program.ql_cron_name}` : '青龙：已启用'"
-                  placement="top"
-                >
-                  <span class="ql-status-badge is-enabled" aria-label="青龙已启用">
-                    <el-icon><CircleCheck /></el-icon>
-                  </span>
-                </el-tooltip>
-                <el-tooltip
-                  v-else-if="program.ql_status === 'disabled'"
-                  :content="program.ql_cron_name ? `青龙已禁用：${program.ql_cron_name}` : '青龙：已禁用'"
-                  placement="top"
-                >
-                  <span class="ql-status-badge is-disabled" aria-label="青龙已禁用">
-                    <el-icon><CircleClose /></el-icon>
-                  </span>
-                </el-tooltip>
-              </div>
-              <div class="showcase-card-meta-row compact-meta-row">
-                <span
-                  class="showcase-card-dot stock-dot"
-                  :class="{ active: isUpdatedToday(program.last_update_time) }"
-                ></span>
-                <span
-                  class="showcase-card-id is-copyable"
-                  :title="`${program.program_id}（点击复制 program_id）`"
-                  role="button"
-                  tabindex="0"
-                  @click.stop="copyProgramId(program)"
-                  @keydown.enter.prevent="copyProgramId(program)"
-                  @keydown.space.prevent="copyProgramId(program)"
-                >{{ program.program_id }}</span>
-                <el-tooltip v-if="program.ql_schedule" :content="formatQlScheduleTooltip(program)" placement="top">
-                  <span class="ql-schedule-chip" :class="`is-${program.ql_status || 'unknown'}`">
-                    <span class="ql-schedule-label">定时</span>
-                    <code class="ql-schedule-code">{{ program.ql_schedule }}</code>
-                  </span>
-                </el-tooltip>
-              </div>
-              <div
-                class="showcase-card-tag-row"
-                role="button"
-                tabindex="0"
-                @click.stop="openTagsDialog(program)"
-                @keydown.enter.prevent="openTagsDialog(program)"
-                @keydown.space.prevent="openTagsDialog(program)"
-              >
-                <span v-if="(program.tags || []).length" class="showcase-chip success inline-tag-chip">
-                  标签：{{ (program.tags || []).join(' / ') }}
-                </span>
-                <span v-else class="showcase-chip warning inline-tag-chip">标签：未设置标签</span>
-              </div>
-              <ProgramMetricStrip :program="program" @open-stock="openStockDialog(program)" />
-            </div>
-          </div>
-        </div>
-
-        <p class="showcase-card-note masonry-note" :class="{ empty: !program.note }">
-          {{ program.note || '暂无备注' }}
-        </p>
-
-        <div class="showcase-card-footer compact-footer">
-          <div class="showcase-footer-meta">
-            <span class="showcase-footer-icon">◔</span>
-            <span class="showcase-footer-time">{{ formatDate(program.last_update_time) }}</span>
-          </div>
-
-          <!-- Mobile primary actions: labeled buttons (icons alone are hard to tap / no hover tooltips) -->
-          <div class="mobile-primary-actions">
-            <button
-              type="button"
-              class="mobile-text-action stock-action"
-              :class="{ 'is-disabled-action': !program.has_stock }"
-              :disabled="!program.has_stock"
-              @click="program.has_stock ? openStockDialog(program) : undefined"
-            >
-              <el-icon><Box /></el-icon>
-              <span>库存</span>
-            </button>
-            <button type="button" class="mobile-text-action detail-action" @click="openDetailDialog(program)">
-              <el-icon><ArrowRight /></el-icon>
-              <span>详情</span>
-            </button>
-          </div>
-
-          <div class="showcase-card-actions footer-actions ref-action-group">
-            <el-tooltip content="编辑备注" placement="top" :disabled="isTouchLayout">
-              <button
-                type="button"
-                class="showcase-icon-button ref-action-button icon-plain-button"
-                title="编辑备注"
-                @click="openNoteDialog(program)"
-              >
-                <el-icon><EditPen /></el-icon>
-              </button>
-            </el-tooltip>
-
-            <!-- Desktop-only icon for stock; mobile uses labeled button above -->
-            <el-tooltip
-              :content="program.has_stock ? '查看库存' : '暂无库存可查看'"
-              placement="top"
-              :disabled="isTouchLayout"
-            >
-              <span class="action-tooltip-wrap desktop-only-action">
-                <button
-                  type="button"
-                  class="showcase-icon-button ref-action-button icon-plain-button"
-                  :class="{ 'is-disabled-action': !program.has_stock }"
-                  :disabled="!program.has_stock"
-                  :title="program.has_stock ? '查看库存' : '暂无库存可查看'"
-                  @click="program.has_stock ? openStockDialog(program) : undefined"
-                >
-                  <el-icon><Box /></el-icon>
-                </button>
-              </span>
-            </el-tooltip>
-
-            <el-tooltip
-              :content="program.is_favorite ? '取消收藏' : '加入收藏'"
-              placement="top"
-              :disabled="isTouchLayout"
-            >
-              <button
-                type="button"
-                class="showcase-icon-button ref-action-button favorite-toggle ref-action-button-favorite icon-plain-button"
-                :class="{ active: program.is_favorite }"
-                :title="program.is_favorite ? '取消收藏' : '加入收藏'"
-                @click="toggleFavorite(program)"
-              >
-                <el-icon v-if="updatingProgramId !== program.program_id"><Star /></el-icon>
-                <span v-else class="showcase-button-loading">...</span>
-              </button>
-            </el-tooltip>
-
-            <el-tooltip
-              :content="(program.tags || []).length ? '编辑标签' : '添加标签'"
-              placement="top"
-              :disabled="isTouchLayout"
-            >
-              <button
-                type="button"
-                class="showcase-icon-button ref-action-button icon-plain-button"
-                title="编辑标签"
-                @click="openTagsDialog(program)"
-              >
-                <el-icon><CollectionTag /></el-icon>
-              </button>
-            </el-tooltip>
-
-            <!-- Desktop-only icon for detail; mobile uses labeled button above -->
-            <el-tooltip content="查看详情" placement="top" :disabled="isTouchLayout">
-              <button
-                type="button"
-                class="showcase-icon-button ref-action-button icon-plain-button desktop-only-action"
-                title="查看详情"
-                @click="openDetailDialog(program)"
-              >
-                <el-icon><ArrowRight /></el-icon>
-              </button>
-            </el-tooltip>
-
-            <el-dropdown trigger="click" placement="top-end" @command="(cmd) => handleProgramCommand(cmd, program)">
-              <button
-                type="button"
-                title="更多操作"
-                class="showcase-icon-button ref-action-button icon-plain-button"
-                :disabled="archivingProgramId === program.program_id || deletingProgramId === program.program_id"
-                @click.stop
-              >
-                <el-icon v-if="archivingProgramId !== program.program_id && deletingProgramId !== program.program_id"><MoreFilled /></el-icon>
-                <span v-else class="showcase-button-loading">...</span>
-              </button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="archive">
-                    <el-icon><Box /></el-icon>
-                    <span>{{ program.is_archived ? '取消归档' : '归档' }}</span>
-                  </el-dropdown-item>
-                  <el-dropdown-item command="delete" divided>
-                    <el-icon><Delete /></el-icon>
-                    <span class="dropdown-danger-text">删除</span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-        </div>
-      </article>
+        :program="program"
+        :index="index"
+        :is-touch-layout="isTouchLayout"
+        :updating-program-id="updatingProgramId"
+        :archiving-program-id="archivingProgramId"
+        :deleting-program-id="deletingProgramId"
+        :title-size-class="titleSizeClass"
+        :is-updated-today="isUpdatedToday"
+        :format-date="formatDate"
+        :format-ql-schedule-tooltip="formatQlScheduleTooltip"
+        @copy-name="copyProgramName"
+        @copy-id="copyProgramId"
+        @open-tags="openTagsDialog"
+        @open-stock="openStockDialog"
+        @open-detail="openDetailDialog"
+        @open-note="openNoteDialog"
+        @toggle-favorite="toggleFavorite"
+        @command="handleProgramCommand"
+      />
     </section>
 
     <div v-if="programs.length && !loadError" ref="loadMoreSentinel" class="infinite-sentinel" aria-hidden="true"></div>
@@ -436,22 +241,11 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import {
-  ArrowRight,
-  Box,
-  CircleCheck,
-  CircleClose,
-  Delete,
-  EditPen,
-  CollectionTag,
-  MoreFilled,
-  Star,
-} from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import api from '../api'
 import ProgramFilterBar from '../components/ProgramFilterBar.vue'
 import ProgramDetailDialog from '../components/ProgramDetailDialog.vue'
-import ProgramMetricStrip from '../components/ProgramMetricStrip.vue'
+import ProgramCard from '../components/ProgramCard.vue'
 import ProgramStockDialog from '../components/ProgramStockDialog.vue'
 import {
   formatMoney,
@@ -2244,7 +2038,6 @@ onBeforeUnmount(() => {
   .showcase-dialog.is-fullscreen :deep(.el-dialog__body) {
     max-height: none;
   }
-
 }
 
 @media (max-width: 480px) {
