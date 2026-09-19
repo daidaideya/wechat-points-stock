@@ -295,7 +295,8 @@ import api from '../api'
 import QinglongCronPlanDialog from '../components/QinglongCronPlanDialog.vue'
 import QinglongCronRow from '../components/QinglongCronRow.vue'
 import { cronKey, formatMinute, getNextCronSlot, isCodeCron, parseDailyMinutes, parseTimeToMinute } from '../utils/cron'
-import { getApiErrorMessage } from '../utils/apiError'
+import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
+import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { useViewport } from '../composables/useViewport'
 
 const { isMobile } = useViewport({ mobileMax: 900 })
@@ -338,6 +339,7 @@ const editScheduleText = ref('')
 const planDialogVisible = ref(false)
 const planItems = ref([])
 const planOverflow = ref(false)
+const cronsRequestController = useAbortableRequest()
 
 function isExcluded(cron) {
   return excludedCronNames.value.has(cron.name || '')
@@ -517,14 +519,20 @@ const crowdedCount = computed(() => {
 const editPreviewTimes = computed(() => parseDailyMinutes(editScheduleText.value).map(formatMinute))
 
 async function loadCrons() {
+  const request = cronsRequestController.start()
   loading.value = true
   try {
-    const { data } = await api.get('/qinglong/crons')
+    const { data } = await api.get('/qinglong/crons', { signal: request.signal })
+    if (!request.isCurrent()) return
     crons.value = data.items || []
   } catch (error) {
+    if (!request.isCurrent() || isRequestCanceled(error)) return
     ElMessage.error(getApiErrorMessage(error, '拉取青龙任务失败'))
   } finally {
-    loading.value = false
+    if (request.isCurrent()) {
+      loading.value = false
+      request.finish()
+    }
   }
 }
 
