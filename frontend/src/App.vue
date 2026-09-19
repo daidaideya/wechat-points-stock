@@ -325,6 +325,7 @@ import {
   UserFilled,
 } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
+import { useViewport } from './composables/useViewport'
 import { isNavigationLoading, preloadStockPage } from './router'
 
 const route = useRoute()
@@ -332,6 +333,7 @@ const mobileNavVisible = ref(false)
 const mobileMenuButtonRef = ref(null)
 const mobileNavPanelRef = ref(null)
 const MOBILE_LAYOUT_MAX = 900
+const { isMobile: isMobileLayout } = useViewport({ mobileMax: MOBILE_LAYOUT_MAX })
 
 const isPublicPage = computed(() => Boolean(route.meta?.public))
 const showNavigationSkeleton = computed(() => !isPublicPage.value && isNavigationLoading.value)
@@ -374,13 +376,9 @@ const pageDescription = computed(() => {
   return descriptions[route.path] || '前后端分离单页应用。'
 })
 
-function isMobileLayout() {
-  return window.matchMedia(`(max-width: ${MOBILE_LAYOUT_MAX}px)`).matches
-}
-
 function openMobileNav() {
   // Guard against desktop accidental open; button is mobile-only by CSS.
-  if (!isMobileLayout()) return
+  if (!isMobileLayout.value) return
   mobileNavVisible.value = true
   void nextTick(() => {
     const firstFocusable = mobileNavPanelRef.value?.querySelector?.(
@@ -424,7 +422,7 @@ const handleMobileMenuSelect = () => {
 
 function handleViewportLayoutChange() {
   // Desktop layout should never keep the mobile panel open.
-  if (!isMobileLayout() && mobileNavVisible.value) {
+  if (!isMobileLayout.value && mobileNavVisible.value) {
     closeMobileNav(false)
   }
 }
@@ -448,32 +446,16 @@ function handleImageViewerOutsideClick(event) {
   }
 }
 
-let mobileMediaQuery = null
-
 onMounted(() => {
   document.addEventListener('click', handleImageViewerOutsideClick, true)
-  window.addEventListener('resize', handleViewportLayoutChange, { passive: true })
-  mobileMediaQuery = window.matchMedia(`(max-width: ${MOBILE_LAYOUT_MAX}px)`)
-  if (mobileMediaQuery.addEventListener) {
-    mobileMediaQuery.addEventListener('change', handleViewportLayoutChange)
-  } else if (mobileMediaQuery.addListener) {
-    mobileMediaQuery.addListener(handleViewportLayoutChange)
-  }
   handleViewportLayoutChange()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleImageViewerOutsideClick, true)
-  window.removeEventListener('resize', handleViewportLayoutChange)
-  if (mobileMediaQuery) {
-    if (mobileMediaQuery.removeEventListener) {
-      mobileMediaQuery.removeEventListener('change', handleViewportLayoutChange)
-    } else if (mobileMediaQuery.removeListener) {
-      mobileMediaQuery.removeListener(handleViewportLayoutChange)
-    }
-    mobileMediaQuery = null
-  }
 })
+
+watch(isMobileLayout, handleViewportLayoutChange)
 
 watch(
   () => route.fullPath,

@@ -382,8 +382,12 @@ test('settings mutations share one busy boundary', async ({ page }) => {
 test('mobile navigation opens and closes at the responsive breakpoint', async ({ page }) => {
   const issues = collectBrowserIssues(page)
 
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 1120, height: 844 })
   await page.goto('/app/dashboard')
+  await expect(page.locator('.mobile-topbar')).toBeHidden()
+  await expect(page.locator('.desktop-sidebar')).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('.mobile-topbar')).toBeVisible()
   await expect(page.locator('.desktop-sidebar')).toBeHidden()
 
