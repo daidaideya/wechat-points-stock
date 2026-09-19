@@ -162,147 +162,26 @@
       </template>
     </el-drawer>
 
-    <el-drawer v-model="hiddenDrawerVisible" title="已隐藏商品" size="560px">
-      <div class="hidden-products-drawer">
-        <div class="hidden-products-toolbar">
-          <el-input
-            v-model="hiddenKeywordInput"
-            clearable
-            placeholder="搜索已隐藏商品"
-            @keyup.enter="fetchHiddenProducts(1)"
-            @clear="fetchHiddenProducts(1)"
-          >
-            <template #append>
-              <el-button @click="fetchHiddenProducts(1)">搜索</el-button>
-            </template>
-          </el-input>
-          <el-tag round effect="plain" type="info">隐藏数 {{ hiddenTotal }}</el-tag>
-        </div>
-
-        <div v-if="hiddenLoading" class="hidden-products-loading">
-          <el-skeleton :rows="5" animated />
-        </div>
-
-        <el-empty v-else-if="!hiddenProducts.length" description="暂无已隐藏商品">
-          <template #description>
-            <p>你隐藏掉的商品会出现在这里。</p>
-          </template>
-        </el-empty>
-
-        <div v-else class="hidden-products-list">
-          <article v-for="item in hiddenProducts" :key="`hidden-${item.id}`" class="hidden-product-card">
-            <el-image
-              v-if="item.image_url || item.image_local_path"
-              :src="item.image_url || item.image_local_path"
-              class="hidden-product-thumb"
-              fit="cover"
-              :preview-src-list="[item.image_url || item.image_local_path]"
-              preview-teleported
-            />
-            <div v-else class="hidden-product-thumb hidden-product-thumb-empty">无图</div>
-            <div class="hidden-product-main">
-              <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
-              <div class="hidden-product-meta">
-                {{ item.program_name || item.program_id }} · {{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}
-              </div>
-              <div class="hidden-product-time">隐藏时间：{{ formatHiddenAt(item.hidden_at) }}</div>
-            </div>
-            <el-button
-              size="small"
-              type="primary"
-              plain
-              :loading="restoringProductId === item.id"
-              @click="restoreProduct(item)"
-            >
-              恢复显示
-            </el-button>
-          </article>
-        </div>
-      </div>
-    </el-drawer>
-
-    <el-drawer v-model="offShelfDrawerVisible" title="已下架商品" size="680px">
-      <div class="hidden-products-drawer">
-        <div class="hidden-products-toolbar">
-          <el-input
-            v-model="offShelfKeywordInput"
-            clearable
-            placeholder="搜索已下架商品 / 小程序"
-            @keyup.enter="fetchOffShelfProducts()"
-            @clear="fetchOffShelfProducts()"
-          >
-            <template #append>
-              <el-button @click="fetchOffShelfProducts()">搜索</el-button>
-            </template>
-          </el-input>
-          <el-tag round effect="plain" type="warning">下架数 {{ offShelfTotal }}</el-tag>
-        </div>
-
-        <div v-if="offShelfLoading" class="hidden-products-loading">
-          <el-skeleton :rows="6" animated />
-        </div>
-
-        <el-empty v-else-if="!offShelfPrograms.length" description="暂无已下架商品">
-          <template #description>
-            <p>自动比对后判定为下架的商品会按小程序聚合展示在这里。</p>
-          </template>
-        </el-empty>
-
-        <div v-else class="off-shelf-program-list">
-          <article v-for="group in offShelfPrograms" :key="group.program_id" class="off-shelf-program-card">
-            <div class="off-shelf-program-head">
-              <div>
-                <div class="off-shelf-program-name">{{ group.program_name || group.program_id }}</div>
-                <div class="off-shelf-program-id">{{ group.program_id }}</div>
-              </div>
-              <el-tag round effect="plain" type="danger">下架 {{ group.total_count || group.count }}</el-tag>
-            </div>
-
-            <div class="off-shelf-product-list">
-              <div
-                v-for="item in group.products"
-                :key="`${group.program_id}-${item.product_id}`"
-                class="off-shelf-product-item"
-              >
-                <el-image
-                  v-if="item.image_url || item.image_local_path"
-                  :src="item.image_url || item.image_local_path"
-                  class="hidden-product-thumb"
-                  fit="cover"
-                  :preview-src-list="[item.image_url || item.image_local_path]"
-                  preview-teleported
-                />
-                <div v-else class="hidden-product-thumb hidden-product-thumb-empty">无图</div>
-                <div class="hidden-product-main">
-                  <div class="hidden-product-name">{{ item.product_name || item.product_id }}</div>
-                  <div class="hidden-product-meta">{{ formatProductPrice(item) }} · 库存 {{ item.stock ?? 0 }}</div>
-                  <div class="hidden-product-time">
-                    下架时间：{{ formatHiddenAt(item.unlisted_at || item.hidden_at) }}
-                  </div>
-                </div>
-                <div class="off-shelf-product-actions">
-                  <el-button
-                    size="small"
-                    type="primary"
-                    plain
-                    :loading="relistingId === item.id"
-                    @click="relistProduct(item, group)"
-                  >
-                    <span>恢复上架</span>
-                  </el-button>
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <div v-if="offShelfHasMore && !offShelfLoading" class="hidden-products-load-more">
-          <el-button plain :loading="offShelfLoadingMore" @click="fetchOffShelfProducts({ append: true })">
-            加载更多
-          </el-button>
-        </div>
-      </div>
-    </el-drawer>
+    <StockManagementDrawers
+      v-model:hidden-visible="hiddenDrawerVisible"
+      v-model:off-shelf-visible="offShelfDrawerVisible"
+      v-model:hidden-keyword-input="hiddenKeywordInput"
+      v-model:off-shelf-keyword-input="offShelfKeywordInput"
+      :hidden-loading="hiddenLoading"
+      :hidden-products="hiddenProducts"
+      :hidden-total="hiddenTotal"
+      :off-shelf-loading="offShelfLoading"
+      :off-shelf-loading-more="offShelfLoadingMore"
+      :off-shelf-programs="offShelfPrograms"
+      :off-shelf-total="offShelfTotal"
+      :off-shelf-has-more="offShelfHasMore"
+      :restoring-product-id="restoringProductId"
+      :relisting-id="relistingId"
+      @fetch-hidden="fetchHiddenProducts(1)"
+      @fetch-off-shelf="fetchOffShelfProducts"
+      @restore="restoreProduct"
+      @relist="relistProduct"
+    />
   </div>
 </template>
 
@@ -311,11 +190,11 @@ import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import StockFilterToolbar from '../components/StockFilterToolbar.vue'
+import StockManagementDrawers from '../components/StockManagementDrawers.vue'
 import StockProductCard from '../components/StockProductCard.vue'
 import { invalidateStockCache } from '../stockCache'
 import { formatCashAmount, formatProductPrice, isRedeemable } from '../utils/product'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
-import { formatApiDate as formatHiddenAt } from '../utils/date'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useStockCenterRequest } from '../composables/useStockCenterRequest'
@@ -1026,9 +905,7 @@ onMounted(async () => {
   container-type: inline-size;
 }
 .stock-detail-image,
-.stock-detail-image-empty,
-.hidden-product-thumb,
-.hidden-product-thumb-empty {
+.stock-detail-image-empty {
   width: 100%;
   height: 168px;
   border-radius: 18px;
@@ -1073,9 +950,7 @@ onMounted(async () => {
   color: #2f2418;
 }
 .stock-detail-subline,
-.stock-detail-subtext,
-.hidden-product-time,
-.off-shelf-program-id {
+.stock-detail-subtext {
   margin-top: 6px;
   color: #9b7e5c;
   font-size: 13px;
@@ -1107,86 +982,6 @@ onMounted(async () => {
   color: #9b7e5c;
   font-size: 13px;
 }
-.hidden-products-drawer {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.hidden-products-load-more {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0 4px;
-}
-.hidden-products-toolbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.hidden-products-toolbar :deep(.el-input) {
-  flex: 1;
-}
-.hidden-products-list,
-.off-shelf-product-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.hidden-product-card,
-.off-shelf-product-item {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
-}
-.hidden-product-thumb,
-.hidden-product-thumb-empty {
-  width: 72px;
-  height: 72px;
-  flex: 0 0 72px;
-}
-.hidden-product-main {
-  flex: 1;
-  min-width: 0;
-}
-.off-shelf-product-actions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-}
-.hidden-product-name,
-.off-shelf-program-name {
-  color: #3a2a1d;
-  font-weight: 700;
-}
-.hidden-product-meta {
-  margin-top: 6px;
-  color: #7b6650;
-  font-size: 13px;
-}
-.off-shelf-program-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.off-shelf-program-card {
-  padding: 16px;
-  border-radius: 20px;
-  background: rgba(255, 250, 245, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(236, 221, 199, 0.92);
-}
-.off-shelf-program-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-.hidden-products-loading {
-  padding: 12px 0;
-}
 .stock-state-card {
   padding: 24px 8px;
 }
@@ -1215,7 +1010,6 @@ onMounted(async () => {
 
 @media (max-width: 900px) {
   .stock-search-bar,
-  .hidden-products-toolbar,
   .stock-detail-hero {
     flex-direction: column;
     align-items: stretch;
