@@ -378,7 +378,7 @@ const pageDescription = computed(() => {
 
 function openMobileNav() {
   // Guard against desktop accidental open; button is mobile-only by CSS.
-  if (!isMobileLayout.value) return
+  if (typeof window !== 'undefined' && window.innerWidth > MOBILE_LAYOUT_MAX) return
   mobileNavVisible.value = true
   void nextTick(() => {
     const firstFocusable = mobileNavPanelRef.value?.querySelector?.(
