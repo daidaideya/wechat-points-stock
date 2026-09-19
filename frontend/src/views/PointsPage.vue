@@ -124,6 +124,7 @@
       <PointsAccountCard
         v-for="item in filteredItems"
         :key="item.account.wechat_id"
+        :item="item"
         :format="formatters"
         @open-details="openDetails"
         @open-unregistered="openUnregistered"

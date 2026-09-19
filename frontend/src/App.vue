@@ -42,8 +42,8 @@
 
       <el-menu :default-active="activeMenu" class="side-menu" router>
         <el-menu-item index="/dashboard">
-          <router-link to="/dashboard" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/dashboard" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><House /></el-icon></span>
               <span class="menu-item-text">仪表盘</span>
               <span class="menu-item-badge">总览</span>
@@ -51,8 +51,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/programs">
-          <router-link to="/programs" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/programs" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><Grid /></el-icon></span>
               <span class="menu-item-text">小程序列表</span>
               <span class="menu-item-badge">检索</span>
@@ -60,8 +60,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/apps">
-          <router-link to="/apps" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/apps" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><Iphone /></el-icon></span>
               <span class="menu-item-text">APP列表</span>
               <span class="menu-item-badge">应用</span>
@@ -69,8 +69,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/users">
-          <router-link to="/users" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/users" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><UserFilled /></el-icon></span>
               <span class="menu-item-text">用户管理</span>
               <span class="menu-item-badge">账号</span>
@@ -78,8 +78,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/points">
-          <router-link to="/points" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/points" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><Histogram /></el-icon></span>
               <span class="menu-item-text">积分总览</span>
               <span class="menu-item-badge">数据</span>
@@ -87,8 +87,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/stock" @mouseenter="preloadStockPageOnIntent" @focusin="preloadStockPageOnIntent">
-          <router-link to="/stock" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/stock" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><Box /></el-icon></span>
               <span class="menu-item-text">库存管理</span>
               <span class="menu-item-badge">库存</span>
@@ -96,8 +96,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/qinglong-crons">
-          <router-link to="/qinglong-crons" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/qinglong-crons" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><Timer /></el-icon></span>
               <span class="menu-item-text">青龙定时</span>
               <span class="menu-item-badge">调度</span>
@@ -105,8 +105,8 @@
           </router-link>
         </el-menu-item>
         <el-menu-item index="/settings">
-          <router-link to="/settings" custom v-slot="{ href }">
-            <a :href="href" class="menu-item-anchor" @click.prevent>
+          <router-link to="/settings" custom v-slot="{ href, navigate }">
+            <a :href="href" class="menu-item-anchor" @click="navigate">
               <span class="menu-item-icon"><el-icon><Setting /></el-icon></span>
               <span class="menu-item-text">系统设置</span>
               <span class="menu-item-badge">配置</span>
@@ -174,8 +174,8 @@
 
         <el-menu :default-active="activeMenu" class="side-menu" router @select="handleMobileMenuSelect">
           <el-menu-item index="/dashboard">
-            <router-link to="/dashboard" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/dashboard" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><House /></el-icon></span>
                 <span class="menu-item-text">仪表盘</span>
                 <span class="menu-item-badge">总览</span>
@@ -183,8 +183,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/programs">
-            <router-link to="/programs" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/programs" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><Grid /></el-icon></span>
                 <span class="menu-item-text">小程序列表</span>
                 <span class="menu-item-badge">检索</span>
@@ -192,8 +192,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/apps">
-            <router-link to="/apps" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/apps" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><Iphone /></el-icon></span>
                 <span class="menu-item-text">APP列表</span>
                 <span class="menu-item-badge">应用</span>
@@ -201,8 +201,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/users">
-            <router-link to="/users" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/users" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><UserFilled /></el-icon></span>
                 <span class="menu-item-text">用户管理</span>
                 <span class="menu-item-badge">账号</span>
@@ -210,8 +210,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/points">
-            <router-link to="/points" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/points" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><Histogram /></el-icon></span>
                 <span class="menu-item-text">积分总览</span>
                 <span class="menu-item-badge">数据</span>
@@ -219,8 +219,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/stock" @mouseenter="preloadStockPageOnIntent" @focusin="preloadStockPageOnIntent">
-            <router-link to="/stock" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/stock" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><Box /></el-icon></span>
                 <span class="menu-item-text">库存管理</span>
                 <span class="menu-item-badge">库存</span>
@@ -228,8 +228,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/qinglong-crons">
-            <router-link to="/qinglong-crons" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/qinglong-crons" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><Timer /></el-icon></span>
                 <span class="menu-item-text">青龙定时整理</span>
                 <span class="menu-item-badge">调度</span>
@@ -237,8 +237,8 @@
             </router-link>
           </el-menu-item>
           <el-menu-item index="/settings">
-            <router-link to="/settings" custom v-slot="{ href }">
-              <a :href="href" class="menu-item-anchor" @click.prevent>
+            <router-link to="/settings" custom v-slot="{ href, navigate }">
+              <a :href="href" class="menu-item-anchor" @click="navigate">
                 <span class="menu-item-icon"><el-icon><Setting /></el-icon></span>
                 <span class="menu-item-text">系统设置</span>
                 <span class="menu-item-badge">配置</span>

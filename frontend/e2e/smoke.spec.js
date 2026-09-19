@@ -100,6 +100,70 @@ test('Users empty form keeps the dialog open and shows validation feedback', asy
   expect(issues).toEqual([])
 })
 
+test('Points account data opens and closes both detail drawers', async ({ page }) => {
+  const issues = collectBrowserIssues(page)
+
+  await page.route('**/api/v1/points', async (route) => {
+    await mockJson(route, {
+      items: [
+        {
+          account: {
+            nickname: '测试账号',
+            wechat_id: 'wx-test',
+            phone: '13800000000',
+            device: 'iPhone',
+          },
+          active_program_count: 1,
+          points: [
+            {
+              program_id: 'program-1',
+              program_name: '积分小程序',
+              points: 100,
+              cash: 2,
+              diff: 5,
+              cash_diff: 0.5,
+              report_time: '2026-09-19T10:00:00+08:00',
+            },
+            {
+              program_id: 'unregistered-1',
+              program_name: '未注册小程序',
+              points: '未注册',
+              cash: '未注册',
+              diff: 0,
+              cash_diff: 0,
+              report_time: '2026-09-19T10:00:00+08:00',
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  await page.goto('/app/points')
+  await expect(page.getByRole('heading', { name: '测试账号' })).toBeVisible()
+  await expect(page.getByText('积分小程序', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '查看明细' }).click()
+  const detailDrawer = page.locator('.points-detail-drawer')
+  await expect(detailDrawer).toBeVisible()
+  await expect(detailDrawer.getByRole('heading', { name: '测试账号' })).toBeVisible()
+  await expect(detailDrawer.getByText('积分小程序', { exact: true })).toBeVisible()
+  await detailDrawer.getByRole('button', { name: '关闭' }).click()
+  await expect(detailDrawer).toBeHidden()
+
+  await page.locator('.points-icon-button').click()
+  const unregisteredDrawer = page.locator('.points-unregistered-drawer')
+  await expect(unregisteredDrawer).toBeVisible()
+  await expect(unregisteredDrawer.getByRole('heading', { name: '未注册小程序' })).toBeVisible()
+  await expect(
+    unregisteredDrawer.locator('.points-unregistered-card').getByText('未注册小程序', { exact: true }),
+  ).toHaveCount(1)
+  await unregisteredDrawer.getByRole('button', { name: '关闭' }).click()
+  await expect(unregisteredDrawer).toBeHidden()
+
+  expect(issues).toEqual([])
+})
+
 test('settings mutations share one busy boundary', async ({ page }) => {
   const issues = collectBrowserIssues(page)
 
