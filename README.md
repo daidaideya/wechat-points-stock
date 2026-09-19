@@ -97,6 +97,10 @@
 
 以下是当前项目中最常用的一组接口，便于快速理解系统能力。
 
+完整的业务接口说明、鉴权边界、上报示例、库存 ETag、备份和上传约束见
+[`docs/API.md`](docs/API.md)；路径、参数和响应 schema 以
+[`docs/openapi.json`](docs/openapi.json) 为机器可读契约。
+
 ### 仪表盘
 
 - `GET /api/v1/dashboard`
