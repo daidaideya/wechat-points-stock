@@ -198,43 +198,19 @@
       />
     </el-card>
 
-    <el-card shadow="never" class="ql-card">
-      <template #header>
-        <div class="ql-card-header">
-          <div>
-            <div class="ql-card-title">当前时间线</div>
-            <div class="ql-card-subtitle">
-              按每日最早触发时间排序；标签表示与前一个任务的间隔，标黄小于 {{ planForm.intervalMinutes }} 分钟，标绿大于
-              {{ planForm.intervalMinutes }} 分钟
-            </div>
-          </div>
-          <div class="ql-card-header-actions">
-            <el-switch v-model="showDisabled" active-text="显示已禁用" />
-          </div>
-        </div>
-      </template>
-
-      <el-skeleton v-if="loading" :rows="8" animated />
-      <el-empty v-else-if="!filteredGroups.length" description="没有匹配的任务" />
-      <template v-else>
-        <div v-for="group in filteredGroups" :key="group.hour" class="ql-hour-group">
-          <div class="ql-hour-label">{{ group.hour >= 0 ? String(group.hour).padStart(2, '0') + ':00' : '其他' }}</div>
-          <div class="ql-hour-rows">
-            <QinglongCronRow
-              v-for="cron in group.crons"
-              :key="cronKey(cron)"
-              :cron="cron"
-              :excluded="isExcluded(cron)"
-              :crowded="isCrowded(cron)"
-              :sparse="isSparse(cron)"
-              :minute-gap="minuteGap(cron)"
-              @edit="openEditDialog"
-              @toggle-exclude="toggleExclude"
-            />
-          </div>
-        </div>
-      </template>
-    </el-card>
+    <QinglongCronTimeline
+      v-model:show-disabled="showDisabled"
+      :loading="loading"
+      :filtered-groups="filteredGroups"
+      :interval-minutes="planForm.intervalMinutes"
+      :cron-key="cronKey"
+      :is-excluded="isExcluded"
+      :is-crowded="isCrowded"
+      :is-sparse="isSparse"
+      :minute-gap="minuteGap"
+      @edit="openEditDialog"
+      @toggle-exclude="toggleExclude"
+    />
 
     <el-dialog
       v-model="editDialogVisible"
@@ -293,7 +269,7 @@ import {
 } from '@element-plus/icons-vue'
 import api from '../api'
 import QinglongCronPlanDialog from '../components/QinglongCronPlanDialog.vue'
-import QinglongCronRow from '../components/QinglongCronRow.vue'
+import QinglongCronTimeline from '../components/QinglongCronTimeline.vue'
 import { cronKey, formatMinute, getNextCronSlot, isCodeCron, parseDailyMinutes, parseTimeToMinute } from '../utils/cron'
 import { getApiErrorMessage, isRequestCanceled } from '../utils/apiError'
 import { useAbortableRequest } from '../composables/useAbortableRequest'
